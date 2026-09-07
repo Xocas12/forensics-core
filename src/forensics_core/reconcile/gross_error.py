@@ -252,13 +252,14 @@ def measurement_test(
     correction : {"sidak", "bonferroni", "none"}
         Multiplicity adjustment for the family of per-measurement tests.
     n_tests : int, optional
-        Size of the test family. Default ``res.n``, the number of measurements: the level
-        split fixed by the interface contract is ``beta = 1 - (1 - alpha)**(1 / n)`` over all
-        ``n`` measurements. Pass ``n_tests=table.attrs["n_redundant"]`` for the less
-        conservative convention of splitting ``alpha`` only over the tests actually performed
-        (a non-redundant measurement has ``Var(a)_ii = 0``, cannot be moved by any constraint,
-        and its ``z`` is ``nan``, so it carries no test); that lowers the critical value and
-        flags more measurements.
+        Size of the test family. Defaults to the number of **testable** measurements, those
+        with a finite ``z``, so the level split is ``beta = 1 - (1 - alpha)**(1 / n_testable)``.
+        A non-redundant measurement has ``Var(a)_ii = 0``, cannot be moved by any constraint
+        and has ``z = nan``, so it carries no test; counting it would inflate the critical
+        value and cost power on the measurements that can actually be tested. This matches
+        :func:`nodal_test`, which counts only testable constraints. Pass ``n_tests=res.n`` for
+        the more conservative convention of splitting ``alpha`` over every measurement. The
+        family size actually used is recorded in ``table.attrs["n_tests"]``.
 
     Returns
     -------
