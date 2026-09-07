@@ -1,18 +1,15 @@
-"""Private helpers shared by the digit tests: input coercion, observation weights, the Kish
-effective sample size and a chi-square goodness-of-fit wrapper.
+"""Private helpers for the bunching subpackage: input coercion, observation weights and the
+Kish effective sample size.
 
-Nothing here is part of the public contract (see INTERFACES.md); the public modules
-re-implement no logic of their own for these chores so that weighting is handled uniformly.
+These duplicate the small helpers other subpackages carry privately so that no subpackage
+imports another's private module (the subpackages are developed concurrently). Nothing here
+is part of the public contract in INTERFACES.md.
 """
 
 from __future__ import annotations
 
 import numpy as np
 from numpy.typing import ArrayLike
-from scipy import stats
-
-#: Absolute tolerance used when a float must be integer-valued (terminal digits, denominators).
-INTEGER_TOL = 1e-9
 
 
 def as_float_array(x: ArrayLike, name: str = "x") -> np.ndarray:
@@ -29,8 +26,8 @@ def as_float_array(x: ArrayLike, name: str = "x") -> np.ndarray:
     Returns
     -------
     numpy.ndarray
-        1-D float64 array (a scalar becomes a length-1 array). Non-finite values are kept;
-        callers decide whether to drop or reject them.
+        1-D float64 array (a scalar becomes a length-1 array). Non-finite values are kept so
+        that callers can drop them and report ``n_dropped``.
     """
     if hasattr(x, "to_numpy"):  # pandas Series / Index: handle nullable dtypes explicitly
         try:
@@ -78,40 +75,17 @@ def kish_effective_n(w: np.ndarray) -> float:
     """Kish (1965, *Survey Sampling*, Wiley, §8.2) effective sample size ``(Σw)² / Σw²``."""
     w = np.asarray(w, dtype=float)
     ss = float(np.sum(w * w))
-    if ss <= 0:
-        raise ValueError("cannot compute an effective sample size from all-zero weights")
+    if ss <= 0.0:
+        return 0.0
     return float(np.sum(w)) ** 2 / ss
 
 
-def chi2_goodness_of_fit(
-    observed_prop: np.ndarray, expected_prop: np.ndarray, effective_n: float
-) -> tuple[float, float, int]:
-    """Pearson chi-square goodness of fit on proportions rescaled to ``effective_n``.
-
-    With unit weights this is exactly ``scipy.stats.chisquare(observed, expected)``. With
-    unequal weights the proportions are rescaled to the Kish effective sample size, which
-    makes the p-value an approximation (it ignores the design-effect heterogeneity across
-    cells that a Rao-Scott correction would capture).
-
-    Returns
-    -------
-    (statistic, pvalue, df)
-    """
-    observed_prop = np.asarray(observed_prop, dtype=float)
-    expected_prop = np.asarray(expected_prop, dtype=float)
-    if observed_prop.shape != expected_prop.shape:
-        raise ValueError("observed and expected proportions must have the same shape")
-    if np.any(expected_prop <= 0):
-        raise ValueError("expected proportions must all be positive")
-    f_obs = observed_prop * effective_n
-    f_exp = expected_prop * effective_n
-    f_exp = f_exp * (f_obs.sum() / f_exp.sum())  # guard scipy's sum-equality check
-    res = stats.chisquare(f_obs, f_exp)
-    return float(res.statistic), float(res.pvalue), int(f_obs.size - 1)
-
-
-def weighted_counts(idx: np.ndarray, w: np.ndarray | None, n_cells: int) -> np.ndarray:
-    """Counts (``int64``) or weighted sums (``float64``) per cell index ``0..n_cells-1``."""
-    if w is None:
-        return np.bincount(idx, minlength=n_cells).astype(np.int64)
-    return np.bincount(idx, weights=w, minlength=n_cells).astype(float)
+def drop_nonfinite(
+    x: np.ndarray, w: np.ndarray | None
+) -> tuple[np.ndarray, np.ndarray | None, int]:
+    """Drop non-finite entries of ``x`` (and the matching weights); return the count dropped."""
+    keep = np.isfinite(x)
+    n_dropped = int(np.sum(~keep))
+    if n_dropped == 0:
+        return x, w, 0
+    return x[keep], (None if w is None else w[keep]), n_dropped
