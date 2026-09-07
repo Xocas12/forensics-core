@@ -230,7 +230,10 @@ class Source(BaseModel):
             #   (b) an acquisition: the bytes are on disk, so local_path AND sha256 exist.
             # Requiring (b) unconditionally would force every source a human confirmed by
             # fetching to be mislabelled until the pipeline downloads it.
-            probed = self.http_status == 200 and bool((self.fetched_at or "").strip())
+            # 206 counts: a ranged request that returns Partial Content proved the file is
+            # there and served its first bytes, which is exactly how large files are probed
+            # without downloading them.
+            probed = self.http_status in (200, 206) and bool((self.fetched_at or "").strip())
             acquired = bool((self.local_path or "").strip())
             if not (probed or acquired):
                 raise ValueError(
