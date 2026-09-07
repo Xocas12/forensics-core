@@ -6,8 +6,9 @@ This module enforces the programme's hard rules for every project:
   ``SOURCES.yaml`` (:class:`Source`), and every fetch attempt (success, HTTP error or
   exception) appends one JSON line to ``<project data dir>/fetch_log.jsonl``
   (:class:`FetchRecord`, :func:`log_fetch`).
-* **Integrity** - a source may only be marked ``verified`` when a SHA-256 digest and a
-  local path are recorded (:func:`sha256_file`).
+* **Integrity** - a source may only be marked ``verified`` on evidence: either a successful
+  probe (HTTP 200/206 at a recorded time) or an acquired file, and any file claimed on disk
+  must carry its SHA-256 digest (:func:`sha256_file`).
 * **Politeness** - :func:`fetch` refuses to touch the network until a real contact string
   is configured (:func:`forensics_core.config.require_contact`), sends it in the
   ``User-Agent``, and paces requests per host with a token bucket (:class:`RateLimiter`).
@@ -134,15 +135,17 @@ class Source(BaseModel):
         How the data can be obtained: ``free``, ``registration``, ``paywalled``,
         ``archive_visit`` or ``manual_transcription``.
     status : Status
-        ``verified`` (downloaded and hashed), ``unverified`` (tried, nothing usable yet),
-        ``blocked`` (refused: paywall, 401/403, robots) or ``partial``.
+        ``verified`` (reached and confirmed to be what it claims, by probe or acquisition),
+        ``unverified`` (tried, nothing usable yet), ``blocked`` (refused: paywall, 401/403,
+        geo-block, WAF) or ``partial`` (partly confirmed).
     fetched_at : str or None
         ISO-8601 UTC timestamp of the last fetch attempt.
     http_status : int or None
         HTTP status of the last attempt.
     sha256, bytes, local_path : str or None, int or None, str or None
         Integrity record of the downloaded file. ``local_path`` is relative to the project
-        directory. Required together when ``status == "verified"``.
+        directory and is ``None`` until the file is actually acquired; whenever it is set,
+        ``sha256`` must be set too.
     license : str or None
         Licence or terms-of-use identifier.
     notes : str
@@ -150,6 +153,16 @@ class Source(BaseModel):
         was tried, so that a later reader does not walk a known dead end again.
     blocked_reason : str or None
         Required (non-empty) when ``status == "blocked"``.
+    evidence : str
+        What the fetch actually returned: status, bytes, content type, and what the content
+        was seen to contain. This is the audit trail behind ``status``.
+    download_plan : str
+        How an idempotent acquirer should fetch this source (URL pattern, pagination,
+        parameters, expected sizes, rate limits), or what a human must do when it is gated.
+    verification : dict or None
+        Result of an INDEPENDENT re-fetch: ``verdict`` (``confirmed``, ``downgrade``,
+        ``refuted`` or ``not_verified``), ``reason``, ``checked_at`` and ``hunt``. A single
+        agent asserting that a URL works is not evidence; this records the second opinion.
 
     Raises
     ------
@@ -173,6 +186,12 @@ class Source(BaseModel):
     license: str | None = None
     notes: str = ""
     blocked_reason: str | None = None
+    # --- research provenance -------------------------------------------------------------
+    # These three are what keep HARD RULE 1 auditable: a reader can see what was actually
+    # fetched, how a pipeline is meant to fetch it, and whether an independent check agreed.
+    evidence: str = ""
+    download_plan: str = ""
+    verification: dict[str, Any] | None = None
 
     @field_validator("access", mode="before")
     @classmethod
