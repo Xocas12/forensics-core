@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import inspect
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -100,6 +101,21 @@ def plan(
     return attempt, skipped
 
 
+def _make_stdout_lenient() -> None:
+    """Stop a non-ASCII source name from killing the run on a legacy console.
+
+    Registry entries legitimately carry Cyrillic and Chinese names. On a Windows console at
+    the default code page, printing one raises UnicodeEncodeError and the process dies before
+    listing a single source. Replacing unencodable characters degrades the display of a few
+    names; failing to print anything at all is worse.
+    """
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        # Not a reconfigurable stream (a pipe under test, a captured buffer): leave it alone.
+        pass
+
+
 def main(
     *,
     project: str,
@@ -107,6 +123,7 @@ def main(
     acquirers: Mapping[str, Callable[..., Any]],
     argv: Sequence[str] | None = None,
 ) -> int:
+    _make_stdout_lenient()
     parser = argparse.ArgumentParser(
         prog=f"python -m {project}.acquire",
         description=f"Acquire the sources registered in projects/{project}/data/SOURCES.yaml.",
