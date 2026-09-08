@@ -576,9 +576,28 @@ detecting arithmetic.
 
 Transferring that discipline is a matter of building the control as its own `Dataset` and
 scoring it with the same fitted detector, then reporting the share of control units above
-whatever threshold was used on the target. Note the gap honestly: `TransferResult` has no
-field for this. The harness gives you the target ranking and the source curve, and the
-control run is something the project must build and report itself.
+whatever threshold was used on the target.
+
+Two objects do this, and they answer different questions.
+
+`transfer(..., controls=[...])` takes control `Dataset`s and returns `control_reports`: for
+each control, the share of its rows at or above every threshold on the source calibration
+curve, computed with the *same fitted instance* that scored the target — which is returned as
+`fitted_detector`. Scoring a control with a refitted copy would measure a sibling of the
+object that made the claim. This is the right object when the detector produces scores and
+the threshold came from the source curve. A `TransferResult` whose `control_reports` is empty
+is not publishable under CONTRACT rule 9, and the empty list is the visible signal that the
+claim has not been made.
+
+`forensics_core.control` is for the case where the detector produces calibrated p-values and
+there is a nominal alpha to hold it to. `control_report` returns a rejection rate per control
+with a verdict — `calibrated`, `anticonservative` or `conservative` — decided against the
+Monte Carlo error at that control's sample size, so the same 8% against a nominal 5% is
+unremarkable at n = 200 and damning at n = 8000. It names the three kinds of control and
+insists they are not equivalent: only an external one is real evidence, and
+`has_external_control()` is what a write-up should check before claiming the rule is
+satisfied. There is deliberately no corpus average, because one anticonservative control is
+the finding and a mean would hide it.
 
 **5. Read the report's own warnings.** `EvalReport.notes` carries skipped folds and the
 in-sample warning; `EvalReport.in_sample` is `True` for `split="none"`; `n_pos_test` says how
