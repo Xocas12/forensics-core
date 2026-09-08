@@ -33,7 +33,7 @@ Design notes and sources
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, runtime_checkable
 
@@ -711,6 +711,14 @@ class TransferResult:
         Names carried through for tabulation.
     n_source_fit : int
         Number of source rows the detector was fitted on.
+    fitted_detector : Detector or None
+        The instance that produced ``scores``. Returned because scoring a control with a
+        *refitted* copy answers a different question: a false-positive rate belongs to the
+        object that made the claim, not to a sibling of it.
+    control_reports : list of dict
+        One entry per control dataset: its name, the number of rows, and the share of them
+        scoring at or above each of the calibration thresholds. Empty when no control was
+        given, and a result with none is not publishable under CONTRACT rule 9.
     """
 
     scores: pd.DataFrame
@@ -720,6 +728,8 @@ class TransferResult:
     source: str = ""
     target: str = ""
     n_source_fit: int = 0
+    fitted_detector: Any = None
+    control_reports: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return jsonable(
@@ -1026,6 +1036,7 @@ def transfer(
     source_spec: EvalSpec | None = None,
     *,
     fit_on: Literal["auto", "labeled", "all"] = "auto",
+    controls: Sequence[Dataset] | None = None,
     max_calibration_points: int = 100,
 ) -> TransferResult:
     """Fit a detector on its home project and score another one with it.
@@ -1043,10 +1054,18 @@ def transfer(
         If given, :func:`evaluate` is run on the source first and the report is carried in
         the result, so the transferred ranking travels with an honest out-of-sample record
         of what the detector did at home.
-    fit_on : {"labeled", "all"}
-        ``"labeled"`` (default, and what the interface contract specifies) fits on the
-        labeled source rows. ``"all"`` fits on every source row, which is what a
-        :class:`PUDetector` wants when the unlabeled pool is informative.
+    fit_on : {"auto", "labeled", "all"}
+        ``"auto"`` (default) asks the detector, through its ``wants_unlabeled`` attribute,
+        and is the only setting under which ``evaluate`` and ``transfer`` are guaranteed to
+        show it the same rows. ``"labeled"`` fits on the labeled source rows; ``"all"`` fits
+        on every source row, which is what a :class:`PUDetector` wants when the unlabeled
+        pool is informative.
+    controls : sequence of Dataset or None
+        Collections where the detector should find little or nothing. Each is scored with
+        the *same fitted instance* that scored the target, and the share of rows at or above
+        each calibration threshold is recorded in ``control_reports``. Scoring a control with
+        a refitted copy would answer a different question: a false-positive rate belongs to
+        the object that made the claim, not to a sibling of it.
     max_calibration_points : int
         Maximum number of rows in the calibration curve.
 
@@ -1060,6 +1079,12 @@ def transfer(
     in-sample and optimistic: it says how the fitted detector orders the source, not how it
     would order fresh source data. Use ``source_spec`` for the honest number and read the
     curve as a translation table for score levels, not as a performance claim.
+
+    A result with an empty ``control_reports`` is not publishable under CONTRACT rule 9,
+    which requires every reported detection to travel with the same detector's behaviour on
+    data where nothing should be found. Nothing here enforces that, because what counts as a
+    control is a substantive claim about the world and cannot be checked in code; but the
+    empty list is the signal that the claim has not been made.
     """
     if not isinstance(source, Dataset) or not isinstance(target, Dataset):
         raise ValueError("source and target must both be Dataset instances")
@@ -1106,6 +1131,21 @@ def transfer(
     calibration = _calibration_curve(
         labeled_source.y_values(), source_scores, max_points=max_calibration_points
     )
+    control_reports: list[dict[str, Any]] = []
+    for ctrl in controls or []:
+        ctrl_scores = _check_scores(
+            fitted.score(ctrl), ctrl, str(getattr(detector, "name", "detector"))
+        )
+        entry: dict[str, Any] = {"control": ctrl.name, "n": int(ctrl_scores.size), "rates": []}
+        for thr in calibration["score_threshold"].to_numpy(dtype=float):
+            entry["rates"].append(
+                {
+                    "score_threshold": float(thr),
+                    "flagged_share": float(np.mean(ctrl_scores >= thr)),
+                }
+            )
+        control_reports.append(entry)
+
     return TransferResult(
         scores=scores_frame,
         source_report=source_report,
@@ -1114,6 +1154,8 @@ def transfer(
         source=source.name,
         target=target.name,
         n_source_fit=len(fit_ds),
+        fitted_detector=fitted,
+        control_reports=control_reports,
     )
 
 
