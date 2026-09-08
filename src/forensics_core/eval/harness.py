@@ -285,6 +285,9 @@ class FunctionDetector:
         more suspicious) holds regardless of the sign the statistic naturally has.
     """
 
+    #: fit is a no-op, so the fit set is irrelevant; declared for the protocol.
+    wants_unlabeled = False
+
     def __init__(
         self,
         func: Callable[[pd.DataFrame], ArrayLike],
@@ -325,6 +328,10 @@ class SklearnDetector:
         ``"auto"`` prefers ``decision_function`` and falls back to ``predict_proba``
         (column of class 1).
     """
+
+    #: A supervised estimator takes the 0s at face value as negatives and has no use for
+    #: rows with no label.
+    wants_unlabeled = False
 
     def __init__(
         self,
@@ -425,6 +432,10 @@ class PUDetector:
         Forwarded to the PU class constructor (``hold_out_ratio``, ``n_estimators``,
         ``random_state``, ...).
     """
+
+    #: PU estimation needs the unlabeled pool: the label-frequency estimate is computed
+    #: against it, so fitting on the labeled rows alone silently changes the method.
+    wants_unlabeled = True
 
     _CLASS_FOR_KIND = {"elkan_noto": "ElkanNotoPU", "bagging": "BaggingPU"}
 
@@ -826,6 +837,42 @@ def _compute_metrics(y: np.ndarray, scores: np.ndarray, spec: EvalSpec) -> dict[
     return out
 
 
+def fit_indices(detector: Detector, ds: Dataset, train_idx: np.ndarray) -> np.ndarray:
+    """The rows a detector should be fitted on, given a fold's training indices.
+
+    A detector that wants the unlabeled pool gets every unlabeled row added to its training
+    set, on top of the fold's own training rows.
+
+    This cannot leak. Test folds are built from labeled rows only, so an unlabeled row is never
+    in a test set, and adding all of them to every training fold tells the detector nothing
+    about the rows it will be scored on. What it does do is give a positive-unlabeled estimator
+    the pool its label-frequency estimate is computed against, without which it is a different
+    method wearing the same name.
+    """
+    if not getattr(detector, "wants_unlabeled", False):
+        return train_idx
+    unlabeled = np.flatnonzero(np.isnan(ds.y_values()))
+    return np.union1d(np.asarray(train_idx), unlabeled)
+
+
+def fit_set(detector: Detector, ds: Dataset) -> Dataset:
+    """The rows a detector should see at fit time.
+
+    A detector declares its own need through ``wants_unlabeled``; the caller does not guess.
+    A positive-unlabeled estimator needs the unlabeled pool, because that pool is what its
+    label-frequency estimate is computed against, and handing it only the labeled rows turns it
+    into something else without any error being raised.
+
+    :func:`evaluate` and :func:`transfer` both route through here. They used to choose
+    differently, so a ``source_report`` was not strictly a report on the object that scored the
+    target, which is the comparison the whole transfer design rests on.
+    """
+    if getattr(detector, "wants_unlabeled", False):
+        return ds
+    labeled = ds.labeled()
+    return labeled if len(labeled) else ds
+
+
 def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport:
     """Fit and score ``detector`` on ``ds`` under ``spec``, and report rank metrics.
 
@@ -883,7 +930,7 @@ def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport:
     per_fold: list[dict] = []
     for i, (train_idx, test_idx) in enumerate(folds):
         fold_detector = copy.deepcopy(detector)
-        fold_detector.fit(ds.take(train_idx))
+        fold_detector.fit(ds.take(fit_indices(fold_detector, ds, train_idx)))
         test_ds = ds.take(test_idx)
         scores = _check_scores(fold_detector.score(test_ds), test_ds, getattr(detector, "name", ""))
         y_test = y_all[test_idx]
@@ -978,7 +1025,7 @@ def transfer(
     target: Dataset,
     source_spec: EvalSpec | None = None,
     *,
-    fit_on: Literal["labeled", "all"] = "labeled",
+    fit_on: Literal["auto", "labeled", "all"] = "auto",
     max_calibration_points: int = 100,
 ) -> TransferResult:
     """Fit a detector on its home project and score another one with it.
@@ -1021,8 +1068,8 @@ def transfer(
             "detector must implement the Detector protocol (name, fit, score); got "
             f"{type(detector).__name__}"
         )
-    if fit_on not in ("labeled", "all"):
-        raise ValueError(f"fit_on must be 'labeled' or 'all'; got {fit_on!r}")
+    if fit_on not in ("labeled", "all", "auto"):
+        raise ValueError(f"fit_on must be 'auto', 'labeled' or 'all'; got {fit_on!r}")
     if source.y is None:
         raise ValueError("transfer needs labels on the source dataset")
     if len(target) == 0:
@@ -1033,7 +1080,10 @@ def transfer(
     labeled_source = source.labeled()
     if len(labeled_source) == 0:
         raise ValueError("source dataset has no labeled rows to fit on")
-    fit_ds = labeled_source if fit_on == "labeled" else source
+    if fit_on == "auto":
+        fit_ds = fit_set(detector, source)
+    else:
+        fit_ds = labeled_source if fit_on == "labeled" else source
 
     fitted = copy.deepcopy(detector)
     fitted.fit(fit_ds)
