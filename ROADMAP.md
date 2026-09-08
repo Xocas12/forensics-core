@@ -173,7 +173,10 @@ When the card and its whitelist do not determine a choice, **file an ambiguity r
 the session.** Choosing the reasonable default is a violation. Filing an ambiguity report is
 correct behaviour, not failure.
 
-The full rules are in [`CONTRACT.md`](CONTRACT.md), written by WO-000.
+The full rules are in [`CONTRACT.md`](CONTRACT.md): thirteen of them, each stating what a
+violation looks like concretely and what catches it. The file is identical in all three
+repositories, and `test_contract.py` freezes the rule numbers, because `gosplan/seal.py`
+cites rule 5 and `eval/harness.py` cites rule 9 by number.
 
 ## Standing warning
 
