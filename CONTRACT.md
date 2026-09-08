@@ -152,9 +152,15 @@ that produced the claim.
 A detector that fires on 30% of clean units and 40% of suspect ones has found nothing, and the 40%
 alone reads as a discovery.
 
-**Status:** the control corpus this rule refers to does not exist yet; it is
-[WO-103](https://github.com/Xocas12/forensics-core/issues/14). Until it does, the rule binds
-through whatever controls a card names.
+**Status:** the machinery exists — `forensics_core.control` defines the corpus, the three
+kinds of control and the calibration verdict ([WO-103](https://github.com/Xocas12/forensics-core/issues/14)).
+The real external control tables do not. Poland 2010 and Spain 2011 come out of the Kobak,
+Shpilkin and Pshenichnikov supplement via
+[WO-204](https://github.com/Xocas12/forensic-elections/issues/5), which is itself waiting on
+[WO-200](https://github.com/Xocas12/forensic-elections/issues/1) to run the acquisition for
+real. Until that chain completes, every corpus that can be built is within-dataset or
+synthetic and `has_external_control()` returns `False` for all of them, which is the honest
+state rather than a bug.
 
 **A violation looks like:** reporting that a detector flagged 12 of 40 regions, without saying what
 it flagged among regions with no reason for suspicion. Constructing a fresh detector of the same
