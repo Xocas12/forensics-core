@@ -50,3 +50,19 @@ Every statistical routine is pure (no I/O, no globals, no plotting) and returns 
 - `reconcile/` is lifted from chemical process data reconciliation. "Reported flows violate
   conservation; find the minimum perturbation restoring feasibility; flag the nodes needing
   large corrections" is mature engineering, and its vocabulary is used deliberately.
+
+## Related repositories
+
+Five repositories, one programme. All public.
+
+| Repository | What it is | State |
+|---|---|---|
+| [psephos](https://github.com/Xocas12/psephos) | standalone election anomaly-detection tool, CLI and library | **works**; 47 tests |
+| [forensics-core](https://github.com/Xocas12/forensics-core) | the shared research method library | scaffold; 605 tests, no analysis run |
+| [forensic-elections](https://github.com/Xocas12/forensic-elections) | Russian federal elections, the calibration project | scaffold; 736 tests, no analysis run |
+| [forensic-economy](https://github.com/Xocas12/forensic-economy) | accounting enforcement, Chinese provincial statistics, Soviet statistics | scaffold; 995 tests, no analysis run |
+| [gosplan-env](https://github.com/Xocas12/gosplan-env) | multi-agent environment where reporting pathologies emerge from incentives | skeleton; nothing run |
+
+The four research repositories work under a discipline that forbids running anything before its
+gate, and none of them contains a result. psephos is deliberately the opposite: it is meant to
+be run today.
