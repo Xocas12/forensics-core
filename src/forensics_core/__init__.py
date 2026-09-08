@@ -15,7 +15,18 @@ docs/method_transfer.md at the repository root for how a method calibrated on on
 is carried to another.
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
+
 from forensics_core._types import TestResult
 
 __all__ = ["TestResult", "__version__"]
-__version__ = "0.1.0"
+
+# Read from installed metadata rather than a literal. The literal had drifted to 0.1.0 while
+# pyproject.toml said 0.3.0 and core-v0.2.0 and core-v0.3.0 had both been tagged, so anything
+# stamping a provenance record with __version__ would have recorded a release that did not
+# contain the code it ran. A stored power atlas does exactly that.
+try:
+    __version__ = _version("forensics-core")
+except PackageNotFoundError:  # pragma: no cover - running from a source tree, not installed
+    __version__ = "0.0.0+unknown"
