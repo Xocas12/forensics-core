@@ -1,6 +1,6 @@
 [project]
 name = "forensics-core"
-version = "0.1.0"
+version = "0.3.0"
 description = "Shared method library for statistical forensics of strategically reported data: digit tests, bunching at incentive notches, underdispersion, flow reconciliation, PU learning, rank-metric evaluation, provenance."
 requires-python = ">=3.12"
 license = { text = "MIT" }

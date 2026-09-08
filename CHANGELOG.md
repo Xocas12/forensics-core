@@ -8,6 +8,28 @@ code against that contract and a silent change there breaks them both.
 
 Tags are `core-vX.Y.Z`. A project repository moves to a release with `scripts/bump_core.sh`.
 
+## 0.3.0
+
+- `CONTRACT.md`: the thirteen rules that bind every session, identical in all three
+  repositories (WO-000). No INTERFACES change. Two files already cited it by rule number
+  before it existed — `gosplan/seal.py` cites rule 5, `eval/harness.py` cites rule 9 — and
+  `tests/test_contract.py` freezes the numbering so those citations cannot silently come to
+  mean something else.
+- `control.py`: the control corpus and the false-positive budget (WO-103). INTERFACES change:
+  new public module. `Control`, `ControlReport`, `control_report`, `from_rejections`,
+  `worst_verdict`, `has_external_control`, `format_control_table`. The verdict is decided
+  against the Monte Carlo error at the control's own sample size, so the same excess is
+  calibrated at small n and anticonservative at large n. There is deliberately no corpus
+  average.
+- `eval/harness.py`: `transfer` gained `controls=`, and `TransferResult` gained
+  `fitted_detector` and `control_reports` (WO-105). INTERFACES change: two new fields and one
+  new keyword argument, both additive. Controls are scored with the instance that scored the
+  target, because a false-positive rate belongs to the object that made the claim rather than
+  to a refitted sibling of it. Also imports `Sequence`, which the new signature used without
+  it; lazy annotations hid this from every test.
+- `pyproject.toml`: version corrected to match the tag. It read `0.1.0` throughout the 0.2.0
+  release.
+
 ## 0.2.0
 
 - `notches.py`: the declarative notch catalogue (WO-104). `NotchEntry`, `load_notches`,
