@@ -1,0 +1,47 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    # pyproject requires >=3.12; the matrix is what makes that claim tested rather than stated.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --all-extras
+      - run: uv run pytest -q
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+      - run: uv sync --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  no-analysis-before-its-phase:
+    # CONTRACT rule 4. Every module under any analysis/ must still be a stub. This is the one
+    # invariant a passing test suite would not catch, because an implemented analysis module
+    # passes its tests perfectly well.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: no analysis module has been implemented
+        run: |
+          set -e
+          found=0
+          for f in $(find src -path '*/analysis/*.py' -not -name '__init__.py' 2>/dev/null); do
+            if ! grep -q "NotImplementedError" "$f"; then
+              echo "ERROR: $f contains no NotImplementedError; analysis has been implemented"
+              found=1
+            fi
+          done
+          exit $found
