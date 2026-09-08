@@ -8,6 +8,15 @@ code against that contract and a silent change there breaks them both.
 
 Tags are `core-vX.Y.Z`. A project repository moves to a release with `scripts/bump_core.sh`.
 
+## 0.2.0
+
+- `notches.py`: the declarative notch catalogue (WO-104). `NotchEntry`, `load_notches`,
+  `validate_notches` and `scan_all`. INTERFACES change: new public module. `incentive` and
+  `evidence` are mandatory on every entry, so a catalogue cannot record a bare round number.
+  `scan_all` passes `bunching_side` through, without which a reward-above notch scores
+  negative and ranks last.
+- CI, a release procedure and the `submodule-parity` job (WO-002).
+
 ## 0.1.0
 
 First release. The library as built during scaffolding, plus the P1 work landed since.
