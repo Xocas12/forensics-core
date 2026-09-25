@@ -1,0 +1,59 @@
+<!doctype html>
+<!--
+  SYNTHETIC fixture. Not a copy of any SEC page: it mimics the structure that the registry
+  entry `aaer_listing_secgov` describes (a table of Date / Respondent(s) / Release No(s) with a
+  link to a PDF, and an "N to M of K items" pager) using obviously artificial values. AAER
+  numbers here are in the 9000s, respondents are named SYNTHETIC, and the release numbers are
+  six digits so that no row can be mistaken for a real enforcement action.
+
+  Rows are deliberately awkward, one problem each, so the parser's loss accounting is testable:
+    1  well formed, ISO date, relative PDF href
+    2  long-form date, two release numbers, absolute PDF href
+    3  a PDF link but no AAER number     -> kept, counted as missing_aaer_number
+    4  neither an AAER number nor a PDF  -> dropped, counted in drop_reasons
+    5  an AAER number but an unparsable date and no link -> kept, counted as missing_date/pdf
+-->
+<html lang="en">
+  <head><title>Synthetic AAER listing fixture</title></head>
+  <body>
+    <div class="pager">1 to 4 of 9 items</div>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Respondent(s)</th><th>Release No(s).</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2020-01-02</td>
+          <td>SYNTHETIC ALPHA CORP</td>
+          <td>34-900001 AAER-9001
+            <a href="/files/litigation/admin/2020/34-900001.pdf">34-900001.pdf</a>
+          </td>
+        </tr>
+        <tr>
+          <td>February 3, 2020</td>
+          <td>SYNTHETIC BETA LLC and SYNTHETIC GAMMA, CPA</td>
+          <td>33-900002, 34-900003 AAER-9002
+            <a href="https://www.sec.gov/files/litigation/opinions/2020/33-900002.pdf">33-900002.pdf</a>
+          </td>
+        </tr>
+        <tr>
+          <td>2020-03-04</td>
+          <td>SYNTHETIC DELTA HOLDINGS</td>
+          <td>34-900004
+            <a href="/files/litigation/admin/2020/34-900004.pdf">34-900004.pdf</a>
+          </td>
+        </tr>
+        <tr>
+          <td>2020-04-05</td>
+          <td>a row that is not an enforcement release</td>
+          <td>see the annual report</td>
+        </tr>
+        <tr>
+          <td>not a date</td>
+          <td>SYNTHETIC EPSILON PLC</td>
+          <td>AAER-9004</td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

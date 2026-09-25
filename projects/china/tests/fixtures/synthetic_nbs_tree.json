@@ -1,0 +1,28 @@
+{
+ "data": [
+  {
+   "_id": "SYNTHETIC-NODE-1",
+   "name": "Synthetic Branch",
+   "isLeaf": false,
+   "treeinfo_pid": "",
+   "treeinfo_level": 1,
+   "sdate": "",
+   "edate": "",
+   "type": "6"
+  },
+  {
+   "_id": "SYNTHETIC-NODE-2",
+   "cid": "SYNTHETIC-CID-1",
+   "name": "Synthetic Leaf",
+   "isLeaf": true,
+   "treeinfo_pid": "SYNTHETIC-NODE-1",
+   "treeinfo_level": 2,
+   "sdate": "1999",
+   "edate": "2034",
+   "type": "6"
+  }
+ ],
+ "success": true,
+ "state": 20000,
+ "message": "SYNTHETIC OK"
+}

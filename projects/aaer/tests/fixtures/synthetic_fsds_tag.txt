@@ -1,0 +1,13 @@
+tag	version	custom	abstract	datatype	iord	crdr	tlabel	doc
+AccountsReceivableNetCurrent	us-gaap/2020	0	0	monetary	I	D	AccountsReceivableNetCurrent	synthetic doc
+Revenues	us-gaap/2020	0	0	monetary	D	D	Revenues	synthetic doc
+CostOfGoodsAndServicesSold	us-gaap/2020	0	0	monetary	D	D	CostOfGoodsAndServicesSold	synthetic doc
+AssetsCurrent	us-gaap/2020	0	0	monetary	I	D	AssetsCurrent	synthetic doc
+PropertyPlantAndEquipmentNet	us-gaap/2020	0	0	monetary	I	D	PropertyPlantAndEquipmentNet	synthetic doc
+Assets	us-gaap/2020	0	0	monetary	I	D	Assets	synthetic doc
+DepreciationDepletionAndAmortization	us-gaap/2020	0	0	monetary	D	D	DepreciationDepletionAndAmortization	synthetic doc
+SellingGeneralAndAdministrativeExpense	us-gaap/2020	0	0	monetary	D	D	SellingGeneralAndAdministrativeExpense	synthetic doc
+LongTermDebtNoncurrent	us-gaap/2020	0	0	monetary	I	D	LongTermDebtNoncurrent	synthetic doc
+LiabilitiesCurrent	us-gaap/2020	0	0	monetary	I	D	LiabilitiesCurrent	synthetic doc
+IncomeLossFromContinuingOperations	us-gaap/2020	0	0	monetary	D	D	IncomeLossFromContinuingOperations	synthetic doc
+NetCashProvidedByUsedInOperatingActivities	us-gaap/2020	0	0	monetary	D	D	NetCashProvidedByUsedInOperatingActivities	synthetic doc

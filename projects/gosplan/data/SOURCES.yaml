@@ -1,0 +1,1713 @@
+# SOURCES.yaml -- the source registry for the `gosplan` project.
+#
+# Nothing enters a pipeline without an entry here. Every entry was produced by an actual
+# fetch attempt during scaffolding; no URL in this file was invented. Where a source could
+# not be reached, the entry records that fact and why, rather than being omitted.
+#
+# Fields
+#   access   free | registration | paywalled | archive_visit | manual_transcription
+#            -- what a human has to do to get it, NOT whether it exists.
+#   status   verified | partial | blocked | unverified
+#            -- what the scaffolding session established about reachability:
+#               verified   fetched, HTTP 200, and the content was confirmed to be what it claims
+#               partial    landing page or some files reached; the full dataset was not confirmed
+#               blocked    exists but cannot be fetched from here (gated, geo-blocked, 403, WAF)
+#               unverified could not be confirmed at all
+#   fetched_at / http_status  the research probe, not an acquisition into data/raw.
+#   sha256 / bytes / local_path  filled by `make data` when a file actually lands in data/raw.
+#   verification.verdict  an INDEPENDENT second agent re-fetched the URL and either
+#                         confirmed, downgraded or refuted the first agent's claim.
+#                         `not_verified` means that second check did not run.
+#
+# Regenerate the acquisition state with `make data`; edit provenance here by hand only with
+# a note saying what was re-checked and when.
+
+- id: cia_readingroom_home
+  name: CIA FOIA Electronic Reading Room (home page)
+  provider: Central Intelligence Agency
+  url: https://www.cia.gov/readingroom/
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:14:59Z'
+  http_status: 200
+  sha256: d9ff6556d572aa309925a291b581c3281d9a9a7de7a72bd678d47cae1a9d5ae5
+  bytes: 38382
+  local_path: null
+  license: US government work (public domain)
+  notes: Drupal 7 site. Home page contains the search form (POST to /readingroom/, field search_block_form,
+    hidden form_id=search_block_form, form_build_id), links to /readingroom/search/site, /readingroom/advanced-search-view,
+    /readingroom/historical-collections, and collection pages /readingroom/collection/{aquiline, nixon-collection,
+    presidents-daily-brief-1961-1969, currentcentral-intelligence-bulletin(?page=150), collapse-communism-eastern-europe-30-year-legacy}.
+    Only this page is served to non-browser clients.
+  blocked_reason: null
+  evidence: |-
+    GET returned 200, 38,382 bytes, <title>Freedom of Information Act Electronic Reading Room | CIA FOIA (foia.cia.gov)</title>; identical bytes returned when any other path 302-redirects here.
+  download_plan: |-
+    Nothing to download here; use only to obtain form_build_id if a browser-automation route is chosen. The home page sets cookies jsessionid and _session_ but replaying them does not unlock other paths.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: cucciolla_2017_cahiers_monde_russe
+  name: 'Cucciolla, R.M. (2017) ''Legitimation through self-victimization: The Uzbek cotton affair and
+    its repression narrative (1989-1991)'', Cahiers du monde russe 58/4, pp. 639-668'
+  provider: OpenEdition Journals (journals.openedition.org/monderusse)
+  url: https://journals.openedition.org/monderusse/10133
+  access: free
+  status: verified
+  fetched_at: 2026-09-04T18:18:30Z (approx; WebFetch, between logged Bash calls at 18:18:29Z and 18:18:40Z)
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: Open access on OpenEdition (also on Cairn, paywalled)
+  notes: 'Fetched via WebFetch (not curl), which reported the full text openly readable with no embargo
+    notice. Verbatim extracts returned: para 11 ''between 1976 and 1983 the cotton scam had defrauded
+    the state of almost four billion rubles''; para 11 ''every year the Soviet state was paying for 270-340
+    thousand tons of nonexistent Uzbek cotton''; para 11 ''officially involved more than 20,000 people
+    in the republic''; para 23 ''for the period 1978-1983 4.548 million tons of non-existent cotton were
+    falsified, for which kolkhozes and sovkhozes received from the state 2.866 billion rubles''; para
+    23 ''supposedly for salaries, 1.178 billion rubles were paid''; para 23 ''through criminal accusations
+    alone, over 22 thousand people have been charged''. Issue TOC https://journals.openedition.org/monderusse/10123?lang=en
+    (WebFetch, ~18:17Z) lists it with a [Full text] link. Internal inconsistency to flag: 270-340 kt/yr
+    (para 11) vs 4.548 Mt over 1978-1983 (=~758 kt/yr, para 23).'
+  blocked_reason: null
+  evidence: |-
+    WebFetch returned the article body with paragraph-numbered quotations listed in notes and stated no access restriction.
+  download_plan: |-
+    GET https://journals.openedition.org/monderusse/10133 (HTML; OpenEdition also exposes ?format=pdf variants, not verified); store HTML and cite paragraphs 11 and 23. No auth. One fetch is enough; content is static.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: cucciolla_2017_phd_thesis_imt_lucca
+  name: 'Cucciolla, R.M. (2017) PhD thesis ''The Crisis of Soviet Power in Central Asia: The Uzbek cotton
+    affair (1975-1991)'', IMT School for Advanced Studies Lucca'
+  provider: IMT Lucca e-theses (via Internet Archive Wayback Machine snapshot 2025-01-23)
+  url: http://web.archive.org/web/20250123072540/https://e-theses.imtlucca.it/213/1/Cucciolla_phdthesis.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:20:18Z'
+  http_status: 200
+  sha256: bfbaf09530f6458be0ae20200b3d107fce4befda15841ffc7604eed73bce45f9
+  bytes: 18061547
+  local_path: null
+  license: Thesis deposited in institutional repository; reuse terms not checked
+  notes: 'Canonical host https://e-theses.imtlucca.it/213/1/Cucciolla_phdthesis.pdf: curl ''Could not
+    resolve host'' (HEAD 18:17:14Z, GET 18:17:15Z). Mirror https://unora.unior.it/retrieve/handle/11574/195734/78737/Cucciolla_phdthesis_compressed.pdf:
+    HTTP 403 (5,740-byte HTML) at 18:18:40Z/18:18:42Z. CORE record https://core.ac.uk/outputs/83644383/:
+    HTTP 403 Cloudflare ''Just a moment...'' at 18:19:30Z. Wayback availability API (18:19:52Z, 200) reported
+    a 200 snapshot; the snapshot PDF downloaded fully and its title page reads ''IMT School for Advanced
+    Studies, Lucca ... The Uzbek cotton affair (1975-1991) By Riccardo Mario Cucciolla 2017''. Quantitative
+    passages (pdftotext line numbers, approx PDF page from form feeds): p.~219 ''during the intensive
+    falsification period (1978-1983), every year it was reported a crop between 500,000 and 900,000 tons
+    greater - for a total of 4.5 million tons of Uzbek raw cotton had been produced just in paper and
+    2 billion rubles ... about 30% of the republic annual budget ... embezzled''; p.~290 ''between 1978
+    and 1983, 4.5 million tons of cotton were produced just on paper ... Clark calculates an overall amount
+    of 3 billion rubles''; p.~449 ''between 1978 and 1983 over 4.5 million tons of raw cotton had been
+    falsified at a cost of 4 billion rubles''; p.~687 ''(during the 1978-1983 period) 4.548 million tons
+    of non-existent cotton was falsified, for which kolkhozes and sovkhozes received 2.866 billion rubles
+    of which ... 1.178 billion rubles'' [as salaries]; p.~688 ''The major episodes of falsification intensified
+    mainly in the years 1980-1982 ... 4.5488 million tons of cotton never harvested ... 2.8667 billion
+    rubles being paid in vain ... about 22,000 people''. Also contains a table ''Annual Soviet production
+    of cotton (thousand tons)'' (line ~5204) and official Uzbek totals (e.g. 24.5 Mt delivered in the
+    9th FYP; 5.33 Mt in 1974). The text file cucciolla_thesis.txt (2,132,394 B) is in the scratch dir.'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 18,061,547 bytes, %PDF-1.3 header, sha256 recorded; title page and the quoted passages extracted with pdftotext.
+  download_plan: |-
+    GET the Wayback URL above (archive.org; ~18 MB; no auth; keep <=1 req/s). Verify sha256 bfbaf095...; if the canonical IMT host comes back, prefer https://e-theses.imtlucca.it/213/1/Cucciolla_phdthesis.pdf and compare hashes. Run pdftotext -layout; index pages ~219, ~290, ~449, ~687-688 for the affair figures and the 'Annual Soviet production of cotton' table for official series.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: dtic_ada121312_rand
+  name: 'DTIC ADA121312: The Soviet Economy in the 1980s (RAND, Thane Gustafson, April 1982) - NOT the
+    JEC compendium'
+  provider: Internet Archive (DTIC mirror)
+  url: https://archive.org/download/DTIC_ADA121312/DTIC_ADA121312.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:20:51Z'
+  http_status: 200
+  sha256: 1ba7d40e393f3241f062a9c03b5b20bbcd1375bc845fce2c63d6620c96182067
+  bytes: 1446428
+  local_path: null
+  license: US government-funded report (DTIC public release)
+  notes: 'Surfaced by the JEC title search; metadata subject ''Gustafson,Thane; RAND CORP SANTA MONICA
+    CA''. Included only to prevent it being mistaken for the JEC ''Soviet Economy in the 1980s: Problems
+    and Prospects''.'
+  blocked_reason: null
+  evidence: |-
+    Downloaded 1,446,428 bytes, %PDF- header, sha256 recorded.
+  download_plan: |-
+    GET -L https://archive.org/download/DTIC_ADA121312/DTIC_ADA121312.pdf if wanted as a Western background paper; otherwise ignore.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: duke_treml_webfiles
+  name: Vladimir Treml webfiles directory (Duke Economics)
+  provider: Duke University, Department of Economics
+  url: https://public.econ.duke.edu/webfiles/treml/
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:16:44Z'
+  http_status: 200
+  sha256: null
+  bytes: 7060
+  local_path: null
+  license: null
+  notes: 'Apache directory listing with ~33 files named like brezhnev.293, collapse.293, for-trad.294
+    (course lecture notes for Econ 140/293/294: ''Soviet Dependence on Foreign Trade'' etc.), glossary.266,
+    bibliog.266, and a papers/ subdirectory (not opened). No spreadsheets, no input-output tables. Treml''s
+    I-O reconstructions are NOT hosted here in data form.'
+  blocked_reason: null
+  evidence: |-
+    Listing hrefs enumerated (asia.140, bibliog.266, ..., papers/, summary.294); no .xls/.csv/.pdf data files.
+  download_plan: |-
+    Optional: `wget -r -l1` the directory and papers/ for bibliographic context only (~<1 MB). Not a data source.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: faostat_qcl_bulk_asia_uzbekistan
+  name: FAOSTAT QCL bulk - Production_Crops_Livestock_E_Asia.zip (contains Uzbekistan area 235, seed cotton
+    1992-2024)
+  provider: FAO Statistics Division (bulks-faostat.fao.org)
+  url: https://bulks-faostat.fao.org/production/Production_Crops_Livestock_E_Asia.zip
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:17:58Z'
+  http_status: 200
+  sha256: 069fdc0f317a93daa11b20edd3abe45237d800ecf644554f6bfba31dd93fbc3c
+  bytes: 4708076
+  local_path: null
+  license: FAO open data (see FAOSTAT terms)
+  notes: 'Uzbekistan row: "235","''860","Uzbekistan","328",...,"Seed cotton, unginned","5510","Production","t":
+    Y1992=4,128,700 (A), Y2000=3,001,800 (A), Y2023=3,710,292.65 (A); 33 non-empty years 1992-2024; all
+    years 1961-1991 empty (no back-cast republic series in FAOSTAT). Cotton lint 767 (1992=1,274,000 t),
+    cotton seed 329 (1992=2,451,564 t), cottonseed oil 331 also present. Local sha256 of extracted Asia
+    csv: 2d390c423ac282b7cba33b4188fca47d14f4fa4a45e65ca01f998e497542ac61.'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 4,708,076 bytes, valid zip; the Uzbekistan seed-cotton production row parsed with Python csv shows first non-empty year Y1992 and last Y2024 (n=33).
+  download_plan: |-
+    Same as faostat_qcl_bulk_europe_ussr; filter Area Code==235. For pre-1992 Uzbek SSR cotton you must use Soviet annuals (Narkhoz SSSR / Narkhoz UzSSR) or USDA PSD (which starts Uzbekistan at 1987).
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: faostat_qcl_bulk_europe_ussr
+  name: FAOSTAT QCL bulk - Production_Crops_Livestock_E_Europe.zip (contains USSR area 228, seed cotton
+    1961-1991)
+  provider: FAO Statistics Division (bulks-faostat.fao.org)
+  url: https://bulks-faostat.fao.org/production/Production_Crops_Livestock_E_Europe.zip
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:17:56Z'
+  http_status: 200
+  sha256: 8b84de050e141263ce2bc0c0701bd02ef5fcb25bcf9e7cf437a97b90b0f75901
+  bytes: 3882548
+  local_path: null
+  license: FAO open data (CC BY-NC-SA 3.0 IGO per FAOSTAT terms; not re-verified this session)
+  notes: 'USSR is filed under the Europe regional file. Row confirmed: "228","''810","USSR","328","''01921.01","Seed
+    cotton, unginned","5510","Production","t", Y1961=4518000 (flag A) ... Y1991=7800000; 31 non-empty
+    years 1961-1991, none after. Also present for USSR: 767 Cotton lint ginned (1961=1,528,000 t, flag
+    X ''Unofficial figure''), 329 Cotton seed (1961=2,756,000 t, X), 331 Cottonseed oil. Selected seed-cotton
+    values: 1975=7,864,000; 1980=9,100,000; 1983=9,221,000; 1985=8,755,000; 1990=8,305,000 t. Local sha256
+    of extracted Europe csv: 55cc7f4e00f47ae5f75d95b47d2e9c5540288bf4570cb2839cab44154b3f2e02.'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 3,882,548 bytes, valid zip; grep of the inner CSV returned the USSR seed-cotton production row with values for every year 1961-1991 as listed in notes.
+  download_plan: |-
+    GET https://bulks-faostat.fao.org/production/Production_Crops_Livestock_E_Europe.zip and .../Production_Crops_Livestock_E_Asia.zip (no auth, no rate limit observed; ~4-5 MB each; check Last-Modified header and skip if unchanged). Unzip; read Production_Crops_Livestock_E_<Region>.csv (latin-1/UTF-8, wide format). Filter Area Code==228 (USSR) in Europe file and Area Code==235 (Uzbekistan) in Asia file; Item Code 328 (seed cotton), 767 (cotton lint), 329 (cotton seed); Element Code 5510 (Production, t), also 5312 area harvested and 5419 yield if needed. Keep the F flag column (A=official, X=unofficial, E=estimate). For a single-file alternative use Production_Crops_Livestock_E_All_Data_(Normalized).zip (33.9 MB, long format) at the same path. Verify with sha256 recorded here.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: harrison_data_index
+  name: 'Mark Harrison: Research Data (index)'
+  provider: University of Warwick, Department of Economics
+  url: https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:15:11Z'
+  http_status: 200
+  sha256: null
+  bytes: 39443
+  local_path: null
+  license: null
+  notes: 'Page title ''Mark Harrison: Research Data''. Lists 14 dataset sub-pages: counter-intelligence,
+    fraud, frequency, greatwar, jet, preventive-repression, publicdebt, secrets, sovietgrowth, sovietmunitions,
+    terrorism, ussr_ww2, ww2. Only sovietgrowth, ussr_ww2, greatwar, sovietmunitions are Soviet macro/production
+    data; the rest are Harrison''s later papers (wars, secrecy, repression).'
+  blocked_reason: null
+  evidence: |-
+    GET returned 200, 39,443 bytes HTML; hrefs of the form https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/<slug>/ for the 14 slugs above; no direct file links on the index itself.
+  download_plan: |-
+    Crawl the index once, then each of the 4 Soviet sub-pages (see separate entries). No auth, no rate limiting observed; use a polite UA and <=1 req/s. Files are static; idempotent fetch by URL with sha256 compare.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: harrison_greatwar_munitions_pdf
+  name: 'Harrison data appendices available only as PDF: ''Great War, Civil War, and Recovery'' (Markevich
+    & Harrison, JEH 2011) and ''Soviet Munitions Output'''
+  provider: University of Warwick (Mark Harrison)
+  url: https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/greatwar/appendix.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:17:38Z'
+  http_status: 200
+  sha256: null
+  bytes: 478130
+  local_path: null
+  license: null
+  notes: 'Landing pages greatwar/ (200, 32,769 B) and sovietmunitions/ (200, 35,119 B) each link exactly
+    one PDF and no spreadsheet. greatwar/appendix.pdf HEAD 200 478,130 B; sovietmunitions/data.pdf HEAD
+    200 260,536 B. Russia/USSR national income 1913-1928 therefore requires PDF table extraction (manual_transcription-lite:
+    tabula/camelot), not a ready xls.'
+  blocked_reason: null
+  evidence: |-
+    HEAD returned 200 with Content-Type application/pdf and Content-Length for both PDFs; landing HTML contains no .xls/.csv hrefs.
+  download_plan: |-
+    GET the two PDFs; extract tables with camelot/tabula; keep page-level provenance. No auth.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: harrison_plan_fraud
+  name: Mark Harrison, 'Soviet Plan Fraud' replication dataset (JCE 2011)
+  provider: University of Warwick, Department of Economics
+  url: https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/fraud/dataset.xlsx
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:07:35Z'
+  http_status: 200
+  sha256: 9d980019e09402f66f967509483e5a160938efd025888ae8a78e402c48a3fbfd
+  bytes: 159964
+  local_path: null
+  license: not stated on the page; academic replication material for a published paper
+  notes: 'Unexpected high-value find for the gosplan project: case-level ground truth on Soviet reporting
+    fraud - who falsified what, by how much, in which branch and republic, and what sentence followed.
+    Includes Uzbek and Kazakh agricultural cases. Directly usable to calibrate a distortion-detection
+    method against known-positive cases, and structurally parallel to the SEC accounting-enforcement leg
+    of the programme. The sibling ''Soviet Productivity'' page (https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/sovietgrowth/,
+    GET 200, 35,108 B) offers appendixes.pdf (62 KB) and dataset.xls (36 KB) for ''Trends in Soviet Labour
+    Productivity, 1928-1985'', ERH 2:2 (1998). Note the index page''s link label is ''Plan Fraud'' but
+    the directory is /data/fraud/ - /data/planfraud/ returns 404.'
+  blocked_reason: null
+  evidence: |-
+    Landing page GET 200, 36,628 B, titled 'Mark Harrison: Soviet Plan Fraud', stating: 'This page gives access to the data that I used for my paper, "Forging Success: Soviet Managers and Accounting Fraud, 1943 to 1962," in the Journal of Comparative Economics 39:1 (2011), pp. 43-64.' Downloaded dataset.xlsx (159,964 B, sha256 above) and opened it: a valid OOXML workbook with three sheets named 'Fond R-9492 Case Index', 'Fond R-8131 Case Index', 'Fond 6 Case Index'. Column headers include Establishment, Accused, #Accused, Where, Branch. Sample rows: 'Mechanic Ishnazarov | Uzbekistan | Overstated ploughing by 93 hectares | 18 months LS'; 'Director Diuisekov | Reported 515 instead of 315 tons | Six years LS'; 'Planner Zavarnitsina and accountant Semenova | Bonuses for the artel, 8,847 rubles | Two years LS each'.
+  download_plan: |-
+    Enumerate from https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/ - scrape hrefs matching /data/<slug>/ rather than guessing slugs (the label-to-directory mapping is inconsistent). For each collection page, take hrefs ending .xlsx/.xls/.pdf/.dta/.do/.log. All are direct GETs, anonymous, no auth, no rate limit encountered, everything under 250 KB. Total across the two Soviet-economic collections is well under 1 MB. Store the sha256 for change detection since the pages carry no versioning.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: harrison_sovietgrowth
+  name: Harrison, 'Trends in Soviet Labour Productivity, 1928-1985' (EREH 1998) - Appendix A basic data
+  provider: University of Warwick (Mark Harrison)
+  url: https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/sovietgrowth/dataset.xls
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:17:30Z'
+  http_status: 200
+  sha256: d81e9efbe520993df3851995ac88cfc19b6747ec37ce17511419e8b20534a50a
+  bytes: 36352
+  local_path: null
+  license: null
+  notes: 'Landing page https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/sovietgrowth/ (200,
+    35,108 B) links dataset.xls and appendixes.pdf (HEAD 200, 63,602 B, application/pdf). File is Excel
+    97-2003 BIFF8 (Composite Document, author ''Mark Harrison'', saved 2008-11-13), one sheet ''Appendix
+    A. Basic data''. Embedded strings show series labelled ''GNP, billion rubles'' and source notes: ''1928-39,
+    1946-62: Moorsteen, Powell (1966), 622-4'', ''1940-5: Harrison (1996), 92'', ''1941-4: Powell (1968)'',
+    ''1961-6: Becker, Moorsteen, Powell (1968)'', ''CIA (1990), 54-7'', ''Rapawy (1987), 194-5, 202-3
+    (armed forces personnel...)'', ''For 1928, 1932, 1937, 1940, figures are as from Barber''. So it is
+    a Western (Bergson-school + CIA) GNP / employment / capital compilation 1928-1985, not Soviet official
+    data. Needs xlrd or LibreOffice to parse (old .xls).'
+  blocked_reason: null
+  evidence: |-
+    GET returned 200, 36,352 bytes, Content-Type application/vnd.ms-excel; `file` identifies Composite Document File V2 created by Microsoft Excel; strings include 'Appendix A. Basic data', 'GNP, billion rubles', 'Moorsteen, Powell (1966)', 'CIA (1990)'.
+  download_plan: |-
+    GET the xls and appendixes.pdf directly (URLs above). Convert xls->csv with python xlrd (pip install xlrd) or `libreoffice --headless --convert-to csv`. Verify sha256 d81e9efb... before conversion. Single request each; no pagination.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: harrison_ussr_ww2
+  name: 'Harrison, ''Accounting for War: Soviet Production, Employment, and the Defence Burden, 1940-1945''
+    (CUP 1996) - data files'
+  provider: University of Warwick (Mark Harrison)
+  url: https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/ussr_ww2/
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:16:20Z'
+  http_status: 200
+  sha256: null
+  bytes: 36805
+  local_path: null
+  license: null
+  notes: 'Page (200, 36,805 B) states it gives access to the data for ''Accounting for War... (Cambridge:
+    Cambridge University Press, 1996)''. Six .xls links, all confirmed: gdp.xls (GET 200, 150,528 B, sha256
+    cb547bfec1a5a289f23fd4f05cdfa4f5d5b019e0cca8089e59fbf52ba84630d9), io_basic.xls (GET 200, 936,448
+    B, sha256 89f5b27b1c01f8ce97c862c04b3d4e9f5786d88bdcd234a1db55cd081c37692e), civprod.xls (HEAD 200,
+    133,120 B), defprod.xls (HEAD 200, 289,792 B), final.xls (HEAD 200, 628,736 B), labour.xls (HEAD 200,
+    119,296 B). gdp.xls strings: ''(A) GNP, prewar prices'', ''BILLION 1937 RUBLES'', ''DEFENCE OUTLAYS,
+    1937 FC'', ''Bergson (1961), 324 ff'', ''Chapman (1963), 104-5'', ''percent of 1937'', ''unrecorded
+    output''. io_basic.xls strings: ''1940 MATRIX'' ... ''1945 MATRIX'', ''(I-A)-matrix (1940..1945)'',
+    ''(I-A) inverse matrix (1940..1945)'', ''Conversion to 1937 factor costs'', ''Available gross output
+    (gross of net imports and destocking)'', ''Exports in detail, million post-1961 rubles'' -> this is
+    a machine-readable Western reconstruction of Soviet wartime input-output tables 1940-45. Old BIFF
+    format (Version 1.0 header, codepage -535) - use xlrd/LibreOffice.'
+  blocked_reason: null
+  evidence: |-
+    Landing GET 200; three files fully downloaded with sizes/hashes recorded; four files HEAD 200 with Content-Length; string extraction from io_basic.xls shows six annual I-O matrices 1940-1945 with Leontief inverses.
+  download_plan: |-
+    GET https://warwick.ac.uk/fac/soc/economics/staff/mharrison/data/ussr_ww2/{gdp,io_basic,civprod,defprod,final,labour}.xls (sizes 119-937 KB). Convert with xlrd (BIFF) or LibreOffice headless to per-sheet CSV. Idempotent: skip if sha256 matches recorded value. Cite Harrison (1996).
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: harvard_dataverse_soviet_io_search
+  name: Harvard Dataverse search for Soviet input-output datasets (negative result) and 'Soviet Data Bank
+    (M162V1)'
+  provider: Harvard Dataverse
+  url: https://dataverse.harvard.edu/api/search?q=soviet+input-output&type=dataset&per_page=20
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:16:39Z'
+  http_status: 200
+  sha256: null
+  bytes: 32680
+  local_path: null
+  license: null
+  notes: 'Search API returned total_count 8271 but the top-20 hits are unrelated (ECCO ocean inputs, Brazilian
+    census, etc.) - no Soviet I-O dataset surfaces. The only Soviet-titled Dataverse record found via
+    web search, doi:10.7910/DVN/ZZPLC0 ''Soviet Data Bank (M162V1)'' (Chase & Getty; UCLA SSDA), was fetched
+    via the datasets API (200, 93,640 B): version 4.0, 85 files, time period 1917-1941, kindOfData ''Biographical
+    and office holding histories'', termsOfAccess ''Codebook freely available; data is not public ...
+    Access to data is restricted to faculty, staff and students at UCLA'', fileAccessRequest true. It
+    is prosopographical, not economic. CONCLUSION: no machine-readable Treml 1966/1972 I-O reconstruction
+    exists on Harvard Dataverse.'
+  blocked_reason: null
+  evidence: |-
+    JSON search result titles enumerated (none about Soviet I-O); ZZPLC0 metadata JSON quoted.
+  download_plan: |-
+    Nothing to acquire. If the project wants the 1966/1972 I-O tables machine-readable, plan manual transcription from Treml et al. (1972/1977) or from the Narkhoz volumes (see gosplan archive hunt); Harrison's io_basic.xls covers only 1940-45.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: hokudai_sess
+  name: Soviet and Russian Economic Statistical Series (SESS) - Slavic-Eurasian Research Center, Hokkaido
+    University
+  provider: Hokkaido University SRC
+  url: https://src-h.slav.hokudai.ac.jp/database/SESS.html
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:17:50Z'
+  http_status: 200
+  sha256: null
+  bytes: 35998
+  local_path: null
+  license: null
+  notes: 'Index page lists 145 hrefs of the form USSR/S<code>.csv grouped by sections (Section 1 ''GROSS
+    SOCIAL PRODUCT & NATIONAL INCOME (67)'', 11 Gross social product (7), 12 National income (37), 121
+    National income produced (18), 122 National income used (13), plus branch, investment, population/labour,
+    welfare, money, foreign trade sections). Sample https://src-h.slav.hokudai.ac.jp/database/USSR/S111.csv
+    fetched: 200, 2,795 B, text/csv, sha256 e490c8a7635209521b3309a6b5463e6e39ad12d65c3eca9ee6f83c3f1bc4e92c;
+    header ''CODE NUMBER,FULL NAME,UNIT,SOURCE,1940,...,1989''; rows e.g. S111100000000 ''Gross Social
+    Product, Total, N'', ''Mil. rubles'', source ''Narkhoz.'' with values 1960-1989 (303.8 ... 1568.6;
+    note unit label says Mil. but magnitudes are bn rubles), missing coded as 0.0. This is a transcription
+    of OFFICIAL Narkhoz series (useful as the ''reported'' side), not a Western reconstruction.'
+  blocked_reason: null
+  evidence: |-
+    Index GET 200 with 145 .csv hrefs; one CSV fetched and content shown (8 lines, 1940-1989 columns, source column 'Narkhoz.').
+  download_plan: |-
+    Parse SESS.html for hrefs matching USSR/S[0-9]+\.csv, GET each (145 requests, <=1 req/s), store with sha256. Treat 0.0 as missing. Also fetch SESS-d.html (linked description page) for codes/units. Attribute to SRC Hokkaido.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: ia_ciareadingroom_mirror
+  name: Internet Archive collection 'ciareadingroom' (mirror of the CIA Reading Room, one item per document)
+  provider: Internet Archive (third-party upload, not CIA)
+  url: https://archive.org/advancedsearch.php?q=collection%3Aciareadingroom&fl[]=identifier&rows=0&output=json
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:17:43Z'
+  http_status: 200
+  sha256: null
+  bytes: 227
+  local_path: null
+  license: Underlying documents are US government works (public domain); IA item metadata under IA terms
+  notes: 'Item identifiers are cia-readingroom-document-<cia docid lowercase> (e.g. cia-readingroom-document-cia-rdp82-00457r008900350003-7)
+    and file names drop the prefix (cia-rdp82-00457r008900350003-7.pdf). Items were added 2024-10 by a
+    private uploader using the Internet Archive Python library; metadata fields include title (CIA title),
+    date, description (OCR text excerpt), collection [''ciareadingroom'',''usgovernmentmirrors'',''government-documents''].
+    Search hits: ''Soviet economy GNP'' 784 (e.g. cia-rdp70s00385r000100110007-2 ''EXCHANGE OF INFORMATION
+    ON THE SOVIET ECONOMY WITH (Sanitized)'' 1967; cia-rdp08s01350r000200350002-6 ''THE SOVIET ECONOMY
+    IN 1978-79 AND PROSPECTS FOR 1980''; cia-rdp08s01350r000200360001-6 ''USSR: GOALS OF THE 11TH FIVE-YEAR
+    PLAN UNATTAINABLE'' 1981). ''Soviet agricultural statistics cotton'' 328 (cia-rdp08s01350r000602060001-3
+    ''THE IMPACT OF FERTILIZER ON SOVIET GRAIN OUTPUT, 1960-80'' 1977; cia-rdp08s01350r000200350002-6;
+    cia-rdp08s01350r000200530002-6). ''Soviet economic statistics falsification'' 33 (cia-rdp62-00328a000200200002-1
+    ''PERIODIC REQUIREMENTS LIST (PRL) EASTERN EUROPE'' 1959; cia-rdp84t01083r000100110002-5 ''USSR MONTHLY
+    REVIEW'' 1983; cia-rdp85t00875r001600030031-4 ''INTELLIGENCE MEMORANDUM DECREASES IN SOVIET MEAT OUTPUT...''
+    1970). Downloaded PDFs: pdf1 161,399 B sha256 36a42b1a7ff56742f5751db3b797524a098b9bbf48033c8f77d18d75059e00e9;
+    pdf2 1,520,659 B sha256 8d09076d54004f56ae8e8fdf1322767b8d1e579d90400d273ab5b23f44a02287; pdf3 7,066,308
+    B sha256 9b101ebda539395a25eea945bb376b771b3e05c6a8348496b3ad068f87860270. Coverage vs cia.gov is
+    not verified (mirror is a snapshot as of 2024-10). Advancedsearch matches metadata (title/description),
+    not full OCR text.'
+  blocked_reason: null
+  evidence: |-
+    numFound 973499 in response.response.numFound. Three searches returned JSON with numFound and docs; three PDFs downloaded with HTTP 200, application/pdf, files begin with %PDF-. Metadata endpoint https://archive.org/metadata/<identifier> returned 200 with the file list. One transient 'Recv failure: Connection was reset' (18:18:00Z) and one local DNS failure (18:18:04Z) succeeded on retry.
+  download_plan: |-
+    Search: GET https://archive.org/advancedsearch.php?q=collection%3Aciareadingroom+AND+(<terms>)&fl[]=identifier&fl[]=title&fl[]=date&rows=1000&page=<n>&output=json ; loop page until len(docs)==0; numFound gives total. For full enumeration consider the scrape API https://archive.org/services/search/v1/scrape?q=collection:ciareadingroom&fields=identifier,title,date&count=10000 with cursor (NOT tested this session). Per item: GET https://archive.org/metadata/<identifier> (JSON, lists files+sizes), then GET https://archive.org/download/<identifier>/<file> with -L (redirects to dnNNNNNN.{ca,eu,us}.archive.org). Prefer <docid>_djvu.txt for text and <docid>.pdf for the original scan; skip if local file exists with size equal to metadata size; record sha256. Pace at <=1 request/s, --retry 3 --retry-delay 3 for transient resets; set a descriptive User-Agent. No auth needed.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: ia_khanin_western_estimates
+  name: Ханин, «Советский экономический рост. Анализ западных оценок» (archive.org)
+  provider: Internet Archive
+  url: https://archive.org/metadata/khanin_1
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:06:44Z'
+  http_status: 200
+  sha256: null
+  bytes: 14822
+  local_path: null
+  license: no licenseurl / rights field; collection is booksbylanguage_russian
+  notes: This is NOT either of the two Khanin items the brief asked for. It is a different, later Khanin
+    book. It is the only Khanin text I could verify as freely available - a targeted archive.org search
+    for '("Лукавая цифра" OR "Ханин") AND mediatype:texts' returned numFound=3, of which the other two
+    are unrelated (a 19th-century history of Stepan Maly, and a volume on slavery in the medieval East).
+  blocked_reason: null
+  evidence: |-
+    Metadata GET 200, 14,822 B. title 'Ханин, "Советский экономический рост. Анализ западных оценок"', language rus, collection ['booksbylanguage_russian','booksbylanguage'], ocr 'tesseract 5.2.0-1-gc42a'. No access-restricted-item field. Files include 'Ханин - Советский экономический рост. Анализ западных оценок - OCR.pdf' (Text PDF, 33,219,888 B) and a matching _djvu.txt (599,977 B).
+  download_plan: |-
+    GET https://archive.org/download/khanin_1/<filename> - filenames contain Cyrillic and spaces, so read files[].name from the metadata endpoint and percent-encode; do not hand-construct. Anonymous, no auth. Fetch the _djvu.txt (600 KB) first to assess OCR quality before pulling the 33 MB PDF.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: ia_narkhoz_1985_item
+  name: archive.org item narodnoe-khoziaistvo-sssr_1985 (sample volume, fully inspected)
+  provider: Internet Archive
+  url: https://archive.org/metadata/narodnoe-khoziaistvo-sssr_1985
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:54:23Z'
+  http_status: 200
+  sha256: d58b224859c614df93b59175b8464efecb42dcda930cc066479d7c064c8aa06f
+  bytes: 120915
+  local_path: null
+  license: no licenseurl / rights field present
+  notes: 'CRITICAL QUALITY FINDING for the project plan: the bundled OCR is not fit for numeric extraction.
+    The cover title itself OCR''d as ''ГРАРОАНОЕ ХОЗЯЙСТВО'' (should be НАРОДНОЕ ХОЗЯЙСТВО), and numeric
+    table rows come out with merged/dropped column separators, e.g. ''1985 .... .|21,6 12,1 | 16,6 | 32,1
+    |21,3| 15,8 | 16,3 |10,2 | 6,9 |38,3| 14,4''. Row/column alignment is lost. Budget for hOCR-coordinate
+    table reconstruction or full re-OCR from jp2 with a table-aware engine, plus a per-cell validation
+    pass (row/column sums against printed totals). This is the single largest hidden cost in the gosplan
+    project.'
+  blocked_reason: null
+  evidence: |-
+    Metadata: imagecount 658, ppi 360, issn 0469-5941, language Russian, ocr 'tesseract 5.3.0-6-g76ae', ocr_parameters '-l rus', ocr_detected_script Cyrillic (conf 0.99), collection ['pub_narodnoe-khoziaistvo-sssr','uic','periodicals'], scanningcenter cebu, publicdate 2024-06-07. NO access-restricted-item field. HEAD on https://archive.org/download/narodnoe-khoziaistvo-sssr_1985/narodnoe-khoziaistvo-sssr_1985.pdf returned 200 application/pdf anonymously (redirected to dn710002.ca.archive.org). I downloaded the djvu.txt in full (1,574,296 B, 1,070,006 chars, sha256 above) and read it: opens 'ЦЕНТРАЛЬНОЕ СТАТИСТИЧЕСКОЕ УПРАВЛЕНИЕ СССР / ... ХОЗЯЙСТВО / ССР / 1985 Г / СТАТИСТИЧЕСКИЙ ЕЖЕГОДНИК / МОСКВА «ФИНАНСЫ И СТАТИСТИКА» 1986'. 'Узбекская' appears 223 times; a cotton table ('Хлопок-сырец', share of state/collective farms 1940-1985) is present and legible as structure.
+  download_plan: |-
+    Sample already fetched to <scratch>/nk1985_djvu.txt. For real work use the hOCR: GET https://archive.org/download/narodnoe-khoziaistvo-sssr_1985/narodnoe-khoziaistvo-sssr_1985_hocr.html (32 MB, gzip on the wire) and parse ocrx_word bbox attributes to rebuild column geometry; cross-check page numbering with '<id>_page_numbers.json' (110 KB) and '<id>_scandata.xml' (701 KB). Anonymous, no auth.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: ia_narkhoz_collection
+  name: archive.org collection pub_narodnoe-khoziaistvo-sssr (Narodnoe khoziaistvo SSSR annuals, 28 volumes)
+  provider: Internet Archive (scans contributed via University of Illinois Chicago 'uic' collection)
+  url: https://archive.org/advancedsearch.php?q=collection%3Apub_narodnoe-khoziaistvo-sssr&fl%5B%5D=identifier&fl%5B%5D=date&fl%5B%5D=title&fl%5B%5D=item_size&rows=200&page=1&output=json
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:54:56Z'
+  http_status: 200
+  sha256: null
+  bytes: 8434
+  local_path: null
+  license: No licenseurl or rights field in item metadata; no access-restricted-item flag either. Soviet
+    state statistical publications; treat copyright status as unsettled and check before redistribution.
+  notes: This is the single best bulk source. The republic-level Uzbek annual is NOT in it - a separate
+    advancedsearch for 'Узбекской ССР' returned 29 items, none a statistical annual (maps, KGB proceedings,
+    encyclopaedias, election returns).
+  blocked_reason: null
+  evidence: |-
+    Advancedsearch JSON returned numFound=28. Identifiers follow narodnoe-khoziaistvo-sssr_<year>: 1922, 1956, 1958, 1961, 1963, 1964, 1965, 1968, 1969, 1970, 1972, 1972_0 (the 1922-1972 jubilee volume), 1973, 1974, 1975, 1917 (metadata date 1977 - identifier looks mislabelled, NOT opened by me), 1977, 1978, 1979, 1980, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989. Absent: 1957, 1959, 1960, 1962, 1966, 1967, 1971, 1976, 1981, 1990.
+  download_plan: |-
+    Idempotent script: (1) GET https://archive.org/advancedsearch.php?q=collection%3Apub_narodnoe-khoziaistvo-sssr&fl[]=identifier&fl[]=date&fl[]=item_size&rows=200&output=json to enumerate identifiers - do not hardcode the list. (2) For each identifier GET https://archive.org/metadata/<id> and read the files[] array; select by the 'format' field, not by filename guessing. (3) Download from https://archive.org/download/<id>/<name> (302s to a dnNNNNNN.*.archive.org node; follow redirects). (4) Fetch in this order of value: '<id>_hocr.html' (word bounding boxes - the only OCR artefact worth using for tables), '<id>.pdf' (Text PDF, ~31 MB), '<id>_jp2.zip' (~307 MB, needed for re-OCR). Skip '<id>_orig_jp2.tar' (~1.1 GB) and '<id>_encrypted.pdf' (ACS/DRM copy, useless). (5) Skip '<id>_djvu.txt' as a data source - see the OCR-quality finding. (6) Idempotency: compare local size against files[].size and files[].md5 from the metadata endpoint; skip when both match. (7) No API key needed, no auth header. Keep concurrency at 1-2 and set a descriptive User-Agent; IA throttles aggressive clients. Total for PDFs+hOCR across 28 volumes is roughly 1.8 GB; adding jp2.zip takes it to roughly 10 GB.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: istmat_ru_not_istmat
+  name: istmat.ru - a DIFFERENT site, not the Istmat project
+  provider: unrelated third party
+  url: https://istmat.ru/
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:51:42Z'
+  http_status: 200
+  sha256: null
+  bytes: 70417
+  local_path: null
+  license: null
+  notes: 'Explicit warning for the acquisition script: istmat.ru is NOT the Istmat project and must not
+    be used as a mirror or fallback. It is a personal history/philosophy library run by one N. N. Kudryakov
+    that happens to hold the domain.'
+  blocked_reason: null
+  evidence: |-
+    GET returned 200, 70,417 B. <title> is 'Libr - библиотека исторической и философской литературы от Кудрякова Николая Николаевича'. Navigation is index.php?menu=N with item ids - a bespoke PHP library site, nothing like Istmat's Drupal node/NNNNN structure. No statistical-yearbook section in the 35 links on the homepage.
+  download_plan: |-
+    Do not fetch. Add istmat.ru to a denylist in the acquisition config so nobody wires it in as an 'alternative domain' later.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: jec_ussr_measures_1982
+  name: 'USSR: Measures of Economic Growth and Development, 1950-80 (JEC, 97th Congress, 8 Dec 1982)'
+  provider: Internet Archive (ERIC and microfiche uploads) / HathiTrust / Joint Economic Committee / Wayback
+    Machine
+  url: https://archive.org/download/ERIC_ED237314/ERIC_ED237314.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:20:57Z'
+  http_status: 200
+  sha256: null
+  bytes: 32136371
+  local_path: null
+  license: US government work (public domain); HathiTrust items rightsCode pd
+  notes: 'HEAD only on the ERIC PDF (Content-Length 32,136,371, after 302 to ia801604.us.archive.org).
+    Also digitised on HathiTrust record 007419310 with 3 Full-view copies: umn.31951003064870g, umn.31951p001470401,
+    uc1.b3865275 (Bibliographic API 200 at 18:19:19Z; babel and catalog HTML pages return Cloudflare 403
+    ''Just a moment...'' to curl and WebFetch). jec.senate.gov original https://www.jec.senate.gov/reports/97th%20Congress/USSR%20-%20Measures%20of%20Economic%20Growth%20and%20Development%201950-1980%20(1152).pdf
+    returns 403 to curl (both UAs) and WebFetch, but the Wayback snapshot http://web.archive.org/web/20250112145946/<that
+    URL> returned HEAD 200 application/pdf 21,346,957 bytes (18:21:35Z). The CIA mirror also holds copies
+    of this print as cia-readingroom-document-cia-rdp84b00148r000500990004-0 and cia-readingroom-document-05210421
+    (from the title search).'
+  blocked_reason: null
+  evidence: |-
+    archive.org metadata for ERIC_ED237314 (200, 5,672 B) lists ERIC_ED237314.pdf 32136371 bytes with abstract 'Because the Soviet Union does not publish measures of economic growth and development comparable with those of Western countries, the Central Intelligence Agency has provided ... estimates of the value of the Soviet gross national product (GNP)...'; HEAD of the PDF: 302 then 200 application/pdf Content-Length 32136371.
+  download_plan: |-
+    GET -L https://archive.org/download/ERIC_ED237314/ERIC_ED237314.pdf (32 MB) or https://archive.org/download/micro_IA41152601_2351/micro_IA41152601_2351.pdf (57.5 MB); also ERIC_ED237314_djvu.txt for OCR text (check https://archive.org/metadata/ERIC_ED237314 for the exact file list). Fallback: GET http://web.archive.org/web/20250112145946id_/https://www.jec.senate.gov/reports/97th%20Congress/USSR%20-%20Measures%20of%20Economic%20Growth%20and%20Development%201950-1980%20(1152).pdf (21.3 MB). Verify %PDF- header and record sha256; skip if size matches.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: maddison_mpd2023
+  name: Maddison Project Database 2023 (mpd2023_web.xlsx)
+  provider: Groningen Growth and Development Centre / DataverseNL
+  url: https://dataverse.nl/api/access/datafile/421302
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:16:26Z'
+  http_status: 200
+  sha256: ecc5916ca12789b983fc4be437f8a354bbf4291323605324ac3e0aea4c57cbb6
+  bytes: 4903804
+  local_path: null
+  license: 'Creative Commons (page: ''Maddison Project Database, version 2023 ... is licensed under a
+    creativecommons'' licence; exact CC variant not captured)'
+  notes: 'Release page https://www.rug.nl/ggdc/historicaldevelopment/maddison/releases/maddison-project-database-2023
+    (200, 40,326 B) says ''The 2023 version of this database covers 169 countries and the period up to
+    2022'' and cites Bolt & van Zanden (2024), J. Econ. Surveys. Download hrefs on the page are dataverse.nl/api/access/datafile/421302
+    (xlsx) and 421303 (dta). GET 421302 -> 303 to objectstore.surf.nl presigned URL -> 200, Content-Disposition
+    filename mpd2023_web.xlsx. Sheets: Notes, Sources, GDPpc, Population, Full data, Regional data, Maddison
+    original sources. ''Full data'' has 131,145 rows, columns countrycode,country,region,year,gdppc,pop.
+    countrycode SUN = ''Former USSR'' (region ''Eastern Europe''): 776 rows (years 1-2022), gdppc non-null
+    158 values (1860, then 1900-2022 with gaps; 118 values from 1900; first 1860=1525.30, last 2022=19354.71),
+    pop non-null 109 values (year 1 = 3,900 thousand; 2022 = 294,378.63 thousand). RUS also present separately
+    from 1860. Sources sheet cites Moorsteen & Powell (1966) and Kuboniwa (2019) for the USSR. HEAD on
+    421303 (.dta) followed the 303 but the presigned S3 URL returned 403 to HEAD - use GET, not HEAD.'
+  blocked_reason: null
+  evidence: |-
+    Full download 4,903,804 bytes, sha256 recorded; unzipped workbook.xml lists 7 sheets; parsed sheet5 ('Full data') rows with countrycode 'SUN' and country 'Former USSR' spanning years 1-2022 with gdppc values.
+  download_plan: |-
+    GET https://dataverse.nl/api/access/datafile/421302 (follow redirects; do not HEAD the presigned URL). Optionally 421303 for .dta. Verify sha256 ecc5916c...; parse 'Full data' sheet with openpyxl; filter countrycode in ('SUN','RUS'). Cite Bolt & van Zanden (2024) per the Notes sheet citation policy.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: nasa_eo_aral_world_of_change
+  name: 'NASA Earth Observatory - World of Change: Shrinking Aral Sea'
+  provider: NASA (science.nasa.gov / earthobservatory.nasa.gov)
+  url: https://science.nasa.gov/earth/earth-observatory/world-of-change/aral-sea/
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:15:47Z'
+  http_status: 200
+  sha256: null
+  bytes: 331474
+  local_path: null
+  license: NASA imagery generally public domain
+  notes: 'Requested https://earthobservatory.nasa.gov/world-of-change/AralSea; it redirected (followed
+    by curl) to the science.nasa.gov URL; title ''World of Change: Shrinking Aral Sea - NASA Science''.
+    This is an annual MODIS image series (2000 onward) with narrative; it is not a numeric extent/level
+    table.'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 331,474 bytes, <title>World of Change: Shrinking Aral Sea - NASA Science</title>.
+  download_plan: |-
+    Reference only; no data files to fetch. If lake extent numbers are needed, derive them from Landsat/MODIS or use a published extent table (not verified here).
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: no_machine_readable_tables
+  name: Machine-readable Narkhoz tables on Zenodo / GitHub (negative result)
+  provider: Zenodo; GitHub
+  url: https://zenodo.org/api/records?q=%22Soviet%22%20AND%20(%22statistical%20yearbook%22%20OR%20%22Narkhoz%22%20OR%20%22Narodnoe%20khoziaistvo%22)&size=20
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:06:50Z'
+  http_status: 200
+  sha256: null
+  bytes: 1625606
+  local_path: null
+  license: null
+  notes: 'Firm answer to part 4 of the hunt: no curated machine-readable transcription of the Narkhoz
+    annuals exists in the obvious open-data venues. The project will have to create it. The nearest existing
+    machine-readable forms are (a) archive.org''s per-volume hOCR with word coordinates - raw and error-ridden,
+    and (b) istmat.org''s HTML chapter pages - real text but needing scraping and schema work. I did not
+    search Harvard Dataverse or ICPSR; those remain worth one more look before concluding nothing exists
+    anywhere.'
+  blocked_reason: null
+  evidence: |-
+    Zenodo API GET 200, 1,625,606 B, hits.total = 6, and not one is Soviet statistical tables: 'Annual global cement production data', 'AN ATTEMPT AT AGRARIAN REFORMS DURING THE YEARS OF PERESTROIKA', 'From the Soviet Union to Modern Russia: How Alcohol Shaped National Mortality Trends', 'The Phenomenon of Hybrid State Capitalism', 'Annual Reports of Education, Health and Sport', 'Tourism Policy Challenges in Post-Soviet Georgia'. GitHub API GET 200, 5,142 B (https://api.github.com/search/repositories?q=narkhoz+OR+%22narodnoe+khoziaistvo%22+OR+%22soviet+statistics%22&per_page=30): total_count = 1, the sole hit being 'wyattscarpenter/ya - The Я Program for Soviet Statistics', 0 stars.
+  download_plan: |-
+    Nothing to acquire. For a future re-check, poll Zenodo at https://zenodo.org/api/records?q=<query>&size=<n> (anonymous, JSON, no key) and GitHub at https://api.github.com/search/repositories (unauthenticated 10 req/min, 60/hr - use a token for anything systematic). Add Harvard Dataverse (https://dataverse.harvard.edu/api/search?q=...) and ICPSR to the sweep.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: publ_lib_ru_narkhoz
+  name: publ.lib.ru «Народное хозяйство СССР» (статистический ежегодник) - DjVu/PDF zips
+  provider: Публичная библиотека (publ.lib.ru), volunteer scanning project
+  url: http://publ.lib.ru/ARCHIVES/N/%27%27Narodnoe_hozyaystvo_SSSR%27%27_%28ejegodnik%29/_NHSSSR.html
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:09:03Z'
+  http_status: 200
+  sha256: aa87bb52a1acfdf01a814266cdca38afe6b11fc58fef5701518da9e4624d1914
+  bytes: 76885
+  local_path: null
+  license: Page footer states the collection is 'Только для некоммерческого использования!' (non-commercial
+    use only). No formal licence.
+  notes: 'This is the fallback for two of archive.org''s gaps that matter: 1960 (verified by me end-to-end)
+    and 1990 (the final annual, listed at djv 7.9M, NOT downloaded by me). Only 9 files total, so it does
+    not fill all ten missing years - 1957, 1959, 1962, 1966, 1967, 1971, 1976, 1981 remain unfilled by
+    both IA and publ.lib.ru. DjVu needs conversion (ddjvu/djvused) before OCR; there is no bundled text
+    layer.'
+  blocked_reason: null
+  evidence: |-
+    Index page GET 200, 76,885 B, windows-1251, <TITLE>«Народное хозяйство СССР» (статистический ежегодник)</TITLE>; links are uppercase <A href="...zip"> to sibling files. HEAD on the 1960 zip: HTTP/1.1 200, Content-Type application/zip, Content-Length 10415786. I then fully downloaded it (needed three attempts with -C - resume; the server twice cut the response, once 'end of response with 952976 bytes missing'). Final file 10,415,786 B, sha256 above, zipfile CRC test clean. Contents: 'нар.хоз.СССР в 1960г.Спр-к.djvu' 10,429,268 B (magic bytes AT&TFORM...DJVMDIRM - genuine multi-page DjVu) plus 'нар.хоз.СССР в 1960г.Спр-к_inf.txt' 1,870 B whose text is the authentic 1960 preface: 'ЦЕНТРАЛЬНОЕ СТАТИСТИЧЕСКОЕ УПРАВЛЕНИЕ при СОВЕТЕ МИНИСТРОВ СССР / НАРОДНОЕ ХОЗЯЙСТВО СССР в 1960 году / СТАТИСТИЧЕСКИЙ ЕЖЕГОДНИК / МОСКВА 1961'.
+  download_plan: |-
+    (1) GET the index above, decode as windows-1251 (the page declares <META charset="windows-1251">), and extract links with a CASE-INSENSITIVE match on <A href="..."> - the tags are uppercase and the closing tag is </A>, which breaks naive lowercase regexes. (2) Filenames are literal and contain single quotes, parentheses and square brackets; percent-encode them: directory ''Narodnoe_hozyaystvo_SSSR''_(ejegodnik) becomes %27%27Narodnoe_hozyaystvo_SSSR%27%27_%28ejegodnik%29 and a file like Narodnoe_hozyaystvo_SSSR_v_1960_g.(1961).[djv].zip becomes Narodnoe_hozyaystvo_SSSR_v_1960_g.%281961%29.%5Bdjv%5D.zip. (3) HTTP only - do not try https. (4) MANDATORY: use `curl -C - --retry` in a loop until the local size equals the HEAD Content-Length. The server sustains only ~20 KB/s and truncates responses; a single-shot GET will silently give you a corrupt zip. Verify with a zip CRC test, not just a size check. (5) Serialise requests (concurrency 1) and set a real User-Agent. Whole collection is roughly 140 MB.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: pwt_110
+  name: Penn World Table 11.0 (pwt110.xlsx)
+  provider: Groningen Growth and Development Centre / DataverseNL
+  url: https://dataverse.nl/api/access/datafile/554105
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:18:38Z'
+  http_status: 200
+  sha256: 7b337e94f39dfe304bc459e433f8ce0624496c812707ae0c924888f5142b3ab3
+  bytes: 5839841
+  local_path: null
+  license: null
+  notes: 'Current release is PWT 11.0: landing page https://www.rug.nl/ggdc/productivity/pwt/ (200) states
+    ''PWT version 11.0 is a database ... covering 185 countries between 1950 and 2023'' and ''PWT 11.0
+    constitutes a major update from PWT 10''. The /pwt-database page (200, 36,303 B) exposes no file links
+    (SSO/JS); the landing page carries dataverse.nl datafile hrefs 554021-554105 (11.0) and the pwt1001
+    page has 354091-354111 (10.01). Downloaded 554105 -> Content-Disposition pwt110.xlsx; sheets Info,
+    Legend, Data. sharedStrings.xml contains NO string matching USSR / Soviet / U.S.S.R / Former; only
+    ''Russian Federation'' and ''Russian Ruble''. CONFIRMED: PWT has no USSR entity.'
+  blocked_reason: null
+  evidence: |-
+    Full download 5,839,841 bytes with sha256; grep of sharedStrings for USSR|Soviet|Former returned nothing; 'Russian Federation' present.
+  download_plan: |-
+    Not useful for pre-1990 USSR. If needed for post-1990 successor states: GET https://dataverse.nl/api/access/datafile/554105 (xlsx) and parse 'Data' sheet; countries RUS, UKR, UZB etc. begin 1990.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: rgae_reading_room
+  name: РГАЭ reading-room access conditions (rgae.ru)
+  provider: Российский государственный архив экономики
+  url: http://rgae.ru/deyatelnost/uslugi/chitalnyi-zal.shtml
+  access: archive_visit
+  status: verified
+  fetched_at: '2026-09-06T14:01:28Z'
+  http_status: 200
+  sha256: null
+  bytes: 32816
+  local_path: null
+  license: null
+  notes: 'Direct answer to the brief''s third fact. Remote access is finding-aid only: you can search
+    the описи online and pre-order files electronically, but document images are NOT delivered remotely
+    - scans ordered in the reading room are handed to the user on the user''s own physical media, and
+    phone/tablet photography is explicitly not performed. I did NOT open the ГИС УИАД page, so I make
+    no claim about what that system offers; it is the one lead that could change this picture and should
+    be checked.'
+  blocked_reason: null
+  evidence: |-
+    Quoted verbatim from the page: «РГАЭ информирует также, что электронные образы документов, исполненные по заказам на сканирование в читальных залах архива, передаются пользователям на внешних информационных носителях заказчика. Копирование документов на планшеты и смартфоны не осуществляется.» Also verbatim: «Информируем вас о графике работы читальных залов РГАЭ с 1 декабря 2025 г. Б. Пироговская ул., д. 17: понедельник, среда – 12:00 – 20:00; вторник, четверг – 10:00 – 17:00; пятница – 10:00 – 16:00. Читальный зал в п. Вороновское: понедельник – пятница - 10:00 – 17:00.» and «Первый рабочий день каждого месяца – санитарный.» Two reading rooms exist (Moscow, B. Pirogovskaya 17; and Voronovskoe, reached by archive minibus Mon/Wed by prior booking, or ~3 km on foot from the 'Вороново-2' bus stop). The site menu also carries «Электронный заказ дел в читальный зал» (electronic pre-ordering of files) and a banner «Открыт доступ к ГИС УИАД!».
+  download_plan: |-
+    Nothing to script. Human task - see human_actions. If a future agent wants to test the remote-ordering path, start at http://rgae.ru/deyatelnost/uslugi/chitalnyi-zal.shtml/e-zakaz-del-chit-zal.shtml and the ГИС УИАД link on the homepage, both over plain HTTP.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: usda_psd_cotton_bulk
+  name: USDA FAS PSD Online bulk download - psd_cotton_csv.zip
+  provider: USDA Foreign Agricultural Service (apps.fas.usda.gov/psdonline)
+  url: https://apps.fas.usda.gov/psdonline/downloads/psd_cotton_csv.zip
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:15:35Z'
+  http_status: 200
+  sha256: ac4d08d9a32abfc3ab75d5b6a69de62a08a30c7ab8ec2ce3ef0849b5da15c0c5
+  bytes: 476434
+  local_path: null
+  license: US Government work (public domain); not re-verified this session
+  notes: 'Columns: Commodity_Code,Commodity_Description,Country_Code,Country_Name,Market_Year,Calendar_Year,Month,Attribute_ID,Attribute_Description,Unit_ID,Unit_Description,Value.
+    Country_Name ''Union of Soviet Socialist Repu'' (Country_Code UR) has 27 market years 1960-1986 for
+    each of 12 attributes (Area Harvested, Beginning Stocks, Domestic Use, Ending Stocks, Exports, Imports,
+    Loss, Production, Stocks-to-Use, Total Distribution, Total Supply, Yield). ''Uzbekistan'' (UZ) runs
+    1987-2026. No ''Former Soviet Union''/''FSU'' name exists in the cotton file, so 1987-1991 USSR totals
+    must be summed across republics. Production, unit ''1000 480 lb. Bales'': USSR 1960=6800, 1965=8810,
+    1970=10770, 1975=11610, 1976=12010, 1977=12470, 1978=11907, 1979=12833, 1980=12401, 1981=11032, 1982=10619,
+    1983=9976, 1984=11928, 1985=12777, 1986=12217; Uzbekistan 1987=6912, 1988=7956, 1989=7605, 1990=7317,
+    1991=6628, 1992=5851, 2000=4400, 2025=3445. These are lint bales (1 bale = 480 lb = 217.72 kg), not
+    seed cotton. Extracted rows saved as psd_ussr_uzb_production.csv (67 rows).'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, valid zip with one CSV; grep confirmed USSR rows 1960-1986 and Uzbekistan rows 1987-2026 with the values quoted in notes.
+  download_plan: |-
+    GET https://apps.fas.usda.gov/psdonline/downloads/psd_cotton_csv.zip (no auth; ~0.5 MB; updated monthly around WASDE release - compare Last-Modified/zip timestamp before re-downloading). Unzip psd_cotton.csv; filter Commodity_Code==2631000, Country_Code in {UR, UZ, plus other ex-Soviet codes for 1987-1991 aggregation}, Attribute_Description=='Production' (also 'Area Harvested','Yield'). Convert bales to tonnes lint (x0.21772). The same downloads directory also serves psd_alldata_csv.zip (larger) if other commodities are needed. Landing page https://apps.fas.usda.gov/psdonline/app/index.html#/app/downloads is a 2,303-byte SPA shell; do not scrape it.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: usgs_eros_earthshots_aral
+  name: USGS EROS EarthShots - Aral Sea, Kazakhstan and Uzbekistan
+  provider: USGS EROS (eros.usgs.gov)
+  url: https://eros.usgs.gov/earthshots/aral-sea-kazakhstan-and-uzbekistan
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:18:53Z'
+  http_status: 200
+  sha256: null
+  bytes: 44030
+  local_path: null
+  license: US Government work (public domain)
+  notes: 'Page title ''Aral Sea, Kazakhstan and Uzbekistan | EROS''. Imagery dates mentioned: 1964 ARGON;
+    1977, 1987, 1998/Aug 20 1999, 2006, 2010, 2013, 2014, 2015 Landsat. Related EarthShots pages surfaced
+    by search (not fetched): /earthshots/north-aral-sea, /earthshots/south-aral-sea, /earthshots/islands-the-aral-sea,
+    /earthshots/aralsk. The guessed www.usgs.gov URL (.../centers/eros/science/earthshots-aral-sea-kazakhstan-and-uzbekistan)
+    returned 404 at 18:15:50Z. Imagery only, no numeric series.'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 44,030 bytes, title and year/sensor strings extracted from the HTML.
+  download_plan: |-
+    Reference only. For a numeric Aral extent series the acquisition script should instead derive area from Landsat scenes (USGS EarthExplorer/M2M API, registration) or use a published table; neither was verified here.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: wb_soviet_economic_decline
+  name: 'World Bank Data Catalog: ''The Soviet Economic Decline'' dataset (Easterly & Fischer 1995) -
+    USSR 1928-87 and republics 1970-90'
+  provider: World Bank Data Catalog (DDH id 0039308)
+  url: https://datacatalogfiles.worldbank.org/ddh-published/0039308/1/DR0048766/the_soviet_economic_decline_dataset.zip
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:17:47Z'
+  http_status: 200
+  sha256: 2eb191346d03b734f83209ddeef3f07cb083788b36c2a1fb51f5ba74e53ae886
+  bytes: 119833
+  local_path: null
+  license: Catalog page links datacatalog.worldbank.org/public-licenses?fragment=cc (CC-type public licence);
+    page marks dataset Public
+  notes: 'Catalog page https://datacatalog.worldbank.org/search/dataset/0039308 (200, 65,779 B) lists
+    4 resources: DR0048766 ..._dataset.zip, DR0048767 ..._datadescription.pdf, DR0048768 ..._dataset_0.zip,
+    DR0048769 sovieteconomicdecline_0_0.pdf. Zip contents: README.TXT, README.DOC, REPUBL.ZIP, USSR.ZIP.
+    USSR.ZIP holds 14 MicroTSP .DB series files plus USSR.WK1 (Lotus): GNPWEST (GNP Western estimates,
+    CIA), KINDOFF/KINDWEST (industrial capital stock official/Western), KKHAN (capital stock, Khanin),
+    KOFF, KWEST, LIND, LMAT, LWEST (labour force), YINDOFF, YINDWEST, YKHAN (NMP, Khanin), YOFF (NMP official).
+    README: ''Historical data (all data are annual series, 1928-87) Source is Gomulka and Schaffer (1991)'';
+    republican data 1970-90 ''provided mainly by the Center of Economic Analysis and Forecasting in Moscow
+    ... rebased and spliced together with other data from Narhoz''. This is directly relevant: it already
+    juxtaposes official NMP, Khanin''s alternative NMP and CIA GNP in machine-readable form.'
+  blocked_reason: null
+  evidence: |-
+    Zip downloaded (119,833 B, sha256 recorded); unzip listing and README.TXT text quoted above; nested USSR.ZIP file list enumerated.
+  download_plan: |-
+    GET the four DDH resource URLs above (all public, ~0.5 MB total). Parse USSR.WK1 (Lotus 1-2-3) with python `lotus123`/`wk1` readers or LibreOffice; .DB files are MicroTSP (EViews predecessor) - EViews opens them, or parse the simple text-ish header. Read the datadescription PDF for variable definitions. One-shot, idempotent by sha256.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: wb_wdi_country_api
+  name: World Bank WDI API - USSR entity check
+  provider: World Bank
+  url: https://api.worldbank.org/v2/country?format=json&per_page=400
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:15:16Z'
+  http_status: 200
+  sha256: null
+  bytes: 113590
+  local_path: null
+  license: null
+  notes: 'Full country/aggregate list (total 295) contains no entity whose name matches soviet|ussr|u.s.s.r;
+    only ''Russian Federation''. https://api.worldbank.org/v2/country/SUN?format=json returned 200 with
+    body [{''message'':[{''id'':''120'',''key'':''Invalid value'',''value'':''The provided parameter value
+    is not valid''}]}] (102 bytes). RUS NY.GDP.MKTP.CD 1960-1995 query returned values only from 1988
+    onward (1988 554.8bn, 1989 506.6bn, 1990 517.0bn USD). CONFIRMED: WDI carries no USSR series and no
+    pre-1988 Russia GDP.'
+  blocked_reason: null
+  evidence: |-
+    JSON responses as quoted; grep for USSR/Soviet names over the 295-entry list returned only 'Russian Federation'.
+  download_plan: |-
+    Nothing to acquire for the USSR. For successor republics (UZB etc.) use https://api.worldbank.org/v2/country/{ISO3}/indicator/{code}?format=json&date=1988:1995&per_page=100.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: wikipedia_uzbek_cotton_scandal
+  name: Wikipedia - 'Uzbek cotton scandal' (secondary; for pointers and cross-check only)
+  provider: Wikimedia Foundation
+  url: https://en.wikipedia.org/wiki/Uzbek_cotton_scandal
+  access: free
+  status: verified
+  fetched_at: 2026-09-04T18:17:20Z (approx; WebFetch, between logged Bash calls at 18:17:15Z and 18:17:56Z)
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: CC BY-SA 4.0
+  notes: 'Extracted claims (with the page''s footnotes): ''Rashidov ... receiving a total of four billion
+    rubles from the Soviet government for non-existent cotton production'' [fn 1: Blackmon 2011]; ''In
+    that year alone [1983], 981,000 tonnes of cotton were reported as being harvested when they did not
+    exist. For this, 757 million rubles were given to the Uzbek SSR''s government, of which 286 million
+    disappeared'' [fn 3]; ''800 criminal cases ... more than 4,000 individuals were found guilty''; scandal
+    ''continuing until 1989''. The 981,000 t / 1983 figure is consistent with the thesis''s 500-900 kt/yr
+    band but I did not verify it against a primary source.'
+  blocked_reason: null
+  evidence: |-
+    WebFetch returned the article with the quoted sentences and footnote references.
+  download_plan: |-
+    Reference only; do not use as a data source. If needed, GET the page or the MediaWiki API (https://en.wikipedia.org/w/api.php?action=parse&page=Uzbek_cotton_scandal&prop=wikitext&format=json) to harvest its reference list.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: cawater_aral_database
+  name: CAWater-Info 'Database of the Aral Sea' (SIC ICWC) - water delivery to the Aral Sea and river
+    deltas
+  provider: Scientific Information Center of the Interstate Commission for Water Coordination (SIC ICWC),
+    Tashkent
+  url: http://www.cawater-info.net/aral/data/amu_water_delivery_aral_veg_e.htm
+  access: free
+  status: partial
+  fetched_at: '2026-09-04T18:19:29Z'
+  http_status: 200
+  sha256: 1f10747eb5e4dda98e2dd74d0ddd84f6abd8b8fbbb284657250a4821cc7b83cf
+  bytes: 10945
+  local_path: null
+  license: Not stated on the fetched pages
+  notes: 'Index http://www.cawater-info.net/aral/data/index_e.htm (200, 5,261 B, fetched 18:15:46Z) lists:
+    The Aral Sea level fluctuation 1780-1960; Key morphometric characteristics of the Aral Sea (1911-2018)
+    [morpho_e.htm]; Bathymetric characteristics (1950-2009); Dynamics of water resources by countries
+    (after Shiklomanov); Salt influx; Water delivery to the Aral Sea and the Amudarya/Syrdarya deltas
+    for growing and non-growing seasons [amu_water_delivery_aral_veg_e.htm, amu_water_delivery_aral_nonveg_e.htm,
+    syr_water_delivery_aral_veg_e.htm, syr_water_delivery_aral_nonveg_e.htm]; Monitoring of water surface
+    and wetland area [monitoring_amu_e.htm - satellite-image archive 2010-2026, fetched 200, 15,367 B];
+    climate station tables; ''Resources of the Amudarya and the Syrdarya rivers'' graph [resources_e.htm].
+    The Amu Darya growing-season table fetched here has header ''Years, Apr, May, Jun, Jul, Aug, Sep,
+    Plan, Actual, %%'' in mln. m3 and rows 1992-2025 (e.g. 1992: 428, 3620, 5480, 6203, 4830, 2620, plan
+    7000, actual 23181, 331.2%; 1993: ... actual 13595). Therefore this page does NOT cover the 1976-1983
+    padding window; the 1911-2018 morphometric table and the resources graph were not opened and are the
+    candidates for pre-1992 series. HTTP only (no HTTPS tested).'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200 HTML table titled 'Water delivery to the Aral Sea and the Amudarya river delta for growing season, mln. m 3' with 34 <tr> rows spanning years 1992-2025.
+  download_plan: |-
+    GET (plain HTTP, UA header fine, no rate limit observed; be polite, <=1 req/s) each of: http://www.cawater-info.net/aral/data/{amu_water_delivery_aral_veg_e,amu_water_delivery_aral_nonveg_e,syr_water_delivery_aral_veg_e,syr_water_delivery_aral_nonveg_e,morpho_e,resources_e}.htm plus the Russian variants (drop the _e suffix, e.g. amu_water_delivery_aral_veg.htm) which sometimes carry longer series; decode as cp1251; parse <table> rows with a simple regex/BeautifulSoup; store as CSV with source URL and fetch date. Idempotent: compare sha256 of the HTML to the stored value before re-parsing. For pre-1992 Amu/Syr Darya flow, a human should inspect morpho_e.htm, resources_e.htm and the Shiklomanov 'dynamics of water resources' page in a browser and note whether numeric tables exist or only images.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: grdc_portal
+  name: Global Runoff Data Centre (GRDC) - data portal and data policy
+  provider: BfG / GRDC (grdc.bafg.de)
+  url: https://grdc.bafg.de/about/data_policy/index.html
+  access: registration
+  status: partial
+  fetched_at: '2026-09-04T18:18:49Z'
+  http_status: 200
+  sha256: null
+  bytes: 28877
+  local_path: null
+  license: 'GRDC data policy: ''Data are free of charge'' (text seen on the policy page); redistribution
+    restrictions apply per the policy'
+  notes: grdc.bafg.de root returned 200 (42,038 B) with links to ./data/data_portal/, ./about/data_policy/,
+    ./data/database_statistics/ and news items 'new_data_kz' (new Kazakhstan data, 2026). https://portal.grdc.bafg.de/
+    returned 200 but redirected to /applications/ with an 83-byte HTML shell (JavaScript application)
+    - station search for Amu Darya / Syr Darya could not be done with curl, so presence of those stations
+    is NOT confirmed. Data-policy page text includes 'Data are free of charge'; the request mechanism
+    (portal download after providing user details) was not exercised.
+  blocked_reason: null
+  evidence: |-
+    Policy page HTTP 200 containing the phrase 'Data are free of charge'; portal returned a JS shell only.
+  download_plan: |-
+    Human step: open https://portal.grdc.bafg.de/ in a browser, search stations on the Amu Darya (Uzbek/Turkmen reaches, e.g. delta gauges) and Syr Darya, add to cart, submit the data request with name/institution/purpose; GRDC emails a download link (typically zipped GRDC-format daily/monthly discharge text files, a few MB). Script side: store the delivered files under a raw/grdc/ folder with the request ID; no automated re-fetch is possible without a new request. Check station period-of-record covers the 1970s-1980s before requesting.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: hathitrust_ge_tempo_1966_io
+  name: '''The transformation of the 1966 Soviet input-output table from producers to adjusted factor
+    cost values'' (GE-TEMPO, Santa Barbara, 1975) - HathiTrust record'
+  provider: HathiTrust (University of Michigan copy)
+  url: https://catalog.hathitrust.org/Record/000213207
+  access: archive_visit
+  status: partial
+  fetched_at: '2026-09-04T18:16:42Z'
+  http_status: 200
+  sha256: null
+  bytes: 18990
+  local_path: null
+  license: null
+  notes: 'Record page 200. Published ''Santa Barbara, Calif.: General Electric Company-TEMPO Center for
+    Advanced Studies, 1975'', subject ''Input-output analysis''. Viewability shown as ''Limited (search-only)''
+    for the University of Michigan copy (babel.hathitrust.org/cgi/pt?id=mdp.39015004034586). So the digitised
+    scan exists but cannot be viewed/downloaded outside HathiTrust full-view eligibility. A related catalog
+    line ''False science: underestimating the Soviet arms buildup: an appraisal of the CIA''s direct costing
+    effort, 1960-19..'' (1973) appears under Similar Items.'
+  blocked_reason: null
+  evidence: |-
+    HTML contains 'search only' viewability and the babel handle id mdp.39015004034586; publisher/year string quoted.
+  download_plan: |-
+    HUMAN: request the physical/ILL copy or check whether the item is public domain (US government-contracted work may be) and file a HathiTrust access request; alternatively obtain Treml et al. 'The Structure of the Soviet Economy' (Praeger 1972) and Treml/Kostinsky/Gallik 1977 volumes via library. Full-text search inside HathiTrust is possible without download for locating table pages.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: hathitrust_narkhoz
+  name: HathiTrust - Narodnoe khoziaistvo SSSR / Uzbekskoi SSR
+  provider: HathiTrust Digital Library
+  url: https://babel.hathitrust.org/cgi/ls?q1=%22Narodnoe%20khoziaistvo%20Uzbekskoi%20SSR%22;a=srchls;anyall1=phrase;field1=ocr;lmt=ft;sz=20
+  access: free
+  status: partial
+  fetched_at: '2026-09-06T13:55:17Z'
+  http_status: 200
+  sha256: null
+  bytes: 114379
+  local_path: null
+  license: null
+  notes: 'Explicit answer to the brief''s ''report if full view is restricted'': I found no restricted
+    Narkhoz volume, because I found no Narkhoz volume in HathiTrust at all. Absence of proof rather than
+    proof of absence - the catalogue search rendered client-side and I could not enumerate it. Given archive.org
+    already provides the SSSR series, HathiTrust is only worth revisiting for the Uzbek republic annual.'
+  blocked_reason: null
+  evidence: |-
+    Full-text search GET 200, 114,379 B, returning an SPA shell (Firebird UI) with 12 record ids and 20 htids embedded. I resolved all 12 through the Bib API (https://catalog.hathitrust.org/api/volumes/brief/json/recordnumber:...|..., 200, 502,070 B). Every one is a bibliography or accession list that merely MENTIONS the yearbook - 'New serial titles', 'Foreign statistical publications; accession list', 'Foreign social science bibliographies. Series P-92.', 'Statistical bulletin', 'Agricultural statistics of the former USSR republics and the Baltic States' (1993). All are rightsCode 'pd' / 'Full view', but none is a Narkhoz volume. A title-search on the catalogue (https://catalog.hathitrust.org/Search/Home?lookfor=Narodnoe+khoziaistvo+SSSR&type=title) returned 200, 139,243 B, also as an SPA shell I could not parse into records.
+  download_plan: |-
+    Use the Bib API rather than scraping: https://catalog.hathitrust.org/api/volumes/brief/json/oclc:<n> or recordnumber:<n>, pipe-separated for up to ~20 ids per call, returns JSON with rightsCode and usRightsString per item. No key needed. To find candidate record numbers, drive catalog.hathitrust.org with a headless browser, since the search UI is client-rendered. If any Uzbek volume turns up with rightsCode 'pd', page images come from https://babel.hathitrust.org/cgi/imgsrv/download?id=<htid> (rate-limited, often requires a logged-in partner session for full PDF).
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: istmat_org
+  name: Проект «Исторические Материалы» (istmat.org) - HTML + PDF Narkhoz SSSR and republic annuals
+  provider: istmat.org
+  url: https://istmat.org/files/uploads/433/narodnoe_hozyaystvo_sssr_v_1990_g.pdf
+  access: free
+  status: partial
+  fetched_at: '2026-09-06T14:12:29Z'
+  http_status: 200
+  sha256: null
+  bytes: 25088236
+  local_path: null
+  license: 'Site-wide statement, quoted from the page: «Вся информация на сайте, если не указано другое,
+    предоставляется на условиях лицензии Creative Commons BY-SA 4.0.»'
+  notes: 'Strategically the most valuable source for this project because the HTML chapters are real text,
+    not scans - the closest thing to machine-readable Narkhoz tables that exists. It also covers all ten
+    years archive.org lacks, including 1990. Confirmed Uzbek SSR holdings under node/53397: 1955 (node
+    69005), 1969 (68890), 1972 (68927), 1975 (68891), 1988 (68934), 1990 (53398). A Uzbek PDF URL surfaced
+    by search - https://istmat.org/files/uploads/68890/narodnoe_hozyaystvo_uzbekskoy_ssr_1969.pdf - was
+    confirmed to serve >10 MB of content (WebFetch aborted on maxContentLength), so the pattern holds
+    for republic volumes too. I did NOT verify the HTML chapters actually contain table text; I only saw
+    chapter indexes. Verify that before committing to an HTML-scraping strategy.'
+  blocked_reason: 'Intermittently unreachable from this host: curl to https://istmat.org/ timed out at
+    both :443 and :80 (DNS resolves 81.222.116.14; http:// returned a 301 to https which then timed out),
+    and one WebFetch got ''connect ECONNREFUSED 81.222.116.14:443''. Other requests to the same host succeeded
+    minutes later. Behaves like intermittent filtering or an overloaded/rate-limited origin rather than
+    a hard geo-block.'
+  evidence: |-
+    curl -sSIL on the 1990 PDF returned 'HTTP/1.1 200 OK / Content-Type: application/pdf / Content-Length: 25088236' - this confirms the /files/uploads/<node-id>/<slug>.pdf pattern is real. Via WebFetch I read the series index at https://istmat.org/node/21341, which lists editions 1860-1938, 1921-1922, 1922-1923, 1923-1924, 1932, 1941-1945, 1913-1956, 1956 (node 17165), 1958 (21310), 1959 (21357), 1960 (69), 1961-1989, 1990 (433), plus jubilee volumes 1922-1972 (10401), 60th anniversary (18073), 1922-1982 (15623), and «за 70 лет» (7687). Node 433 confirmed as «Народное хозяйство СССР в 1990 г.» with both a PDF and eight HTML chapters (Предисловие; Общеэкономические показатели; Финансы, кредит и денежное обращение; Социальное развитие; Материальное производство; Внешнеэкономические связи; Международные сравнения; Краткие методологические пояснения). Node 69 (1960) confirmed as a chapter index (Территория и население, Промышленность, Сельское хозяйство, Транспорт и связь, ... Методологические пояснения).
+  download_plan: |-
+    (1) Reach the host from an egress that works - see human_actions; from here it answers maybe one request in three. (2) Crawl node/21341 (SSSR series) and node/53397 (Uzbek SSR series) to enumerate child node ids. Drupal node ids are the join key. (3) For each node, try the PDF at https://istmat.org/files/uploads/<node_id>/<slug>.pdf - slug is not derivable, so scrape the actual href off the node page rather than constructing it. (4) In parallel crawl the HTML chapter pages under each node and store the raw HTML; these are the transcription-free path to tables and are worth far more than the PDFs. (5) Attribution is required under CC BY-SA 4.0, and any derived table set must be shared alike - decide now whether that is acceptable for the project's outputs. (6) Rate-limit hard (1 request every 2-3 s, retry with backoff on connection refused) - the origin is fragile. Budget roughly 25 MB per SSSR PDF.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: jec_gorbachev_economic_plans_1987
+  name: Gorbachev's Economic Plans, vols. 1-2 (JEC, 100th Congress, S. Prt. 100-57, 23 Nov 1987)
+  provider: HathiTrust (University of Michigan copies) / Joint Economic Committee via Wayback Machine
+  url: https://catalog.hathitrust.org/api/volumes/brief/recordnumber/002772457.json
+  access: free
+  status: partial
+  fetched_at: '2026-09-04T18:20:49Z'
+  http_status: 200
+  sha256: null
+  bytes: 805
+  local_path: null
+  license: HathiTrust rightsCode pd (Full view); US government work
+  notes: HathiTrust record 002772457 'Gorbachev's economic plans study papers submitted to the Joint Economic
+    Committee, Congress of the United States', 1987, OCLC 19692233; items mdp.39015009962559 (v.1) and
+    mdp.39015009962542 (v.2), both usRightsString 'Full view', itemURL https://babel.hathitrust.org/cgi/pt?id=<htid>.
+    babel pages are Cloudflare-403 for curl/WebFetch, so no bytes fetched. jec.senate.gov Vol I https://www.jec.senate.gov/reports/100th%20Congress/Gorbachev's%20Economic%20Plan%20Volume%20I%20(1438).pdf
+    has a Wayback snapshot 20240918021631 (availability API 200 at 18:21:41Z; snapshot not fetched); Vol
+    II (...Gorbachev's%20Economic%20Plans%20Volume%20II%20(1439).pdf) came only from WebSearch. Not found
+    on archive.org by title search (0 hits for title:"Gorbachev's Economic Plans").
+  blocked_reason: null
+  evidence: |-
+    Bibliographic API JSON returned the record and two pd/Full view items.
+  download_plan: |-
+    Preferred: GET http://web.archive.org/web/20240918021631id_/https://www.jec.senate.gov/reports/100th%20Congress/Gorbachev's%20Economic%20Plan%20Volume%20I%20(1438).pdf ; check https://archive.org/wayback/available?url=<Vol II URL> then fetch the snapshot. HathiTrust whole-volume PDF requires a browser session (login for full download); page images via https://babel.hathitrust.org/cgi/imgsrv/... are behind the same Cloudflare challenge for curl.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: jec_soviet_economy_1980s_1982
+  name: 'Soviet Economy in the 1980''s: Problems and Prospects, Parts 1-2 (JEC, 97th Congress, 31 Dec
+    1982)'
+  provider: Internet Archive (Boston Public Library govdocs) / Joint Economic Committee via Wayback Machine
+  url: https://archive.org/metadata/sovieteconomyin101unit
+  access: free
+  status: partial
+  fetched_at: '2026-09-04T18:21:28Z'
+  http_status: 200
+  sha256: null
+  bytes: 106522
+  local_path: null
+  license: US government work (public domain)
+  notes: 'archive.org item sovieteconomyin101unit = ''Soviet economy in the 1980''s : problems and prospects
+    : selected papers submitted to the Joint Economic Committee'', volume ''pt. 1'', date 1983, collections
+    bplgovdocs/bostonpubliclibrary/americana, no access-restricted-item flag, file sovieteconomyin101unit.pdf
+    43,421,807 bytes (not downloaded, >40 MB). Part I on jec.senate.gov: https://www.jec.senate.gov/reports/97th%20Congress/Soviet%20Economy%20in%20the%201980s%20-%20Problems%20and%20Prospects%20Part%20I%20(1185).pdf
+    has a Wayback snapshot 20260312161046 (availability API 200, 18:21:38Z; snapshot itself not fetched).
+    Part II URL (...Part%20II%20(1186).pdf) appeared only in WebSearch results and was not fetched. OSTI
+    catalog entries 6792140 (Part 1) and 6832384 (Part 2) also surfaced in search (not fetched). A DTIC
+    item DTIC_ADA121312 ''The Soviet Economy in the 1980s'' (April 1982) is a RAND paper by Thane Gustafson,
+    not this compendium.'
+  blocked_reason: null
+  evidence: |-
+    Metadata JSON lists the PDF and shows no restriction; Wayback availability JSON: {"status":"200","available":true,"timestamp":"20260312161046"}.
+  download_plan: |-
+    Part 1: GET -L https://archive.org/download/sovieteconomyin101unit/sovieteconomyin101unit.pdf (43.4 MB) and sovieteconomyin101unit_djvu.txt. Part I/II originals: GET http://web.archive.org/web/20260312161046id_/https://www.jec.senate.gov/reports/97th%20Congress/Soviet%20Economy%20in%20the%201980s%20-%20Problems%20and%20Prospects%20Part%20I%20(1185).pdf and query https://archive.org/wayback/available?url=<Part II URL> for the 1186 file before fetching. Verify %PDF- header, record sha256.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: rand_soviet_national_income
+  name: RAND catalog entries for Bergson/Becker Soviet national income studies (RM-2544, R-464, RM-5705,
+    RP-414)
+  provider: RAND Corporation
+  url: https://www.rand.org/pubs/research_memoranda/RM2544.html
+  access: free
+  status: partial
+  fetched_at: '2026-09-04T18:20:09Z'
+  http_status: 200
+  sha256: null
+  bytes: 28781
+  local_path: null
+  license: null
+  notes: 'rand.org returns 403 (919 B) to the scaffold User-Agent and to WebFetch; with a browser User-Agent
+    all four pages return 200. RM2544 ''Soviet National Income and Product, 1928-48: Revised Data'' (Bergson,
+    Heymann, Hoeffding; ''Year: 1960'', ''Pages: 143'', ''Availability: Web Only'', DOI 10.7249/RM2544):
+    the HTML contains ZERO ''.pdf'' strings and no ''Download Free Electronic Document'' button - only
+    .bib/.ris export links. Same for R464 ''Soviet National Income 1958-1964'' (608 pages, Web Only),
+    RM5705 ''Soviet National Income, 1964-1966, in Established Prices'' (109 pages, Web Only), RP414 ''Intelligence
+    Fiasco or Reasoned Accounting? CIA Estimates of Soviet GNP'' (39 pages, ''Out Of Print''). CONCLUSION:
+    these RAND Soviet-GNP items are catalogued but NOT downloadable as PDFs; the brief''s assumption ''rand.org
+    publications are free PDFs'' does not hold for this series.'
+  blocked_reason: null
+  evidence: |-
+    Four GETs with browser UA returned 200 with titles as quoted; grep -oi '.pdf' count = 0 on each page; 'Availability: Web Only' / 'Out Of Print' text captured.
+  download_plan: |-
+    HUMAN: (1) check RAND's 'Web Only' items by e-mailing order@rand.org or via the DOI resolver 10.7249/RM2544 in a browser to see whether a PDF is served behind a JS gate; (2) otherwise obtain Bergson (1961) 'The Real National Income of Soviet Russia since 1928' and Becker (1969) via library/HathiTrust; (3) the machine-readable equivalents already exist in Harrison's sovietgrowth/dataset.xls (GNP series citing Moorsteen-Powell and Becker-Moorsteen-Powell) and the World Bank Soviet Economic Decline zip (GNPWEST = CIA GNP).
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: rgae_opisi_online
+  name: РГАЭ electronic inventories (opisi.rgae.ru) - Gosplan f.4372 and TsSU f.1562 both listed
+  provider: Российский государственный архив экономики (RGAE), system built by ELAR
+  url: http://opisi.rgae.ru/scripts/uis/rgae_any.php?base=mysql:rgae&list=&idObj=4
+  access: free
+  status: partial
+  fetched_at: '2026-09-06T14:12:36Z'
+  http_status: 200
+  sha256: null
+  bytes: 19557
+  local_path: null
+  license: null
+  notes: 'Both target fonds ARE in a public, anonymous, no-login online finding aid - the brief''s assumption
+    that RGAE is wholly inaccessible is too pessimistic at the finding-aid level. What I did NOT verify:
+    whether the opis-level (описи) listings and delo-level titles inside f.4372 and f.1562 are actually
+    populated, since I only reached the fond list. The server is extremely slow: three requests truncated
+    at 4-8 KB under a 50 s timeout and only completed when given 400 s. HTTPS on rgae.ru itself fails
+    outright (''schannel: SEC_E_ILLEGAL_MESSAGE'', and WebFetch got ''SSLV3_ALERT_HANDSHAKE_FAILURE'');
+    plain HTTP works.'
+  blocked_reason: null
+  evidence: |-
+    http://opisi.rgae.ru/ returns a 613-byte meta-refresh to /scripts/uis/rgae.php?base=mysql:rgae (200, 6,978 B), a frame-menu with ФОНДЫ, ОПИСИ И ДЕЛА / ПОИСК / ИЗБРАННОЕ. Browsing rgae_any.php?...&idObj=1 (200, 18,095 B) gives 17 thematic rubrics. idObj=3 = 'Планирование. Статистика. Переселение'. idObj=1200001 (Статистика, 200, 16,532 B) lists verbatim: '1562 Центральное статистическое управление (ЦСУ) при Совете Министров СССР', alongside f.79 Союзсчеттехника, f.779 НИИ статистики, f.900 ГДИВЦ. idObj=4 (Планирование, 200, 19,557 B) lists verbatim: '4372 Государственный плановый комитет Совета Министров СССР (Госплан СССР)', alongside f.355 Госплан по перспективному планированию, f.399 СОПС, f.7529 ИЭИ при Госплане СССР.
+  download_plan: |-
+    (1) HTTP only, never https, for both rgae.ru and opisi.rgae.ru. (2) Decode responses as windows-1251. (3) Walk rgae_any.php?base=mysql:rgae&list=&idObj=<N> starting at idObj=1; each page's <A href=...&idObj=M> links are the children. Persist the (idObj -> title) tree so the crawl is resumable. (4) Set --max-time to at least 300 s per request and concurrency 1 - shorter timeouts silently return truncated HTML that still looks like a valid 200. Detect truncation by checking the page ends with the expected footer, not by status code. (5) Descend from idObj=4 and idObj=1200001 to reach f.4372 and f.1562, then capture the opis and delo listings. (6) There is also a keyword search at rgae_find.php?base=mysql:rgae (form field id 'keyWord'); I did not exercise it, so confirm the parameter name before scripting it. (7) Budget hours, not minutes.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: rsl_search
+  name: Russian State Library electronic catalogue (search.rsl.ru) and dlib.rsl.ru
+  provider: Российская государственная библиотека
+  url: https://search.rsl.ru/ru/search?q=%D0%9D%D0%B0%D1%80%D0%BE%D0%B4%D0%BD%D0%BE%D0%B5+%D1%85%D0%BE%D0%B7%D1%8F%D0%B9%D1%81%D1%82%D0%B2%D0%BE+%D0%A1%D0%A1%D0%A1%D0%A0
+  access: registration
+  status: partial
+  fetched_at: '2026-09-06T14:09:26Z'
+  http_status: 200
+  sha256: null
+  bytes: 570816
+  local_path: null
+  license: null
+  notes: 'Correction to the brief''s premise: dlib.rsl.ru is no longer a browsable digital library, just
+    a redirect stub pointing at search.rsl.ru. And search.rsl.ru cannot be enumerated with curl at all.
+    RSL is a catalogue lead, not a bulk source; RSL full-text viewing of 20th-century material generally
+    requires an account and often an on-site terminal, though I did not read a page stating those terms
+    and so make no claim about them.'
+  blocked_reason: null
+  evidence: |-
+    Three GETs all returned 200: the fragment form (#q=..., 570,255 B), the site root (636,752 B), and the server-side query form (?q=..., 570,816 B). ALL return the same client-rendered shell - <title>Поиск - Search RSL</title>, the advanced-search form markup, and zero /record/<id> links (regex for /record/[0-9a-f]{16,} matched 0). Results are fetched by JavaScript after load, so curl sees nothing. Separately, https://dlib.rsl.ru/ returned 200 but only 3,491 B: it is now a stub reading «РОССИЙСКАЯ ГОСУДАРСТВЕННАЯ БИБЛИОТЕКА / Просмотр документа / Чтобы найти интересующий Вас документ, воспользуйтесь поисковой системой search.rsl.ru», with its only outbound link being http://search.rsl.ru.
+  download_plan: |-
+    Not scriptable with curl. Either (a) drive it with a headless browser (Playwright) and capture the XHR endpoint the SPA calls, then script that JSON API directly; or (b) skip RSL for discovery and use it only to resolve specific shelf-marks for an ILL or reading-room request. If you go the Playwright route, first capture and document the underlying API - that is the reusable artefact, not the scraper.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: cia_foia_uzbek_cotton
+  name: CIA FOIA Electronic Reading Room - search 'uzbek cotton' and two candidate documents
+  provider: CIA (cia.gov/readingroom)
+  url: https://www.cia.gov/readingroom/document/cia-rdp92m00732r000900010007-1
+  access: free
+  status: blocked
+  fetched_at: '2026-09-04T18:19:22Z'
+  http_status: 200
+  sha256: null
+  bytes: 38382
+  local_path: null
+  license: US Government work (public domain)
+  notes: 'Every cia.gov/readingroom request from this environment - the search URL https://www.cia.gov/readingroom/search/site/uzbek%20cotton
+    (curl 18:15:54Z; WebFetch ~18:17Z) and the document URLs .../document/cia-rdp92m00732r000900010007-1
+    (curl 18:19:22Z; WebFetch ~18:19:45Z) and .../document/cia-rdp94-01353r001901350013-6 (curl 18:19:25Z)
+    - was answered with HTTP 200 but the body was the reading-room HOMEPAGE (38,382 B, title ''Freedom
+    of Information Act Electronic Reading Room | CIA FOIA (foia.cia.gov)''), i.e. the site redirects non-browser
+    clients to the root. So: result COUNT unknown; no document page or PDF opened. A cia.gov-scoped WebSearch
+    (~18:18:35Z) for ''uzbek cotton readingroom document'' returned 10 reading-room hits; topically relevant
+    ones: (a) https://www.cia.gov/readingroom/document/cia-rdp92m00732r000900010007-1 ''USSR: THE PRIVATE
+    SECTOR AND ORGANIZED CRIME'' (search snippet: Rashidov''s 24-year rule blamed for corruption; Gorbachev
+    regime punished over 2,600 Uzbek officials in 1986, head of the Cotton Processing Industry sentenced
+    to death); (b) https://www.cia.gov/readingroom/document/cia-rdp80-00810a003900400005-0 ''AGRICULTURE
+    AND EDUCATION IN THE UZBEK AND TADZHIK SSRS'' (1950s cotton acclimatisation); (c) https://www.cia.gov/readingroom/document/cia-rdp80-00809a000700170374-7
+    ''SURVEY OF USSR AGRICULTURAL DATA, OCTOBER 1953'' (Uzbek cotton ripening 1953); (d) https://www.cia.gov/readingroom/document/cia-rdp94-01353r001901350013-6
+    FBIS commentary list 4 Dec 1982. Remaining hits were scientific-abstract cards.'
+  blocked_reason: cia.gov serves the reading-room homepage (HTTP 200, 38,382 B) instead of search results
+    or document pages to curl and to WebFetch; likely bot mitigation / redirect for non-browser clients
+  evidence: |-
+    Three curl responses and two WebFetch responses all returned the homepage title; no result count or document metadata was visible. Document URLs and titles come from a cia.gov-restricted web search, not from the reading room itself.
+  download_plan: |-
+    Human step: in a browser open https://www.cia.gov/readingroom/search/site/uzbek%20cotton (and also try 'Rashidov', 'cotton affair', 'Gdlyan'), record the result count and the document IDs; open each document page and download the PDF via its 'DOC_..pdf' link. Script side: once document IDs are known, fetch https://www.cia.gov/readingroom/docs/<DOC_ID>.pdf with a browser-like User-Agent and Accept headers, <=1 request/second, storing sha256; if the homepage HTML (38,382 B) comes back, treat as blocked and stop rather than retry.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: cia_reading_room_soviet_io
+  name: CIA FOIA Electronic Reading Room - Soviet input-output documents (e.g. node/649753 'A 1970 Soviet
+    input-output table based on national income data')
+  provider: CIA FOIA Reading Room
+  url: https://www.cia.gov/readingroom/node/649753
+  access: free
+  status: blocked
+  fetched_at: '2026-09-04T18:20:14Z'
+  http_status: 200
+  sha256: null
+  bytes: 38382
+  local_path: null
+  license: null
+  notes: 'Web search (cia.gov-restricted) surfaces the title ''A 1970 SOVIET INPUT-OUTPUT TABLE BASED
+    ON NATIONAL INCOME DATA'' at /readingroom/node/649753, plus ''SOVIET STATISTICAL FALSIFICATION AT
+    THE ...'' at /readingroom/docs/CIA-RDP85T01058R000507850001-1.pdf (highly relevant to the project
+    theme; NOT fetched successfully). From this network every reading-room URL collapses to the homepage:
+    node/649753 via curl (scaffold and browser UA) -> 200 but url_effective https://www.cia.gov/readingroom/
+    (38,382 B landing page, title ''Freedom of Information Act Electronic Reading Room''); WebFetch of
+    node/649753 and of /readingroom/search/site/soviet%20input-output%20table both returned the homepage
+    summary; HEAD of /readingroom/docs/CIA-RDP86T00591R000300380001-0.pdf -> 302 Location https://www.cia.gov/readingroom
+    -> 301 -> 200 homepage. So the site is reachable but redirects document requests (geo/bot filtering
+    or a site migration), and I could not confirm any I-O document content.'
+  blocked_reason: All /readingroom/node/*, /search/* and /docs/*.pdf requests are 302-redirected to the
+    reading-room homepage from this client (both curl UAs and WebFetch); document PDFs not retrievable
+  evidence: |-
+    curl -w url_effective shows redirect to https://www.cia.gov/readingroom/ for node/649753; HEAD on a /docs/ PDF shows '302 Moved Temporarily Location: https://www.cia.gov/readingroom'.
+  download_plan: |-
+    HUMAN/alternate egress: from a browser (or a US residential IP) open https://www.cia.gov/readingroom/search/site/soviet%20input-output and https://www.cia.gov/readingroom/node/649753, note the CIA-RDP document numbers and page counts, then script GET https://www.cia.gov/readingroom/docs/<CIA-RDP...>.pdf at <=1 req/s with a browser UA. Also queue CIA-RDP85T01058R000507850001-1 ('Soviet statistical falsification'). Store PDFs + OCR.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: cia_readingroom_caesar_polo_esau
+  name: The CAESAR, POLO, and ESAU Papers (CIA Reading Room collection)
+  provider: Central Intelligence Agency
+  url: https://www.cia.gov/readingroom/collection/caesar-polo-and-esau-papers
+  access: free
+  status: blocked
+  fetched_at: '2026-09-04T18:15:49Z'
+  http_status: 302
+  sha256: null
+  bytes: 38382
+  local_path: null
+  license: US government work (public domain)
+  notes: Existence and description come only from WebSearch snippets (foia.cia.gov/collection/caesar-polo-and-esau-papers;
+    UPenn library record). Content is Soviet/Chinese internal politics and Sino-Soviet relations rather
+    than economic statistics, so relevance to gosplan is limited. Other 'Soviet economy' special collections
+    could not be enumerated because /readingroom/historical-collections was not fetchable (all non-home
+    paths blocked). The 'Analysis of the Soviet Economy' collection name was not confirmed to exist.
+  blocked_reason: GET with -L ended at the home page (302 -> /readingroom, Access Denied); WebFetch (~18:16:40Z)
+    also returned the home page.
+  evidence: |-
+    curl -L: final 200 but url_effective https://www.cia.gov/readingroom/, 38,382 bytes = home page. WebFetch reported 'This is the CIA FOIA Electronic Reading Room home page, not a collection page'.
+  download_plan: |-
+    Browser-only from this environment. Alternatively query the archive.org mirror for the same documents by title (the mirror has no 'collection' facet for CIA special collections, only the per-document items).
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: cia_readingroom_document_pdf
+  name: CIA Reading Room document pages and PDFs (/readingroom/document/<docid>, /readingroom/docs/<DOCID>.pdf)
+  provider: Central Intelligence Agency
+  url: https://www.cia.gov/readingroom/docs/CIA-RDP82-00457R008900350003-7.pdf
+  access: free
+  status: blocked
+  fetched_at: '2026-09-04T18:16:36Z'
+  http_status: 302
+  sha256: null
+  bytes: 230
+  local_path: null
+  license: US government work (public domain)
+  notes: URL patterns are from memory plus one WebSearch-indexed example (https://www.cia.gov/readingroom/document/cia-rdp90m00005r000700020008-0,
+    not fetched); they could NOT be verified because both paths 302 to the home page with an Access Denied
+    body. The /docs/*.pdf response oddly carried Content-Type application/pdf on the 302 while the 230-byte
+    body was HTML.
+  blocked_reason: 'Same WAF block as search: 302 -> /readingroom with ''Access Denied'' body for /readingroom/document/cia-rdp82-00457r008900350003-7
+    (18:16:34Z, 230 bytes, Set-Cookie jsessionid/_session_) and for the .pdf path (18:16:36Z). WebFetch
+    on other cia.gov paths was likewise redirected. /readingroom/sitemap.xml also 302/Access Denied (18:16:38Z).'
+  evidence: |-
+    HTTP 302, Location https://www.cia.gov/readingroom, body begins '<html><head><title>Access Denied'.
+  download_plan: |-
+    Not downloadable by curl/WebFetch. If a browser route is used, fetch the document page first, then the PDF link it contains (expected /readingroom/docs/<DOCID>.pdf); save as <DOCID>.pdf, idempotent by existence+size. Otherwise fetch the same document from https://archive.org/download/cia-readingroom-document-<docid lowercase>/<docid lowercase>.pdf (verified working).
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: cia_readingroom_search
+  name: CIA Reading Room site search (/readingroom/search/site/<query>)
+  provider: Central Intelligence Agency
+  url: https://www.cia.gov/readingroom/search/site/Soviet%20economy%20GNP
+  access: free
+  status: blocked
+  fetched_at: '2026-09-04T18:15:42Z'
+  http_status: 302
+  sha256: null
+  bytes: 225
+  local_path: null
+  license: US government work (public domain)
+  notes: 'URL pattern confirmed by the CIA server: POST of the search form to /readingroom/ returned 302
+    Location: https://www.cia.gov/readingroom/search/site/Soviet%20economy%20GNP (fetch at 18:15:44Z).
+    Pagination is ?page=N per search-engine-indexed URLs such as /readingroom/search/site/Minsk?page=84
+    (seen in WebSearch results only, not fetched). Could not observe result HTML, result counts, or the
+    result->document->PDF link structure.'
+  blocked_reason: 'WAF/bot block: GET returns 302 -> https://www.cia.gov/readingroom with body ''<title>Access
+    Denied</title>...You don''t have permission to access "/readingroom/search/site/..." on this server.
+    0.a904d217.<epoch>.<id>'' (Akamai reference format). Same result with research UA, Chrome UA + Accept
+    headers, replayed session cookies + Referer, single-word query, and via WebFetch (which landed on
+    the home page). Not a rate limit: first request is denied.'
+  evidence: |-
+    18:15:17Z GET (no -L): 302, Location https://www.cia.gov/readingroom. 18:15:40Z GET /search/site/Soviet: 302, 209-byte Access Denied body. 18:15:42Z Chrome UA: 302, 225 bytes Access Denied. 18:17:35Z with cookie jar + Referer: 302, 209 bytes Access Denied. WebFetch ~18:15:50Z: returned home page content.
+  download_plan: |-
+    Direct curl acquisition is not possible from this environment. Options: (a) headless browser (Playwright/Chromium, persistent profile, human-like pacing ~1 req/2s) visiting https://www.cia.gov/readingroom/search/site/<urlencoded query>?page=N and parsing result links; (b) if a human confirms the block is geographic (user appears to be in the EU), run from a US IP; (c) preferred: use the archive.org 'ciareadingroom' mirror (see ia_ciareadingroom_mirror), which is fully machine-accessible. Do not hammer cia.gov: every non-home request is logged as denied.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: faostat_api
+  name: FAOSTAT JSON API (faostatservices.fao.org / fenixservices.fao.org) for QCL
+  provider: FAO
+  url: https://faostatservices.fao.org/api/v1/en/data/QCL?area=228&element=5510&item=328&year=1961,1965,1970,1975,1980,1985,1990,1991&show_codes=true&show_unit=true&output_type=objects
+  access: registration
+  status: blocked
+  fetched_at: '2026-09-04T18:15:30Z'
+  http_status: 401
+  sha256: null
+  bytes: 28
+  local_path: null
+  license: null
+  notes: Both the USSR (area=228) and Uzbekistan (area=235) calls returned HTTP 401 with body 'Missing
+    Authorization Header' (28 bytes). The legacy host https://fenixservices.fao.org/faostat/api/v1/en/data/QCL?...
+    returned HTTP 521 (Cloudflare 'origin down', 16 bytes) at 18:16:37Z. The API therefore now requires
+    a bearer token; I did not locate the token-issuing page. The bulk zips above carry identical data
+    and need no auth.
+  blocked_reason: HTTP 401 'Missing Authorization Header' on faostatservices.fao.org; HTTP 521 on fenixservices.fao.org
+  evidence: |-
+    401 response body 'Missing Authorization Header'; 521 response body 'error code: 521'.
+  download_plan: |-
+    Do not use the API in the acquisition script; use the bulk zips. If an API is ever required, a human must obtain the FAOSTAT API authorization scheme/token from fao.org (not verified here) and pass it as an Authorization header; keep the same query parameters (area, item, element, year lists, output_type=objects).
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: hathitrust_full_view
+  name: HathiTrust full-view page viewer / whole-book download (babel.hathitrust.org)
+  provider: HathiTrust Digital Library
+  url: https://babel.hathitrust.org/cgi/pt?id=umn.31951003064870g
+  access: registration
+  status: blocked
+  fetched_at: '2026-09-04T18:20:18Z'
+  http_status: 403
+  sha256: null
+  bytes: 5641
+  local_path: null
+  license: public domain items (rightsCode pd)
+  notes: catalog.hathitrust.org/Record/... (18:15:55Z, 403, 5,589 B) and babel.hathitrust.org/cgi/pt (403,
+    5,641 B) both return the Cloudflare 'Just a moment...' challenge to curl; WebFetch on the catalog
+    page also got 403. The Bibliographic API https://catalog.hathitrust.org/api/volumes/brief/recordnumber/<n>.json
+    works without a challenge (200 for 007419310 and 002772457). Whole-book PDF download of pd items requires
+    a logged-in session (HathiTrust account via institutional or Google login).
+  blocked_reason: Cloudflare JavaScript challenge (HTTP 403, <title>Just a moment...</title>) on catalog
+    and babel HTML endpoints for curl and WebFetch.
+  evidence: |-
+    403 with Cloudflare challenge body on both hosts; API JSON 200.
+  download_plan: |-
+    Use the Bibliographic API for metadata only. For files, prefer archive.org/Wayback copies. If HathiTrust scans are specifically needed, a human must log in at babel.hathitrust.org in a browser and use 'Download whole book (PDF)' for umn.31951003064870g, mdp.39015009962559, mdp.39015009962542.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: icpsr_soviet_search
+  name: ICPSR study search 'soviet economy' (incl. ICPSR 8188 'Words and Deeds in Soviet Military Expenditures,
+    1955-1983', ICPSR 8694 'Soviet Interview Project', ICPSR 8197 'World Tables 1950-1981')
+  provider: ICPSR (University of Michigan)
+  url: https://www.icpsr.umich.edu/web/ICPSR/search/studies?q=soviet+economy
+  access: registration
+  status: blocked
+  fetched_at: '2026-09-04T18:20:11Z'
+  http_status: 403
+  sha256: null
+  bytes: 5873
+  local_path: null
+  license: null
+  notes: Search page 403 on all three attempts (scaffold UA, browser UA -> Cloudflare challenge, WebFetch).
+    Study titles/numbers above come only from web-search result titles (icpsr.umich.edu/web/ICPSR/studies/8188,
+    /8694, /8197, /35355) and were NOT fetched - treat as unverified leads. Per ICPSR's published policy,
+    most ICPSR-processed studies require a member-institution login; openICPSR deposits need only a free
+    account.
+  blocked_reason: Cloudflare managed JS challenge on icpsr.umich.edu; study downloads require ICPSR member-institution
+    login for many studies
+  evidence: |-
+    403 with Cloudflare _cf_chl_opt challenge HTML; search-engine titles only for the study numbers listed.
+  download_plan: |-
+    HUMAN: from a university network / with institutional ICPSR login, search 'Soviet' and export the study list; for 8188 and 8197 check 'Access Restrictions' on the summary tab; download data + codebooks manually. Note Soviet Interview Project (8694) is survey microdata, not national accounts.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: istmat_info_dead
+  name: istmat.info - historical Istmat domain
+  provider: istmat.info
+  url: https://istmat.info/
+  access: free
+  status: blocked
+  fetched_at: '2026-09-06T13:51:00Z'
+  http_status: null
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'Answers the brief''s question directly: the project''s content is at istmat.org, not istmat.info.
+    istmat.info resolves to a different IP (46.148.192.204) than istmat.org (81.222.116.14), so it is
+    not simply an alias. Whether it is dead globally or only unreachable from here I cannot say - I never
+    got a response.'
+  blocked_reason: 'TCP connect fails on both ports. curl to https://istmat.info/ -> ''curl: (28) Failed
+    to connect to istmat.info port 443 after 21151 ms''; curl to http://istmat.info/ -> ''Failed to connect
+    to istmat.info port 80 after 21034 ms''. DNS resolves fine (A record 46.148.192.204), so the name
+    still exists but nothing answers from this network.'
+  evidence: |-
+    Two curl attempts (13:51:00Z https, 13:52:12Z http), both exit code 28, http_status 000, 0 bytes. nslookup istmat.info -> 46.148.192.204.
+  download_plan: |-
+    Do not target. If a future run needs to confirm global reachability, test from a Russian-egress host and check web.archive.org for the last successful capture.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: jec_senate_gov_reports
+  name: Joint Economic Committee report PDFs (www.jec.senate.gov/reports/<Congress>/<title> (<n>).pdf)
+  provider: US Congress Joint Economic Committee
+  url: https://www.jec.senate.gov/reports/97th%20Congress/USSR%20-%20Measures%20of%20Economic%20Growth%20and%20Development%201950-1980%20(1152).pdf
+  access: free
+  status: blocked
+  fetched_at: '2026-09-04T18:15:55Z'
+  http_status: 403
+  sha256: null
+  bytes: 595
+  local_path: null
+  license: US government work (public domain)
+  notes: '403 Forbidden for curl HEAD with research UA (595 B) and Chrome UA (593 B, 18:19:20Z) and for
+    WebFetch. The files exist and are public: Wayback Machine holds 200 snapshots for 1152 (20250112145946,
+    HEAD 200 application/pdf 21,346,957 B), 1185 (20260312161046) and 1438 (20240918021631). Naming pattern
+    observed in search results: /reports/97th%20Congress/... (1152, 1185, 1186) and /reports/100th%20Congress/...
+    (1438, 1439).'
+  blocked_reason: HTTP 403 Forbidden from jec.senate.gov for both curl user agents and WebFetch (likely
+    bot/geo filtering); not retried beyond two HEADs.
+  evidence: |-
+    HEAD returned 'HTTP/1.1 403 Forbidden, Content-Type: text/html, Content-Length: 595'. Wayback snapshot of the same file returned 200 application/pdf.
+  download_plan: |-
+    Do not fetch jec.senate.gov directly from scripts; resolve each URL via https://archive.org/wayback/available?url=<url> and download http://web.archive.org/web/<timestamp>id_/<url> (id_ flag returns the raw file). A human can also download in a browser from the JEC site.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_cia
+- id: openicpsr_100666_soviet_macro
+  name: openICPSR project 100666 'Soviet macroeconomic data' (V2)
+  provider: ICPSR / openICPSR (University of Michigan)
+  url: https://www.openicpsr.org/openicpsr/project/100666/version/V2/view
+  access: registration
+  status: blocked
+  fetched_at: '2026-09-04T18:20:10Z'
+  http_status: 403
+  sha256: null
+  bytes: 5869
+  local_path: null
+  license: null
+  notes: 'Exists (title ''Soviet macroeconomic data'' appears in web-search snippets, described as ''distributed
+    as received from the depositor without ICPSR processing''). Every fetch was refused: curl scaffold
+    UA 403 (redirected to icpsr.umich.edu/sites/icpsr/view/studies/100666/versions/V2), curl browser UA
+    403 with a Cloudflare managed challenge page (''Just a moment... Enable JavaScript and cookies to
+    continue'', cZone www.openicpsr.org), WebFetch 403. openICPSR downloads normally require a free MyData
+    account login (and agreement to terms); some studies are member-only.'
+  blocked_reason: Cloudflare managed JS challenge on openicpsr.org and icpsr.umich.edu blocks non-browser
+    clients; downloads additionally require an ICPSR/MyData login
+  evidence: |-
+    HTTP 403 bodies containing window._cf_chl_opt challenge script for both openicpsr.org and icpsr.umich.edu; no content retrieved.
+  download_plan: |-
+    HUMAN: open https://www.openicpsr.org/openicpsr/project/100666/version/V2/view in a browser, log in with a free ICPSR account (institutional login not required for openICPSR public deposits), record file list/sizes/terms, download the ZIP manually and drop it in the acquisition inbox with the page's citation. Script cannot do this.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: rusneb_uzbek_annual
+  name: НЭБ / rusneb.ru catalogue record for «Народное хозяйство Узбекской ССР» (1957)
+  provider: Национальная электронная библиотека (RSL-held copy)
+  url: https://rusneb.ru/catalog/000199_000009_005606984/
+  access: registration
+  status: blocked
+  fetched_at: '2026-09-06T14:09:47Z'
+  http_status: 403
+  sha256: null
+  bytes: 11802
+  local_path: null
+  license: null
+  notes: 'This is the most promising catalogue lead for the Uzbek republic annual - the record was surfaced
+    by search as «Народное хозяйство Узбекской ССР : Стат. сб. (1957)», identifier 000199_000009_005606984,
+    original held by the Russian State Library, with search results also mentioning 1967, 1969, 1978 editions
+    and a 50-years anniversary yearbook. I could not confirm ANY of that by reading the page, so treat
+    the edition list as an unverified lead. Note that even from a Russian IP, NEB typically restricts
+    in-copyright items to physical Электронные читальные залы.'
+  blocked_reason: 'Geo/VPN block. Both WebFetch and curl returned HTTP 403. The 403 body is an interstitial
+    titled «Отключите VPN — НЭБ» reading: «Отключите VPN, чтобы продолжить. Для корректной работы Rusneb.ru
+    необходимо отключить VPN-соединение.» NEB is blocking non-Russian or datacentre egress, not refusing
+    the record itself.'
+  evidence: |-
+    curl -sS -L with Accept-Language: ru returned 403, 11,802 B, text/html. Parsed title: 'Отключите VPN — НЭБ'. Page furniture mentions «Электронные читальные залы» and «Вход для участников», confirming the standard NEB access model.
+  download_plan: |-
+    Cannot be scripted from here. Requires (a) Russian-IP egress to get past the 403, then (b) an assessment of whether the scan is openly viewable or restricted to an ЭЧЗ terminal. If restricted, this becomes a human task - see human_actions. Do not build retry logic against it; the block is deterministic.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: usda_psd_opendata_api
+  name: USDA FAS OpenData PSD API
+  provider: USDA FAS
+  url: https://apps.fas.usda.gov/opendata/
+  access: registration
+  status: blocked
+  fetched_at: '2026-09-04T18:17:09Z'
+  http_status: 403
+  sha256: null
+  bytes: 13
+  local_path: null
+  license: null
+  notes: 'Root returned HTTP 403 with a 13-byte JSON body containing ''API Key'' - the API requires a
+    registered key sent as a header. I did not locate or verify the registration page this session. Not
+    needed: the bulk CSV has the same data.'
+  blocked_reason: HTTP 403 JSON 'API Key' - key required
+  evidence: |-
+    403 response, body mentions API Key.
+  download_plan: |-
+    Prefer the bulk CSV. If per-call API access is wanted, a human registers for a free FAS OpenData API key on apps.fas.usda.gov/opendata (page not verified here), then the script sends header 'API_KEY: <key>' to endpoints under https://apps.fas.usda.gov/OpenData/api/psd/ (endpoint paths not verified this session - confirm from the OpenData documentation after registering).
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek
+- id: github_search_soviet_data
+  name: GitHub repo search for Soviet input-output / Soviet economy data / Narodnoe khoziaistvo
+  provider: GitHub (gh CLI)
+  url: gh search repos "soviet input-output" / "soviet economy data" / "narodnoe khoziaistvo"
+  access: free
+  status: unverified
+  fetched_at: '2026-09-04T18:15:22Z'
+  http_status: null
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: All three `gh search repos --limit 10` calls printed no rows and no error text (likely zero matches,
+    or gh unauthenticated in this shell - could not distinguish). No GitHub-hosted machine-readable Soviet
+    I-O or Narkhoz dataset was found.
+  blocked_reason: null
+  evidence: |-
+    Empty stdout from gh for all three queries.
+  download_plan: |-
+    Re-run with `gh auth status` confirmed, and try queries 'narkhoz', 'soviet statistics csv', 'СССР статистика' before concluding nothing exists on GitHub.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_western
+- id: khanin_lukavaya_tsifra
+  name: Селюнин & Ханин, «Лукавая цифра», Новый мир 1987 no. 2 - free full text
+  provider: unresolved
+  url: https://ed-glezin.livejournal.com/1095638.html
+  access: free
+  status: unverified
+  fetched_at: '2026-09-06T14:08:35Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: Reported as unverified deliberately. I have no primary source I actually read for the bibliographic
+    details (Novyi mir 1987 no. 2, pp. 181-201) - that came from search-result snippets only. The same
+    applies to Khanin's «Динамика экономического развития СССР» (1991), for which I found no digitised
+    copy at all. This is the biggest unclosed item in the hunt.
+  blocked_reason: null
+  evidence: |-
+    I fetched this LiveJournal post because a WebSearch surfaced it as a reproduction. It is NOT the article - it is commemorative commentary. It quotes one headline finding verbatim: «национальный доход СССР за 1928-1987 годы вырос не в 90 раз, как уверяло ЦСУ СССР...а в 6,9 раза или в 13 раз меньше», and points onward to two hosts I did NOT fetch: belrussia.ru (article in two parts) and imwerden.de (the complete Novyi mir issue). archive.org has no copy (search returned 3 unrelated items).
+  download_plan: |-
+    Next agent: fetch https://imwerden.de and search its Novyi mir holdings for the 1987 no. 2 issue (imwerden.de hosts complete scanned issues of Soviet thick journals and is usually reachable outside Russia - it is hosted in Germany). Fall back to belrussia.ru for the two-part text. Verify any candidate by checking it contains the 6.9x vs 90x national-income claim and the 1928-1985 series, not just discussion of it. For «Динамика экономического развития СССР» (Novosibirsk, 1991), try the RSL catalogue and WorldCat/ILL - it may need manual transcription, which would make it a genuine manual-transcription-tier target rather than a download.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: gosplan_annuals
+- id: osu_thesis_cotton_scandal_uzbek_national_consciousness
+  name: '''The Cotton Scandal and Uzbek National Consciousness'' (Ohio State University thesis, OhioLINK
+    ETD)'
+  provider: OhioLINK ETD Center
+  url: https://etd.ohiolink.edu/acprod/odb_etd/ws/send_file/send?accession=osu1366199014&disposition=inline
+  access: free
+  status: unverified
+  fetched_at: null
+  http_status: null
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: URL surfaced by WebSearch (~18:16Z) as a free thesis on the scandal's numbers and narrative.
+    NOT fetched this session (fetch budget spent on the Cucciolla sources). A file named osu_cotton_scandal_thesis.pdf
+    from an earlier run exists in the scratch dir but I did not fetch or read it now, so I make no claim
+    about its content.
+  blocked_reason: null
+  evidence: |-
+    Search-result title and URL only.
+  download_plan: |-
+    GET the URL above (OhioLINK send_file endpoint; expect a PDF under 1 MB; no auth known). Verify %PDF header, record sha256, pdftotext and grep for 'million tons' / 'rubles' to cross-check Cucciolla's figures.
+  verification:
+    verdict: not_verified
+    reason: verifier returned no verdict for this id
+    checked_at: null
+    hunt: gosplan_uzbek

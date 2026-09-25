@@ -1,0 +1,13 @@
+{
+ "data": [
+  {
+   "_id": "SYNTHETIC-IND-1",
+   "i_showname": "Synthetic Indicator (synthetic unit)",
+   "i_mark": "SYNTHETIC scope note",
+   "du": "synthetic unit",
+   "dp": 2
+  }
+ ],
+ "success": true,
+ "state": 20000
+}

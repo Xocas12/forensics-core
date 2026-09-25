@@ -1,0 +1,29 @@
+[
+ [
+  "urlkey",
+  "timestamp",
+  "original",
+  "mimetype",
+  "statuscode",
+  "digest",
+  "length"
+ ],
+ [
+  "cn,gov,stats)/tjsj/ndsj/9999.rar",
+  "20340101000000",
+  "http://www.stats.gov.cn/tjsj/ndsj/9999.rar",
+  "application/x-rar-compressed",
+  "200",
+  "SYNTHETICDIGEST1",
+  "1111"
+ ],
+ [
+  "cn,gov,stats)/tjsj/ndsj/9998/html/ch9999.jpg",
+  "20330101000000",
+  "http://www.stats.gov.cn/tjsj/ndsj/9998/html/CH9999.jpg",
+  "image/jpeg",
+  "200",
+  "SYNTHETICDIGEST2",
+  "2222"
+ ]
+]

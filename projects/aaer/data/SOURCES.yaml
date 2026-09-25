@@ -1,0 +1,1307 @@
+# SOURCES.yaml -- the source registry for the `aaer` project.
+#
+# Nothing enters a pipeline without an entry here. Every entry was produced by an actual
+# fetch attempt during scaffolding; no URL in this file was invented. Where a source could
+# not be reached, the entry records that fact and why, rather than being omitted.
+#
+# Fields
+#   access   free | registration | paywalled | archive_visit | manual_transcription
+#            -- what a human has to do to get it, NOT whether it exists.
+#   status   verified | partial | blocked | unverified
+#            -- what the scaffolding session established about reachability:
+#               verified   fetched, HTTP 200, and the content was confirmed to be what it claims
+#               partial    landing page or some files reached; the full dataset was not confirmed
+#               blocked    exists but cannot be fetched from here (gated, geo-blocked, 403, WAF)
+#               unverified could not be confirmed at all
+#   fetched_at / http_status  the research probe, not an acquisition into data/raw.
+#   sha256 / bytes / local_path  filled by `make data` when a file actually lands in data/raw.
+#   verification.verdict  an INDEPENDENT second agent re-fetched the URL and either
+#                         confirmed, downgraded or refuted the first agent's claim.
+#                         `not_verified` means that second check did not run.
+#
+# Regenerate the acquisition state with `make data`; edit provenance here by hand only with
+# a note saying what was re-checked and when.
+
+- id: aaer_listing_secgov
+  name: SEC Accounting and Auditing Enforcement Releases listing
+  provider: U.S. Securities and Exchange Commission (sec.gov)
+  url: https://www.sec.gov/enforcement-litigation/accounting-auditing-enforcement-releases
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:22:07Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: U.S. government work; SEC website data is public domain (not re-checked this session)
+  notes: 'WebFetch (status inferred from successful content return; WebFetch does not expose headers).
+    Columns: Date (sortable, desc default), Respondent(s), Release No(s) incl. ''AAER-nnnn'', hyperlink
+    to PDF. Filters: Year dropdown ''View All'', 2026..1999, 1997, 1968-1965 (no 1998 option shown), Month
+    dropdown. Pagination ''1 to 100 of 3342 items'', pages 2,3,...34, query parameter ?page=N (0-indexed).
+    First rows: 2026-09-03 Paul Frenkiel Rel. 34-106274 AAER-4599 -> https://www.sec.gov/files/litigation/admin/2026/34-106274.pdf;
+    2026-08-31 L&L Energy/Dickson Lee Rel. 33-11437,34-106239 AAER-4598 -> https://www.sec.gov/files/litigation/opinions/2026/33-11437.pdf;
+    2026-07-22 AAER-4597 -> .../opinions/2026/33-11432.pdf; 2026-07-01 Steven W. Hurd AAER-4595 -> .../admin/2026/34-105834.pdf;
+    2026-06-30 Jason Jianxun Tang AAER-4594 -> .../admin/2026/34-105809.pdf. WARNING: the summarizer rendered
+    the first respondent as ''Paul Friekiel''; PDF and RSS say ''Frenkiel'' - parse raw HTML, do not trust
+    summarised text. Older per-year archive pages also exist at legacy URLs surfaced by search (e.g. https://www.sec.gov/divisions/enforce/friactions/friactions2016.shtml)
+    but were NOT fetched this session.'
+  blocked_reason: null
+  evidence: |-
+    HTML table with Date / Respondent / Release numbers (AAER-4599 ... AAER-4594) / PDF href columns; '1 to 100 of 3342 items'; year and month dropdown filters; RSS link to /rss/divisions/enforce/friactions.xml; no JSON endpoint.
+  download_plan: |-
+    For page in 0..33 (recompute last page from the 'of N items' text): GET https://www.sec.gov/enforcement-litigation/accounting-auditing-enforcement-releases?page={page} with headers User-Agent: '<Org> <contact email>', Accept-Encoding: gzip, deflate, Host: www.sec.gov; sleep >=0.2 s between requests (hard cap 10 req/s; 1 req/s is polite). Parse each table row into {date, respondent, release_numbers[], aaer_number, pdf_url}. Save the raw HTML per page keyed by page number and content hash (idempotent: skip if hash unchanged). Then for each unique pdf_url GET the PDF (100-300 KB typical) into aaer/<AAER-number>_<basename>.pdf, skipping files whose sha256 already exists. Expect 3,342 rows ~ 0.5-1 GB of PDFs total. Year filter parameter names were not captured; use ?page=N only. For incremental updates poll the RSS feed (10 newest items) daily.
+  verification:
+    verdict: confirmed
+    reason: 'WebFetch returned the listing: ''1 to 100 of 3342 items'', 34 pages, Date/Respondent/Release
+      No. columns, year+month dropdowns, RSS href /rss/divisions/enforce/friactions.xml. First five rows
+      match the claim exactly (Frenkiel AAER-4599 34-106274.pdf; L&L Energy AAER-4598 33-11437.pdf; AAER-4597
+      33-11432.pdf; Hurd AAER-4595; Tang AAER-4594). HTTP status inferred from successful content return.'
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: aaer_release_pdf_sample
+  name: AAER-4599 order (In the Matter of Paul Frenkiel), Exchange Act Rel. 34-106274
+  provider: U.S. Securities and Exchange Commission (sec.gov)
+  url: https://www.sec.gov/files/litigation/admin/2026/34-106274.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:22:30Z'
+  http_status: 200
+  sha256: 47cae44bb68f7ba85930cf873395ac1f2c0f8ed69e37cd8cf955b234ed9d2d84
+  bytes: 184956
+  local_path: null
+  license: null
+  notes: WebFetch saved the binary; copied to scratch as aaer_4599_34-106274.pdf and rendered page 1 locally.
+    WebFetch's own summariser could not read the compressed streams (it wrongly guessed 50-150 pages);
+    local render shows a normal settled cease-and-desist order.
+  blocked_reason: null
+  evidence: |-
+    Page 1 header verbatim: 'SECURITIES EXCHANGE ACT OF 1934 Release No. 106274 / September 3, 2026' ; 'ACCOUNTING AND AUDITING ENFORCEMENT Release No. 4599 / September 3, 2026' ; 'ADMINISTRATIVE PROCEEDING File No. 3-22701' ; 'In the Matter of PAUL FRENKIEL, Respondent.' ; 'ORDER INSTITUTING CEASE-AND-DESIST PROCEEDINGS PURSUANT TO SECTION 21C OF THE SECURITIES EXCHANGE ACT OF 1934, MAKING FINDINGS, AND IMPOSING A CEASE-AND-DESIST ORDER'.
+  download_plan: |-
+    Per-release PDFs follow https://www.sec.gov/files/litigation/admin/<YYYY>/<rel>.pdf (administrative orders) or https://www.sec.gov/files/litigation/opinions/<YYYY>/<rel>.pdf (Commission opinions); take hrefs from the listing rather than constructing them. Header lines 'ACCOUNTING AND AUDITING ENFORCEMENT Release No. NNNN / <date>' and 'In the Matter of <respondent>' are reliably extractable with pdftotext/pypdf for building the label table.
+  verification:
+    verdict: confirmed
+    reason: 'Downloaded 184,956 bytes (matches claimed bytes). pdftotext page 1: ''SECURITIES EXCHANGE
+      ACT OF 1934 Release No. 106274 / September 3, 2026'', ''ACCOUNTING AND AUDITING ENFORCEMENT Release
+      No. 4599 / September 3, 2026'', ''File No. 3-22701'', ''In the Matter of PAUL FRENKIEL'', cease-and-desist
+      order title. Text-extractable. Saved at scratchpad/research/verify/aaer_sec/aaer_4599.pdf.'
+    checked_at: '2026-09-04T18:15:42Z'
+    hunt: aaer_sec
+- id: aaer_rss_feed
+  name: AAER RSS feed
+  provider: U.S. Securities and Exchange Commission (sec.gov)
+  url: https://www.sec.gov/rss/divisions/enforce/friactions.xml
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:22:48Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch (status inferred). Channel title 'Accounting and Auditing Enforcement Releases'. 10
+    <item>s, newest first; item title = respondent text, link = PDF URL, pubDate present; AAER numbers
+    are NOT included in the feed (only 33-/34- release numbers via the PDF filename).
+  blocked_reason: null
+  evidence: |-
+    Item 1: title 'Paul Frenkiel', link https://www.sec.gov/files/litigation/admin/2026/34-106274.pdf, pubDate September 3, 2026; item 2: 'L&L Energy, Inc. and Dickson Lee, CPA (Order Granting Extension of Time To File Reply)', link https://www.sec.gov/files/litigation/opinions/2026/33-11437.pdf, Aug 31 2026; item 3: link .../opinions/2026/33-11432.pdf, Jul 22 2026.
+  download_plan: |-
+    GET https://www.sec.gov/rss/divisions/enforce/friactions.xml once per day with compliant User-Agent; diff item <link> values against the local AAER index; fetch any new PDF. Only 10 most recent items, so it is an incremental trigger, not a backfill source.
+  verification:
+    verdict: confirmed
+    reason: Channel 'Accounting and Auditing Enforcement Releases', 10 items; items 1-3 titles/links/pubDates
+      identical to claim. Summariser noted dc:creator holds 33-/34- release numbers (not AAER numbers),
+      consistent with the claim that AAER numbers are absent.
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: bao2020_jar_metadata
+  name: Bao, Ke, Li, Yu & Zhang (2020) 'Detecting Accounting Fraud in Publicly Traded U.S. Firms Using
+    a Machine Learning Approach', JAR 58(1):199-235, DOI 10.1111/1475-679X.12292 (Crossref + Semantic
+    Scholar metadata)
+  provider: Crossref API / Semantic Scholar API (Wiley publisher record)
+  url: https://api.crossref.org/works/10.1111/1475-679X.12292
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:22:43Z'
+  http_status: 200
+  sha256: bcbcead037b55284e590f93085468157e693790021cd754d03e41e5f0246d6e1
+  bytes: 13764
+  local_path: null
+  license: null
+  notes: 'Crossref (13,764 bytes, sha256 bcbcead037b55284e590f93085468157e693790021cd754d03e41e5f0246d6e1)
+    confirms authors BAO, KE, LI, YU, ZHANG; JAR vol 58 issue 1 pp 199-235, issued 2020-01-19; abstract
+    verbatim: ''We develop a state-of-the-art fraud prediction model using a machine learning approach.
+    ... To assess the performance of fraud prediction models, we introduce a new performance evaluation
+    metric commonly used in ranking problems that is more appropriate for the fraud prediction task. Starting
+    with an identical set of theory-motivated raw accounting numbers, we show that our new fraud prediction
+    model outperforms two benchmark models by a large margin: the Dechow et al. logistic regression model
+    based on financial ratios, and the Cecchini et al. support-vector-machine model with a financial kernel
+    ...''. The abstract does not state numeric AUC/NDCG values. Semantic Scholar (https://api.semanticscholar.org/graph/v1/paper/DOI:10.1111/1475-679X.12292,
+    200, 1,974 bytes) gives the same abstract and no open-access PDF. Full text is paywalled at Wiley
+    (not attempted beyond the erratum''s 403).'
+  blocked_reason: null
+  evidence: |-
+    Both JSON records fetched and parsed; title, authors, volume/issue/pages and abstract read.
+  download_plan: |-
+    Metadata only: GET https://api.crossref.org/works/10.1111/1475-679X.12292 with a mailto UA (polite pool). Full text requires a human via CMU library / Wiley.
+  verification:
+    verdict: confirmed
+    reason: Crossref JSON 200, 13,764 bytes (identical size to claim); authors BAO, KE, LI, YU, ZHANG;
+      JAR volume 58 issue 1 pages 199-235. Metadata-only claim, and that is what it delivers.
+    checked_at: '2026-09-04T18:15:04Z'
+    hunt: aaer_research
+- id: bao_analysis_csv
+  name: data_FraudDetection_JAR2020.csv - Bao et al. final analysis dataset (post-erratum)
+  provider: GitHub (JarFraud/FraudDetection)
+  url: https://raw.githubusercontent.com/JarFraud/FraudDetection/master/data_FraudDetection_JAR2020.csv
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:51:38Z'
+  http_status: 200
+  sha256: ed4cefd9db2a23d0a13911d9f482fc755d3dcf6c9be0bc051af95ddcae5b286f
+  bytes: 47782071
+  local_path: null
+  license: Not stated; redistribution of Compustat-derived items under JAR data policy
+  notes: 'THIS IS THE FREE SUBSTITUTE FOR COMPUSTAT for this specific task. Columns: fyear, gvkey, p_aaer,
+    misstate, then 28 raw Compustat annual items (act, ap, at, ceq, che, cogs, csho, dlc, dltis, dltt,
+    dp, ib, invt, ivao, ivst, lct, lt, ni, ppegt, pstk, re, rect, sale, sstk, txp, txt, xint, prcc_f)
+    and 14 ratios (dch_wc, ch_rsst, dch_rec, dch_inv, soft_assets, ch_cs, ch_cm, ch_roa, issue, bm, dpi,
+    reoa, EBIT, ch_fcf). fyear 1990-2014. 146,045 rows, 18,444 distinct gvkey. misstate=1 on 964 rows
+    spanning 412 distinct p_aaer; misstate=0 on 145,081. Positives peak 2000 (86) and 2001 (81); 2009+
+    has only 112 positives across 33,064 firm-years. MISSING for Beneish: xsga (needed for SGAI) is absent;
+    oancf is absent but is NOT needed because Beneish 1999 defines TATA by the balance-sheet method.'
+  blocked_reason: null
+  evidence: |-
+    Header row read directly. misstate counts {'0': 145081, '1': 964}. Per-year positives: 1990:15 ... 1999:73, 2000:86, 2001:81, 2002:77, 2003:69, 2004:58, 2005:45, 2006:33, 2007:30, 2008:26, 2009:31, 2010:26, 2011:21, 2012:19, 2013:11, 2014:4. Rows per year ~4,582 (1990) to ~6,828 (1999) to 5,627 (2014).
+  download_plan: |-
+    Single GET, ~48 MB, no auth, no rate limit of concern. Verify sha256 ed4cefd9db2a23d0a13911d9f482fc755d3dcf6c9be0bc051af95ddcae5b286f to pin the post-erratum version; if the hash differs, the repo has been updated again and results will not match the erratum. Read with a streaming CSV parser (pandas read_csv with dtype hints is fine at this size). Beware: 'at' is a Python-safe but SQL-reserved column name; 'EBIT' is the only capitalised column.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: bao_commits
+  name: Bao et al. repository commit history
+  provider: GitHub API
+  url: https://api.github.com/repos/JarFraud/FraudDetection/commits?per_page=100
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:54:30Z'
+  http_status: 200
+  sha256: null
+  bytes: 83595
+  local_path: null
+  license: null
+  notes: '24 commits, 2019-10-07 to 2022-08-10. The last commit, 2022-08-10T07:18:52Z ''update code and
+    data'', lands six days after the erratum''s 2022-08-04 update date -- so the current master is the
+    CORRECTED dataset and code. Earlier: 2021-11-11 ''Delete prediciton_rusboost28_2003-2008.zip / Pls
+    run the run_RUSBoost28.m file using MATLAB''; 2021-03-16 ''add variable descriptions''; 2019-11-09
+    ''20191108 update for publication''.'
+  blocked_reason: null
+  evidence: |-
+    Commit list printed with ISO dates and messages; head commit date 2022-08-10T07:18:52Z, message 'update code and data'.
+  download_plan: |-
+    GET the commits endpoint, take the head SHA, and pin all raw.githubusercontent fetches to https://raw.githubusercontent.com/JarFraud/FraudDetection/<sha>/<file> so the acquisition is reproducible. Re-check the head SHA on each run and fail loudly if it moved.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: bao_labels_csv
+  name: AAER_firm_year.csv - Bao et al. raw AAER fraud firm-year labels
+  provider: GitHub (JarFraud/FraudDetection)
+  url: https://raw.githubusercontent.com/JarFraud/FraudDetection/master/AAER_firm_year.csv
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:51:18Z'
+  http_status: 200
+  sha256: ee5f8a49da6d549540192bbd85656b9b63a9bc17361cff627b6f3cc0bd14cff5
+  bytes: 33000
+  local_path: null
+  license: Not stated; JAR data-sharing policy
+  notes: 'Columns: P_AAER, CIK, YEARA, UNDERSTATEMENT. 1,746 data rows, all distinct (CIK, YEARA) pairs.
+    716 distinct CIK and 716 distinct P_AAER. YEARA min 1971, max 2015. UNDERSTATEMENT: 1,694 rows = 0
+    (overstatement, the fraud class used in the paper), 51 rows = 1, 1 row = 3. Year distribution peaks
+    1999-2003 (116/139/135/119/101). 1,283 rows in 1991-2008; only 179 rows in 2009+.'
+  blocked_reason: null
+  evidence: |-
+    Head: 'P_AAER,CIK,YEARA,UNDERSTATEMENT' then '2,47059,1978,0'. Per-year counts computed locally, e.g. (2000,139),(2001,135),(2009,52),(2014,4),(2015,2).
+  download_plan: |-
+    Single GET, 33 KB, no auth. Parse as UTF-8 CSV with header. Join to Compustat or to data_FraudDetection_JAR2020.csv on CIK (this file) vs gvkey (the analysis file) -- note they use DIFFERENT identifiers, so identifiers.csv (1.6 MB) is required to bridge them. Filter UNDERSTATEMENT==0 to match the paper's overstatement-fraud definition.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: bao_readme
+  name: Bao et al. repository README / JAR Data Description Sheet
+  provider: GitHub (JarFraud/FraudDetection)
+  url: https://raw.githubusercontent.com/JarFraud/FraudDetection/master/README.md
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:51:18Z'
+  http_status: 200
+  sha256: 8c676df09f2a93ac4958380c5b73defd34e39ddde3dfbfd542a07f8f137d8603
+  bytes: 8915
+  local_path: null
+  license: null
+  notes: 'Documents provenance: AAERs compiled by UC-Berkeley CFRM covering announcements 17 May 1982
+    to 30 Sept 2016, hand-extended from https://www.sec.gov/divisions/enforce/friactions/friactions2018.shtml
+    to 31 Dec 2018 (AAER #4012). Accounting data from ''COMPUSTAT fundamental annual database fiscal year
+    1991 to 2014'', downloaded April 2017. Confirms ''misstate'' is the fraud label and ''p_aaer'' handles
+    serial fraud. NOTE: the README makes no mention of the 2022 erratum -- it was never updated to warn
+    users.'
+  blocked_reason: null
+  evidence: |-
+    Quote: 'The publicly traded U.S. firms' accounting data are from COMPUSTAT fundamental annual database fiscal year 1991 to 2014.' and 'The variable "misstate" is the fraud label (1 denotes fraud, and 0 denotes non-fraud).' and 'The variable "p_aaer" is used for handling the serial fraud issue.'
+  download_plan: |-
+    Single GET, 9 KB. Store alongside the CSV as the variable dictionary.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: bao_repo_api
+  name: Bao/Ke/Li/Yu/Zhang (2020) JAR replication repository - file listing
+  provider: GitHub (JarFraud/FraudDetection)
+  url: https://api.github.com/repos/JarFraud/FraudDetection/contents/
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:51:00Z'
+  http_status: 200
+  sha256: null
+  bytes: 8316
+  local_path: null
+  license: No LICENSE file present in repo root
+  notes: 'Ten files at root: AAER_firm_year.csv (33,000 B), ''BKLYZ Datasheet.pdf'' (25,832 B), README.md
+    (8,915 B), ''SAS coding.pdf'' (58,654 B), data_FraudDetection_JAR2020.csv (47,782,071 B), data_reader.m,
+    evaluate.m, identifiers.csv (1,608,699 B), run_RUSBoost.m, tune_RUSBoost.m. Note there is NO run_RUSBoost28.m
+    at root despite the 2021 commit message referencing it.'
+  blocked_reason: null
+  evidence: |-
+    JSON array with name/size/download_url per file; each download_url is https://raw.githubusercontent.com/JarFraud/FraudDetection/master/<name>.
+  download_plan: |-
+    GET https://api.github.com/repos/JarFraud/FraudDetection/contents/ (unauthenticated is fine, 60 req/hr limit; set a token to get 5000/hr). Then GET each download_url. Pin to a commit SHA rather than 'master' for reproducibility -- the repo was materially changed on 2022-08-10.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: beneish_1999_working_paper_pdf
+  name: Beneish (1999) 'The Detection of Earnings Manipulation' - June 1999 working-paper version (pre-print
+    of FAJ 55(5):24-36)
+  provider: calctopia.com (third-party mirror)
+  url: https://www.calctopia.com/papers/beneish1999.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:22:00Z'
+  http_status: 200
+  sha256: 78b2f0143770c9c06871ba8e8d8fb764fc95a4dd379ae37e1c301d16c42faffe
+  bytes: 153381
+  local_path: null
+  license: Author working paper; copyright Beneish/CFA Institute for the published version
+  notes: 'PDF 153,381 bytes, sha256 78b2f0143770c9c06871ba8e8d8fb764fc95a4dd379ae37e1c301d16c42faffe.
+    Title page: ''The Detection of Earnings Manipulation, Messod D. Beneish*, June 1999, Comments Welcome'',
+    Indiana University Kelley School. This is the working-paper text, not the FAJ typeset version, but
+    it is the same study (estimation sample 50 manipulators/1,708 non-manipulators, holdout 24/624; pseudo-R2
+    30.6% WESML, 37.1% unweighted probit). Table 3 Panel A, row ''Unweighted Probit'': Constant -4.840,
+    DSRI .920, GMI .528, AQI .404, SGI .892, DEPI .115, SGAI -.172, TATA 4.679, LVGI -.327 (pseudo-R2
+    .371, chi2 129.20). Row ''WESML'': -4.954, .789, .459, .306, .701, .033, -.006, 3.937, -.264. Text
+    p.16: ''at relative error costs of 20:1 or 30:1, the model classifies firms as manipulators when the
+    estimated probabilities exceed .0376 (a score greater than -1.78); it misclassifies 26% of the manipulators
+    and 13.8% of the non-manipulators'' (estimation sample; holdout 50% / 7.2%); at 10:1 the cutoff is
+    .0685 (score -1.49). The 5-variable model (-6.065 + .823 DSRI + .906 GMI + .593 AQI + .717 SGI + .107
+    DEPI) does NOT appear anywhere in this text (grep for 6.065/0.823/0.906 returned nothing). Crossref
+    (https://api.crossref.org/works/10.2469/faj.v55.n5.2296, 200, 5,381 bytes) confirms the published
+    record: Financial Analysts Journal 55(5):24-36, issued 1999-09, author Beneish.'
+  blocked_reason: null
+  evidence: |-
+    Full PDF downloaded, converted with pdftotext -layout; Table 3 and the cutoff paragraph read directly.
+  download_plan: |-
+    Single GET of the PDF; verify sha256 78b2f014...affe. For the authoritative typeset version a human must use CMU library access to https://doi.org/10.2469/faj.v55.n5.2296 (Taylor & Francis; 403 to scripts).
+  verification:
+    verdict: confirmed
+    reason: PDF 200, 153,381 bytes, sha256 78b2f014... matches claim. pdftotext shows Table 3 'Unweighted'
+      row -4.840 .920 .528 .404 .892 .115 -.172 4.679 -.327 (.371, 129.20) and the .0376 / -1.78 cutoff
+      text; '6.065' absent, as claimed. Working-paper version, correctly labeled as such.
+    checked_at: '2026-09-04T18:15:11Z'
+    hunt: aaer_research
+- id: crossref_jar_erratum
+  name: Crossref metadata for the JAR 2022 Erratum to Bao et al. (2020)
+  provider: Crossref REST API
+  url: https://api.crossref.org/works/10.1111/1475-679X.12454
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:54:12Z'
+  http_status: 200
+  sha256: null
+  bytes: 3660
+  local_path: null
+  license: Crossref metadata, CC0
+  notes: Authoritative bibliographic confirmation that the erratum exists and what it corrects. DOI 10.1111/1475-679x.12454,
+    type journal-article, title 'Erratum', Journal of Accounting Research, volume 60, issue 4, pages 1635-1646,
+    published-print 2022-09. update-to points at DOI 10.1111/1475-679x.12292 with type 'erratum', source
+    'publisher', updated 2022-08-04.
+  blocked_reason: null
+  evidence: |-
+    JSON fields: title=["Erratum"]; container-title=["Journal of Accounting Research"]; volume="60"; issue="4"; page="1635-1646"; published-print={"date-parts":[[2022,9]]}; update-to=[{"DOI":"10.1111/1475-679x.12292","type":"erratum","label":"Erratum","source":"publisher","updated":{"date-parts":[[2022,8,4]]}}].
+  download_plan: |-
+    GET https://api.crossref.org/works/{doi} with a User-Agent containing mailto: to enter the polite pool. No key needed. Use the update-to field to detect corrections on any DOI in the bibliography automatically -- worth wiring into the project as a standing check.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: ejw_bao_response_page
+  name: Econ Journal Watch landing page - Bao et al. response to Walker (March 2021)
+  provider: Econ Journal Watch
+  url: https://econjwatch.org/articles/a-response-to-critique-of-an-article-on-machine-learning-in-the-detection-of-accounting-fraud
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:54:12Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: Econ Journal Watch, freely available
+  notes: Confirms the March 2021 reply by Bao, Ke, Li, Yu and Zhang, in which they state they 'find no
+    evidence that these two issues alter our paper's inferences' -- 17 months before conceding an error
+    in the erratum. Page surfaces a PDF link at https://econjwatch.org/file_download/1184/BaoEtAlMar2021.pdf
+    which I did NOT fetch.
+  blocked_reason: null
+  evidence: |-
+    Page content states authors Yang Bao, Bin Ke, Bin Li, Y. Julia Yu, Jie Zhang, March 2021, addressing missing values and serial fraud, and notes a Walker rejoinder in the next issue. It does not itself mention the later erratum.
+  download_plan: |-
+    GET the landing page, then GET the file_download PDF link found in it. Both free, no auth.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: ejw_walker_2021_critique
+  name: Walker (2021) 'Critique of an Article on Machine Learning in the Detection of Accounting Fraud',
+    Econ Journal Watch 18(1):61-70
+  provider: Econ Journal Watch
+  url: https://econjwatch.org/File+download/1185/WalkerMar2021.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:23:23Z'
+  http_status: 200
+  sha256: 048ec002ef8d3fbd4eed0c7f505f781a22b501d9d84a1c5e70ee60b0d9f572db
+  bytes: 398678
+  local_path: null
+  license: EJW copyright, freely downloadable
+  notes: 'PDF 398,678 bytes, sha256 048ec002ef8d3fbd4eed0c7f505f781a22b501d9d84a1c5e70ee60b0d9f572db.
+    Content read via pdftotext: describes the original repo files (run_RUSBoost28, uscecchini28.csv),
+    test period 2003-2008, top-1% hit metric; Table 2 Panel A hits by year for the published model 8/4/2/1/1/0
+    = 16 (2003-2008), re-run 15, recoded (original AAER ids restored) 9; Panel B positive predictive value
+    4.5% published vs 2.5% recoded, versus 2.63% for the Dechow-style logit reported in the paper. Identifies
+    17 unique AAER cases (of 413) that were given new identifiers (new_p_aaer), i.e. serial frauds spanning
+    training and test periods not zeroed in training.'
+  blocked_reason: null
+  evidence: |-
+    Full PDF downloaded, converted to text (22,201 chars), tables read.
+  download_plan: |-
+    Single GET of the PDF URL above; store with sha256. No auth.
+  verification:
+    verdict: confirmed
+    reason: PDF 200, 398,678 bytes, sha256 048ec002... matches claim exactly. pdftotext output title 'Critique
+      of an Article on Machine Learning in the Detection of Accounting Fraud'. Direct free download, no
+      wall.
+    checked_at: '2026-09-04T18:15:05Z'
+    hunt: aaer_research
+- id: ejw_walker_2022
+  name: Walker (2022), 'Erroneous Erratum to Accounting Fraud Article', Econ Journal Watch 19(2):190-203
+  provider: Econ Journal Watch
+  url: https://econjwatch.org/File+download/1245/WalkerSept2022.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:55:03Z'
+  http_status: 200
+  sha256: 6a1396dd44da4d6025b262421a98565b81b2e25f195e42ec30ac54a0dc26a20f
+  bytes: 353615
+  local_path: null
+  license: Econ Journal Watch, freely available
+  notes: 'THE ONLY FREE ROUTE TO THE ERRATUM''S CONTENT that I could verify. Quotes the erratum verbatim
+    with page numbers (1635, 1636, 1637). Establishes: the error affected 17 of 435 fraud cases (~10%
+    of spanning serial-fraud cases not recoded to zero in training); the headline hit count fell from
+    16-vs-9 (2020 paper, p.223) to 10-vs-8 (erratum); Walker''s own re-run of the erratum code gives 8-vs-8.
+    Reports per-year AUC for the corrected RUSBoost-28: 2003 0.7281, 2004 0.7646, 2005 0.7289, 2006 0.7590,
+    2007 0.7176, 2008 0.6280; period averages 2003-2005 ~0.7405-0.7428, 2003-2008 ~0.7210-0.7230. Grid
+    search over 100-3000 trees moves AUC only between 0.7350 and 0.7495, i.e. the hyperparameter barely
+    matters. Walker also alleges the erratum misdescribes the 2020 paper''s own sample-period justification
+    and calls for a JAR investigation -- read that as contested advocacy, but the quoted numbers are checkable.'
+  blocked_reason: null
+  evidence: |-
+    Verbatim quote of the erratum: 'Walker (2021a and 2021b) identified an error in the program codes of Bao et al. (2020) posted on Github that led to an overstatement of model performance metrics. (Bao et al. 2022, 1635)'. And: 'their paper originally claimed a near doubling in performance relative to the existing logit model (identifying 16 vs. 9 cases), and now they claim a modest improvement in the erratum for that same period (identifying 10 cases vs. 8 cases). When a user runs their updated code, there is not even a modest improvement (identifying 8 cases vs. 8 cases).'
+  download_plan: |-
+    Single GET, 354 KB, no auth. Extract with pdftotext -layout. Note the tables are badly mangled by column-order scrambling in extraction -- read Tables 1 and 2 from the rendered PDF, not the text dump, before quoting any individual cell.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: ejw_walker_2022_erroneous_erratum
+  name: Walker (2022) 'Erroneous Erratum to Accounting Fraud Article', Econ Journal Watch 19(2):190-203
+  provider: Econ Journal Watch
+  url: https://econjwatch.org/file_download/1245/WalkerSept2022.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:25:12Z'
+  http_status: 200
+  sha256: 6a1396dd44da4d6025b262421a98565b81b2e25f195e42ec30ac54a0dc26a20f
+  bytes: 353615
+  local_path: null
+  license: EJW copyright, freely downloadable
+  notes: 'Article page https://econjwatch.org/articles/erroneous-erratum-to-accounting-fraud-article (200,
+    12,371 bytes) links this PDF and a data/code zip https://econjwatch.org/file_download/1232/WalkerDataCodeSept2022.zip
+    (not fetched). PDF 353,615 bytes, sha256 6a1396dd44da4d6025b262421a98565b81b2e25f195e42ec30ac54a0dc26a20f.
+    Quotes the erratum (see jar_erratum_2022). Table 1: grid search AUC on validation year by trees (e.g.
+    200: 0.7350, 400: 0.7432, 1000: 0.7490 best); updated repo code uses 300 trees. Table 2 (RUSBoost-28,
+    columns Erratum / Run(1) as-is / Run(2) 1000 trees): 2003-2005 summary AUC 0.7428 / 0.7405 / 0.7415,
+    NDCG@1% 0.0394 / 0.0348 / 0.0357, hits 9 / 8 / 8; 2003-2008 summary AUC 0.7228 / 0.7210 / 0.7230,
+    NDCG@1% 0.0237 / 0.0174 / 0.0179, hits 10 / 8 / 8; per-year erratum-run AUC 2003 0.7281, 2004 0.7646,
+    2005 0.7289, 2006 0.7590, 2007 0.7176, 2008 0.6280. Quotes Bao et al. 2020 p.223: ''our best model,
+    the ensemble learning model, identified a total of 16 fraud cases in the test period 2003-2008. In
+    contrast, the comparable figure is 9 for the Dechow et al. model and 7 for the Cecchini et al. model.''
+    States 17 of 435 fraud cases were affected. Column attribution in Table 2 is from pdftotext layout;
+    the three-value rows are read left-to-right as Erratum, Run(1), Run(2) per the printed header.'
+  blocked_reason: null
+  evidence: |-
+    Full PDF downloaded and converted (33,283 chars); erratum quotes at lines 22-41 and 167-171, Table 2 at lines 100-122.
+  download_plan: |-
+    Single GET of the PDF (and optionally the 1232 zip of Walker's data/code); store with sha256. No auth.
+  verification:
+    verdict: confirmed
+    reason: PDF 200, 353,615 bytes, sha256 6a1396dd... matches claim. Text title 'Erroneous Erratum to
+      Accounting Fraud Article'; Table 2 rows found verbatim (0.7428 0.7405 0.7415 0.0394 0.0348 0.0357
+      hits 9/8/8; 0.7228 0.7210 0.7230 0.0237 0.0174 0.0179 hits 10/8/8) at lines 118 and 122.
+    checked_at: '2026-09-04T18:15:07Z'
+    hunt: aaer_research
+- id: hf_edgar_corpus
+  name: eloukas/edgar-corpus - EDGAR 10-K section text, 1993-2020
+  provider: Hugging Face Datasets
+  url: https://huggingface.co/api/datasets/eloukas/edgar-corpus
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:55:46Z'
+  http_status: 200
+  sha256: null
+  bytes: 39046
+  local_path: null
+  license: apache-2.0
+  notes: A real, free, permissively licensed academic redistribution covering the pre-2009 gap in YEARS
+    (1993-2020) -- but it is 10-K SECTION TEXT (jsonl per year, train/validate/test splits), NOT structured
+    financials. Useful if the project ever wants a textual-features arm (cf. Brown/Crowley/Elliott MD&A
+    work or the FinBERT-style literature), useless as a Compustat substitute for Beneish ratios. 6,388
+    downloads at time of check.
+  blocked_reason: null
+  evidence: |-
+    API JSON: id 'eloukas/edgar-corpus', tags include 'license:apache-2.0', 'language:en', 'size_categories:100K<n<1M'. 87 siblings with filenames of the form '1993/train.jsonl', '1993/validate.jsonl', '1993/test.jsonl' through 2020.
+  download_plan: |-
+    GET https://huggingface.co/api/datasets/eloukas/edgar-corpus for the file manifest, then GET https://huggingface.co/datasets/eloukas/edgar-corpus/resolve/main/{year}/{split}.jsonl for each year 1993..2020 and split in {train,validate,test}. No auth required for a public dataset; HF rate-limits anonymous clients, so add HF_TOKEN if fetching all 84 data files. Or use `datasets.load_dataset('eloukas/edgar-corpus', 'year_1995')`. Total size not confirmed by me -- HEAD the resolve URLs first.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: jarfraud_github_repo
+  name: JarFraud/FraudDetection (Bao, Ke, Li, Yu & Zhang 2020 replication data + Matlab code)
+  provider: GitHub (authors' account 'JarFraud')
+  url: https://github.com/JarFraud/FraudDetection
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:21:57Z'
+  http_status: 200
+  sha256: null
+  bytes: 47782071
+  local_path: null
+  license: null
+  notes: 'gh api repos/JarFraud/FraudDetection: default_branch master, license null (no LICENSE file in
+    the tree), pushed_at 2023-03-31T02:54:52Z, 165 stars, size 31,520 KB. Only branch: master. Recent
+    commits: 2022-08-10 ''update code and data'' (the erratum-era update), 2021-11-11 ''Delete prediciton_rusboost28_2003-2008.zip'',
+    2021-03-16 ''add variable descriptions'', 2020-02-25 ''add prediction results'', 2019-11-09 ''20191108
+    update for publication''. Tree (gh api contents, bytes): AAER_firm_year.csv 33000; BKLYZ Datasheet.pdf
+    25832; README.md 8915; SAS coding.pdf 58654; data_FraudDetection_JAR2020.csv 47782071; data_reader.m
+    968; evaluate.m 2401; identifiers.csv 1608699; run_RUSBoost.m 2128; tune_RUSBoost.m 1839. README text
+    (fetched raw, sha256 8c676df09f2a93ac4958380c5b73defd34e39ddde3dfbfd542a07f8f137d8603): AAER labels
+    come from UC-Berkeley CFRM database (AAERs 1982-05-17 to 2016-09-30) plus hand-collected AAERs to
+    2018-12-31 (AAER #4012); Compustat fundamental annual FY1991-2014 downloaded April 2017; ''misstate''
+    is the label; 28 raw items act..prcc_f; 14 ratios dch_wc..ch_fcf; p_aaer handles serial fraud; tuning
+    grid [100..3000] trees, train 1991-1999, validate on 2001 AUC. The README does NOT state AUC/NDCG@k
+    results and does NOT mention the 2022 erratum. Downloaded and hashed: AAER_firm_year.csv sha256 ee5f8a49da6d549540192bbd85656b9b63a9bc17361cff627b6f3cc0bd14cff5
+    (1,746 lines; header P_AAER,CIK,YEARA,UNDERSTATEMENT; first rows P_AAER 2 / CIK 47059 / 1978-1980;
+    last rows P_AAER 4012 / CIK 1657853 / 2012-2013); identifiers.csv sha256 4af80a02f4ae520943ab2774cb9a707d7b797f29a662e3bba78d8cf2dc478291
+    (146,045 lines incl. header fyear,gvkey); BKLYZ Datasheet.pdf sha256 9b4e4c807c39f54b852a71156f7988fff0c68f87116c2e53ae531a5dd76356d4
+    (its text contains no AUC/NDCG/erratum strings). data_FraudDetection_JAR2020.csv: HEAD 200 Content-Length
+    47782071, Accept-Ranges bytes; Range 0-2999 returned 206 with header ''fyear,gvkey,p_aaer,misstate,act,ap,at,ceq,che,cogs,csho,dlc,dltis,dltt,dp,ib,invt,ivao,ivst,lct,lt,ni,ppegt,pstk,re,rect,sale,sstk,txp,txt,xint,prcc_f,dch_wc,ch_rsst,dch_rec,dch_inv,soft_assets,ch_cs,ch_cm,ch_roa,issue,bm,dpi,reoa,EBIT,ch_fcf''
+    and first data row fyear 1990 gvkey 1009. gh-pages mirror https://jarfraud.github.io/FraudDetection/
+    (200, 11,868 bytes) carries the same README text.'
+  blocked_reason: null
+  evidence: |-
+    gh api returned repo metadata and a 10-file tree; raw README fetched (200, 8,915 bytes); AAER_firm_year.csv, identifiers.csv, datasheet PDF fully downloaded and hashed; data CSV confirmed via HEAD (47,782,071 bytes) and a 206 range request showing the 46-column header.
+  download_plan: |-
+    Idempotent: `git clone --depth 1 https://github.com/JarFraud/FraudDetection` or per-file GET https://raw.githubusercontent.com/JarFraud/FraudDetection/master/<name> (URL-encode spaces: 'BKLYZ%20Datasheet.pdf', 'SAS%20coding.pdf'). Record the master commit SHA at fetch time (`gh api repos/JarFraud/FraudDetection/commits/master --jq .sha`) and the sha256 of every file; skip if the SHA is unchanged. Expected sizes: data CSV 47.8 MB (text/plain; supports Range so resumable), identifiers 1.6 MB, others <60 KB. No auth or rate limit concerns for 10 files; one polite pass with a UA string is enough. Because no LICENSE file exists, treat redistribution as 'all rights reserved' and cite Bao et al. (2020) JAR 58(1):199-235 as the README requests. Note the repo's data post-dates the 2022-08-10 correction; the pre-correction prediction zip was deleted in Nov 2021, so the original (overstated) outputs are only recoverable from git history (commit 2020-02-25 'add prediction results').
+  verification:
+    verdict: confirmed
+    reason: 'Repo page 200; GitHub contents API lists exactly the 10 claimed files with matching byte
+      sizes (data_FraudDetection_JAR2020.csv 47,782,071; identifiers.csv 1,608,699; AAER_firm_year.csv
+      33,000). Raw README 200, 8,915 bytes, sha256 8c676df0... matches claim; mentions CFRM AAER source,
+      no ''erratum'' string. HEAD on data CSV: 200, Content-Length 47782071, Accept-Ranges bytes; range
+      request returned the claimed 46-column header and first row fyear 1990 gvkey 1009.'
+    checked_at: '2026-09-04T18:15:17Z'
+    hunt: aaer_research
+- id: sec_accessing_edgar_data
+  name: Accessing EDGAR Data (fair-access / User-Agent policy)
+  provider: U.S. Securities and Exchange Commission (sec.gov)
+  url: https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:24:02Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'WebFetch (status inferred). Sections: Overview; Fair access; How far back does EDGAR data go?;
+    Business hours and dissemination; Post-acceptance corrections and deletions; Data APIs; Using the
+    EDGAR index files; CIK; Feed and oldloads directories; Paths and directory structure; Directory browsing;
+    VPRR; Monthly directory; CIK, ticker, and exchange associations; Other sources; Contacts; Resources.
+    Links /Archives/edgar/full-index, /Archives/edgar/daily-index, data.sec.gov. No off-peak-hours recommendation
+    on this page.'
+  blocked_reason: null
+  evidence: |-
+    Verbatim: 'Current max request rate: 10 requests/second.' ; 'Please declare your user agent in request headers:' ; 'User-Agent: Sample Company Name AdminContact@<sample company domain>.com' ; 'Accept-Encoding: gzip, deflate' ; 'Host: www.sec.gov' ; 'The SEC does not allow botnets or automated tools to crawl the site. Any request that has been identified as part of a botnet or an automated tool outside of the acceptable policy will be managed to ensure fair access for all users.' ; 'SEC reserves the right to limit request rates to preserve fair access for all users.'
+  download_plan: |-
+    Policy page, not data. Bake into every EDGAR client: headers User-Agent '<Organisation name> <contact email>', Accept-Encoding 'gzip, deflate', Host 'www.sec.gov' (or 'data.sec.gov' / 'efts.sec.gov' as appropriate); token-bucket limiter at <=10 requests/second across ALL machines/processes; back off on 403/429.
+  verification:
+    verdict: confirmed
+    reason: 'Page returns ''Current max request rate: 10 requests/second.'', the sample User-Agent header,
+      and the botnet/automated-tool sentence verbatim; section headings match the claimed list.'
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: sec_companyfacts_api_sample
+  name: data.sec.gov XBRL Company Facts API (Apple Inc., CIK 0000320193)
+  provider: U.S. Securities and Exchange Commission (data.sec.gov)
+  url: https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:24:34Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch (status inferred). Summariser saw only an excerpt, so its '10-12 concepts' remark undercounts;
+    the sample fact shown is from a 10-Q filed 2026-07-31 with frame CY2026Q2I, which confirms the API
+    is current. No API key needed.
+  blocked_reason: null
+  evidence: |-
+    Top-level keys cik, entityName ('Apple Inc.'), facts; taxonomies dei and us-gaap; sample us-gaap:AccountsReceivableNetCurrent entry verbatim: {"end":"2026-06-27","val":31398000000,"accn":"0000320193-26-000020","fy":2026,"fp":"Q3","form":"10-Q","filed":"2026-07-31","frame":"CY2026Q2I"}.
+  download_plan: |-
+    See sec_edgar_apis_page. JSON schema: facts[taxonomy][concept].units[unit] = list of {end, val, accn, fy, fp, form, filed, (start), (frame)}. Persist raw JSON per CIK; dedupe facts by (accn, concept, unit, end, start).
+  verification:
+    verdict: confirmed
+    reason: JSON with keys cik, entityName ('Apple Inc.'), facts; taxonomies dei and us-gaap; AccountsReceivableNetCurrent
+      entry end 2026-06-27 val 31398000000 accn 0000320193-26-000020 fy 2026 fp Q3 10-Q filed 2026-07-31
+      — matches claim. No key required. Exact byte size still not captured.
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: sec_edgar_apis_page
+  name: EDGAR Application Programming Interfaces (data.sec.gov) documentation page
+  provider: U.S. Securities and Exchange Commission (sec.gov)
+  url: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:24:18Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'WebFetch (status inferred). Endpoints: https://data.sec.gov/submissions/CIK##########.json ;
+    https://data.sec.gov/api/xbrl/companyconcept/CIK##########/us-gaap/AccountsPayableCurrent.json ; https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json
+    ; https://data.sec.gov/api/xbrl/frames/us-gaap/AccountsPayableCurrent/USD/CY2019Q1I.json. Bulk: https://www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip
+    and https://www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip, ''updated and republished
+    nightly at approximately 3:00 a.m. ET'' (bulk zips NOT fetched; sizes unknown). No separate numeric
+    rate limit on this page: ''Automated access must comply with SEC.gov''s Privacy and Security Policy''
+    and it points to the Developer FAQs - i.e. the same 10 req/s rule applies. Covered forms 10-Q, 10-K,
+    8-K, 20-F, 40-F, 6-K and variants; submissions API delay <1 s, XBRL APIs <1 min.'
+  blocked_reason: null
+  evidence: |-
+    Endpoint patterns with 10-digit zero-padded CIK; bulk zip URLs; nightly 3:00 a.m. ET statement; no beta/unofficial disclaimer.
+  download_plan: |-
+    Per-company: GET https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json (Host: data.sec.gov, compliant UA), <=10 req/s, cache by CIK + ETag/Last-Modified. Whole-universe: one nightly GET of https://www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip (size unknown - HEAD it with a compliant UA first; expect >1 GB) then extract per-CIK JSONs. Frames API gives one concept for all filers per period: GET .../frames/us-gaap/{Concept}/USD/CY{yyyy}[Q{n}[I]].json.
+  verification:
+    verdict: confirmed
+    reason: Page lists the four data.sec.gov endpoint patterns (submissions, companyconcept, companyfacts,
+      frames) with 10-digit CIK, the companyfacts.zip and submissions.zip bulk URLs, 'republished nightly
+      at approximately 3:00 a.m. ET', and the Privacy and Security Policy compliance sentence, all as
+      claimed.
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: sec_edgar_fullindex_1994q3
+  name: EDGAR full-index, 1994 QTR3 (earliest documented quarter)
+  provider: U.S. Securities and Exchange Commission
+  url: https://www.sec.gov/Archives/edgar/full-index/1994/QTR3/
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:55:46Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: US government work, public domain
+  notes: 'Confirms the pre-2009 free path EXISTS at the filing level. Directory holds 16 files: company.idx,
+    form.idx, master.idx, crawler.idx, plus .gz/.Z/.zip variants of company/form/master/xbrl, and two
+    sitemap XMLs. BUT: this gets you an index of filings, not financial statement line items. Pre-XBRL
+    10-Ks are ASCII/HTML with no consistent tagging, so extracting 28 Compustat-equivalent items from
+    1994-2008 filings is an NLP/parsing research project with unquantified error rates -- NOT a substitute
+    for Compustat on any reasonable schedule. I did not verify whether 1993 quarters exist; the SEC''s
+    own doc says coverage begins 1994Q3.'
+  blocked_reason: null
+  evidence: |-
+    Directory listing enumerates company.idx (1927 KB), form.idx (1927 KB), master.idx (1231 KB), crawler.idx (2360 KB), company.gz/.Z/.zip, form.gz/.Z/.zip, master.gz/.Z/.zip, xbrl.gz/.Z/.zip, sitemap.quarterlyindex.xml, sitemap.quarterlyindex1.xml.
+  download_plan: |-
+    For each year 1994..current and quarter QTR1..QTR4 (starting 1994/QTR3): GET https://www.sec.gov/Archives/edgar/full-index/{yyyy}/QTR{q}/master.idx with User-Agent 'OrgName contact@email'. Pipe-delimited, 11 header lines to skip, columns CIK|Company Name|Form Type|Date Filed|Filename. ~1-3 MB per quarter, ~130 quarters, well under 1 GB total. Filter Form Type == '10-K'. Then GET https://www.sec.gov/Archives/{Filename} for each. Rate limit: SEC permits 10 req/sec but caps aggressively -- run at 5/sec with retry-on-429 and a declared UA. Budget: roughly 200k-300k 10-K documents for 1994-2008 at ~0.5-3 MB each = 200-600 GB if you take complete submission text files, so filter to the primary document. BE HONEST WITH THE OWNER: turning these into a clean panel of 28 line items is the whole project, not a data-acquisition step.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: sec_efts_fulltext_search
+  name: EDGAR Full-Text Search backend (efts.sec.gov search-index)
+  provider: U.S. Securities and Exchange Commission (efts.sec.gov)
+  url: https://efts.sec.gov/LATEST/search-index?q=%22Accounting%20and%20Auditing%20Enforcement%20Release%22&forms=8-K&dateRange=custom&startdt=2024-01-01&enddt=2024-12-31
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:24:47Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch (status inferred). Undocumented-but-public JSON backend of https://www.sec.gov/edgar/search/
+    (FAQ at https://www.sec.gov/edgar/search/efts-faq.html surfaced by search, not fetched). Indexes filings
+    since 2001 only. Pagination parameters (page=, from=) were NOT verified this session.
+  blocked_reason: null
+  evidence: |-
+    JSON keys took, timed_out, _shards, hits, aggregations, query; hits.total.value = 2; first hit _id '0001031296-24-000049:ex992-secagreement.htm', _source.ciks ['0001031296'], display_names ['FIRSTENERGY CORP (FE) (CIK 0001031296)'], file_date '2024-09-12', form '8-K', file_num ['333-21011'], adsh '0001031296-24-000049'; aggregations form_filter, entity_filter, sic_filter, biz_states_filter.
+  download_plan: |-
+    GET https://efts.sec.gov/LATEST/search-index?q=<url-encoded phrase in double quotes>&forms=<form>&dateRange=custom&startdt=YYYY-MM-DD&enddt=YYYY-MM-DD with Host: efts.sec.gov and compliant UA, <=10 req/s. Split date ranges into windows small enough that hits.total.value stays under the page size (100) or confirm the &page=N parameter manually before relying on it. Useful for locating 8-K/10-K text mentioning restatements or AAERs, not as a financials source.
+  verification:
+    verdict: confirmed
+    reason: Valid JSON with keys took, timed_out, _shards, hits, aggregations, query; hits.total.value
+      2; first hit _id 0001031296-24-000049:ex992-secagreement.htm, FIRSTENERGY CORP, file_date 2024-09-12,
+      form 8-K, adsh 0001031296-24-000049 — identical to claim. Pagination still unverified.
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: sec_fsds_2009q1
+  name: SEC Financial Statement Data Set 2009q1 (earliest quarter)
+  provider: U.S. Securities and Exchange Commission
+  url: https://www.sec.gov/files/dera/data/financial-statement-data-sets/2009q1.zip
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:57:20Z'
+  http_status: 200
+  sha256: 181327faaa37c2a3b47cb6727004960b762954d908697b252d12bea245b9d26e
+  bytes: 13540
+  local_path: null
+  license: US government work, public domain
+  notes: 'THE KEY NEGATIVE FINDING. Fetched via WebFetch (single request), saved and unzipped locally.
+    Contains num.txt (62 bytes), pre.txt (62 bytes), readme.htm (154,786 bytes), sub.txt (223 bytes),
+    tag.txt (58 bytes). sub.txt has exactly one line: the header. Zero submissions, zero numeric facts.
+    The nominal ''earliest quarter'' carries no data.'
+  blocked_reason: null
+  evidence: |-
+    unzip produced 5 files; `awk 'END{print NR-1}' sub.txt` = 0 data rows; num.txt is 62 bytes = header only; distinct adsh count = 0. Header fields confirmed: adsh, cik, name, sic, countryba, ... period (col 27), fy (col 28), fp (col 29).
+  download_plan: |-
+    Do not bother fetching this quarter in production. If completeness matters, fetch it once and assert row count is zero rather than treating a parse failure as a bug.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: sec_fsds_listing
+  name: SEC DERA Financial Statement Data Sets landing page
+  provider: U.S. Securities and Exchange Commission
+  url: https://www.sec.gov/dera/data/financial-statement-data-sets.html
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:51:00Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: US government work, public domain
+  notes: 'Fetched with WebFetch per the sec.gov rule. Page lists quarterly zips newest-first from 2026q2
+    back to 2009q1. URL pattern confirmed as /files/dera/data/financial-statement-data-sets/<YYYY>q<Q>.zip.
+    EARLIEST QUARTER = 2009q1. But see fsds_2009q1: that file is an empty shell.'
+  blocked_reason: null
+  evidence: |-
+    Listing enumerates 2026q2 ... 2024q1 explicitly and continues through Q1 2009; stated size for 2009q1 is 13.22 KB, for 2025q3 ~121.92 MB.
+  download_plan: |-
+    Idempotent loop over years 2009..current and quarters 1..4: GET https://www.sec.gov/files/dera/data/financial-statement-data-sets/{yyyy}q{q}.zip with a descriptive User-Agent containing a contact email (SEC requires this), max 10 requests/second but stay at 1-2/sec. Skip if local file exists and Content-Length matches (send a conditional HEAD first). Each zip contains sub.txt, num.txt, pre.txt, tag.txt (tab-separated) plus readme.htm. Expect ~13 KB for 2009q1 rising to ~120 MB for recent quarters; total corpus for 2009-2026 is several GB. Do NOT start before 2009q2 -- 2009q1 has no rows.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: sec_fsds_page
+  name: SEC Financial Statement Data Sets (DERA) landing page
+  provider: U.S. SEC Division of Economic and Risk Analysis (sec.gov)
+  url: https://www.sec.gov/data-research/sec-markets-data/financial-statement-data-sets
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:23:00Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch (status inferred). Page states 'Data sets will be updated quarterly.' and 'The information
+    is presented without change from the as filed financial reports submitted by each registrant.' Summariser
+    counted 69 zip links; arithmetic 2009q1..2026q2 = 70 and both 2009q1 and 2009q2 were confirmed to
+    exist, so either the summariser miscounted or one later quarter is absent from the page - the acquisition
+    script must iterate the pattern and log any 404 rather than trust the page count. Summariser said
+    no archive page is linked; a search result named https://www.sec.gov/data-research/sec-markets-data/financial-statement-data-sets-archive
+    but that URL timed out (see fsds_archive_page). Also links https://github.com/sec-gov/python-for-dera-financial-datasets
+    (not fetched).
+  blocked_reason: null
+  evidence: |-
+    Links of the form /files/dera/data/financial-statement-data-sets/YYYYqN.zip with displayed sizes; latest 2026q2 (57.62 MB), earliest 2009q1 (13.22 KB); documentation link https://www.sec.gov/files/financial-statement-data-sets.pdf (305 KB).
+  download_plan: |-
+    For year in 2009..current, q in 1..4 (stop at the latest quarter listed on the page, i.e. 2026q2 as of 2026-09-03; new quarter appears ~1 month after quarter end): GET https://www.sec.gov/files/dera/data/financial-statement-data-sets/{year}q{q}.zip with User-Agent '<Org> <contact email>', Accept-Encoding: gzip, deflate, Host: www.sec.gov; <=10 req/s (one large file at a time is fine). Files are 13 KB-~85 MB each, ~70 files. Idempotent: skip if local file exists and zip integrity test passes; record sha256. HEAD with a generic UA returns 403 from Akamai, so either use a compliant UA or just GET. Each zip contains sub.txt, tag.txt, num.txt, pre.txt (utf-8, tab-delimited, \n-terminated, lowercase header row) and readme.htm. Treat 2009q1 as an empty placeholder.
+  verification:
+    verdict: confirmed
+    reason: Landing page lists quarterly zips 2009q1 (13.22 KB) through 2026q2 (57.62 MB), documentation
+      PDF link (305 KB), 'Data sets will be updated quarterly.' Summariser counted 68 links this time
+      (69 last time, 70 expected) — page-count from summariser is unreliable, as the claim already warns;
+      iterate the pattern in code. No archive page link. Page also notes reprocessed data sets posted
+      December 2024.
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: sec_fsds_quarterly_zips
+  name: Financial Statement Data Sets quarterly zips (2009q1, 2009q2 samples)
+  provider: U.S. SEC DERA (sec.gov)
+  url: https://www.sec.gov/files/dera/data/financial-statement-data-sets/2009q2.zip
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:25:37Z'
+  http_status: 200
+  sha256: 09d38a3fdea044be2728488ecb000fef8b5220fda805c601d2337afd1da333a8
+  bytes: 144894
+  local_path: null
+  license: null
+  notes: 'Two zips fully downloaded via WebFetch and inspected with unzip. 2009q1.zip: sub.txt 223 B,
+    pre.txt 62 B, num.txt 62 B, tag.txt 58 B (header rows only), readme.htm 154,786 B - confirms README''s
+    ''column headings only'' statement. 2009q2.zip: sub.txt 6,324 B (23 lines = 22 submissions), pre.txt
+    228,117 B, num.txt 419,643 B (4,000 lines), tag.txt 210,503 B, readme.htm 154,786 B. Zip member timestamps
+    2024-11-21/22 indicate the SEC regenerated the historical files in Nov 2024. curl HEAD on 2026q2.zip
+    with UA ''forensic-stats-scaffold/0.1 (research verification; academic)'' returned HTTP 403 (AkamaiGHost,
+    921-byte HTML) - NOT retried per rules; Content-Length for a large zip therefore not obtained this
+    session.'
+  blocked_reason: null
+  evidence: |-
+    sub.txt header: adsh cik name sic countryba stprba cityba zipba bas1 bas2 baph countryma stprma cityma zipma mas1 mas2 countryinc stprinc ein former changed afs wksi fye form period fy fp filed accepted prevrpt detail instance nciks aciks; first data row: 0001031296-09-000011 1031296 FIRSTENERGY CORP 4911 ... 10-Q 20090331 2009 Q1 20090507 ... fe-20090331.xml. num.txt header: adsh tag version ddate qtrs uom segments coreg value footnote. pre.txt header: adsh report line stmt inpth rfile tag version plabel negating. tag.txt header: tag version custom abstract datatype iord crdr tlabel doc.
+  download_plan: |-
+    See sec_fsds_page. Verify each download with `unzip -t`; expected members exactly sub.txt, tag.txt, num.txt, pre.txt, readme.htm. Load with pandas read_csv(sep='\t', dtype=str, encoding='utf-8'); note 2009q2 num.txt already has 4,000 rows for 22 filings, so recent quarters have tens of millions of rows - stream or use DuckDB. The 403 on curl HEAD shows Akamai rejects non-descriptive UAs: always send 'User-Agent: <Org> <email>'.
+  verification:
+    verdict: confirmed
+    reason: 'Downloaded 144,894 bytes (matches). unzip -l: sub.txt 6,324 B, pre.txt 228,117 B, num.txt
+      419,643 B, tag.txt 210,503 B, readme.htm 154,786 B, total 1,019,373 B, member dates 2024-11-22 —
+      all as claimed. Headers of sub/num/pre/tag.txt match verbatim; sub.txt 23 lines, num.txt 4,000 lines;
+      first row 0001031296-09-000011 FIRSTENERGY CORP. sha256 09d38a3f...333a8. 2009q1 and large recent
+      zips not re-fetched (per one-request rule / size cap).'
+    checked_at: '2026-09-04T18:15:42Z'
+    hunt: aaer_sec
+- id: sec_fsds_readme
+  name: Financial Statement Data Sets documentation (README PDF)
+  provider: U.S. SEC DERA (sec.gov)
+  url: https://www.sec.gov/files/financial-statement-data-sets.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:23:31Z'
+  http_status: 200
+  sha256: 6358825422f5ce34680917b6a1835b4934c4f6f4146892a34e87c643f725a13e
+  bytes: 312788
+  local_path: null
+  license: null
+  notes: WebFetch saved binary; copied to scratch as financial-statement-data-sets_readme.pdf; pages 1-4
+    rendered and read locally. Same document is also served as readme.htm (154,786 bytes) inside every
+    quarterly zip.
+  blocked_reason: null
+  evidence: |-
+    Title 'Financial Statement Data Sets'; sections Overview, Scope, Organization, File Formats, Table Definitions 5.1 SUB (Submissions), 5.2 TAG (Tags), 5.3 NUM (Numbers), 5.4 PRE (Presentation of Statements). Scope verbatim: 'Numeric data on the primary financial statements as rendered by the Commission (Balance Sheet, Income Statement, Cash Flows, Changes in Equity, and Comprehensive Income) and page footnotes on those statements; From XBRL submissions which include financial statements rendered by the Commission (e.g., 10-K, 10-Q, 20-F, 40-F); Submitted from 4/15/2009 through the Data Cutoff Date inclusive (there is a file named 2009q1.zip on the SEC website that contains data sets with column headings only and no rows, merely so that all years prior to this year will consist of four zip files).' File format: 'Tab Delimited Value (.txt): utf-8, tab-delimited, \n- terminated lines, with the first line containing the column names in lowercase.' Keys: SUB adsh; TAG (tag, version); NUM (adsh, tag, version, ddate, qtrs, uom, segments, coreg); PRE (adsh, report, line).
+  download_plan: |-
+    GET https://www.sec.gov/files/financial-statement-data-sets.pdf once (305 KB) with compliant UA; store alongside data with sha256. Alternatively use readme.htm from any quarterly zip.
+  verification:
+    verdict: confirmed
+    reason: 'Downloaded 312,788 bytes (matches). pdftotext: title ''Financial Statement Data Sets'', sections
+      Overview/Scope/Organization/File Formats/Table Definitions 5.1 SUB 5.2 TAG 5.3 NUM 5.4 PRE; Scope
+      text incl. the 2009q1.zip ''column headings only and no rows'' sentence verbatim as claimed.'
+    checked_at: '2026-09-04T18:15:42Z'
+    hunt: aaer_sec
+- id: sec_fsn_page
+  name: SEC Financial Statement and Notes Data Sets landing page
+  provider: U.S. SEC DERA (sec.gov)
+  url: https://www.sec.gov/data-research/sec-markets-data/financial-statement-notes-data-sets
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:23:45Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'WebFetch (status inferred). Page text: ''These data sets will be updated monthly. Prior to November
+    2020, the data sets were updated quarterly.'' and describes them as providing ''significantly more
+    disclosure data'' than ''the more compact Financial Statement Data Sets which provide only the numeric
+    information from face financials.'' Summariser reported monthly files from 2025_07 onward and quarterly
+    2009q1-2025q2; given the Nov-2020 statement the exact quarterly/monthly boundary on the page should
+    be re-parsed from raw HTML by the script rather than assumed. No individual notes zip was downloaded.'
+  blocked_reason: null
+  evidence: |-
+    Zip links under https://www.sec.gov/files/dera/data/financial-statement-notes-data-sets/ named YYYYqN_notes.zip (e.g. 2025q2_notes.zip) and YYYY_MM_notes.zip (e.g. 2026_07_notes.zip, 102.91 MB); earliest 2009q1_notes.zip 27.41 KB; documentation href /files/aqfsn_1.pdf (200 KB).
+  download_plan: |-
+    Parse the landing page for all hrefs matching /files/dera/data/financial-statement-notes-data-sets/(\d{4}q[1-4]|\d{4}_\d{2})_notes.zip and GET each with compliant UA, one at a time, skipping files already present with matching size/sha256. Expect ~65 quarterly + ~15+ monthly files, ~100 MB each recently -> several GB. Each zip carries 8 tab-delimited tables (sub, tag, dim, num, txt, ren, pre, cal) plus a W3C tabular-data metadata JSON. Only needed if footnote/text disclosures are wanted; for Beneish/Bao-style ratio features the compact FSDS is sufficient.
+  verification:
+    verdict: confirmed
+    reason: Landing page lists notes zips from 2009q1_notes.zip (27.41 KB) to 2026_07_notes.zip (102.91
+      MB), ~97 files, doc href /files/aqfsn_1.pdf, and the verbatim 'updated monthly. Prior to November
+      2020 ... quarterly' sentence. Summariser this time reported last quarterly 2025q2_notes.zip (495.9
+      MB) and first monthly 2026_01_notes.zip, vs '2025_07' in the claim — the quarterly/monthly boundary
+      must be parsed from raw HTML, as the claim already notes. Size hint 'monthly files ~100 MB each'
+      is approximate (2026_01 shown as 41.06 MB).
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: sec_fsn_readme
+  name: Financial Statement and Notes Data Sets documentation (aqfsn_1.pdf)
+  provider: U.S. SEC DERA (sec.gov)
+  url: https://www.sec.gov/files/aqfsn_1.pdf
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:27:23Z'
+  http_status: 200
+  sha256: 79183411d7b9b09629fd9245d028a94f0cf53bb59deed18f9f8fc2697c3c5681
+  bytes: 269165
+  local_path: null
+  license: null
+  notes: WebFetch saved binary; copied to scratch as aqfsn_1_notes_readme.pdf; pages 1-3 rendered and
+    read locally.
+  blocked_reason: null
+  evidence: |-
+    Title 'Financial Statement and Notes Data Sets'. Tables: 5.1 SUB, 5.2 TAG, 5.3 DIM, 5.4 NUM, 5.5 TXT, 5.6 REN, 5.7 PRE, 5.8 CAL. Scope verbatim: 'Numeric data and non-numeric plain text from the financial statements; From Interactive Data exhibits (XBRL) to all forms other than 485BPOS, 497, SDR, SDR/A, SDR-A and SDR/W; Submitted from 4/15/2009 through the Data Cutoff Date inclusive'. NUM key adds dimh (16-byte MD5 dimension hash) and iprx; TXT holds plain text of non-numeric facts; CAL holds arithmetic relationships. Overview says 'The information will be updated quarterly' (document predates the Nov-2020 switch to monthly stated on the landing page).
+  download_plan: |-
+    GET https://www.sec.gov/files/aqfsn_1.pdf once with compliant UA; store with sha256.
+  verification:
+    verdict: confirmed
+    reason: 'Downloaded 269,165 bytes (matches). pdftotext: title ''Financial Statement and Notes Data
+      Sets'', tables 5.1 SUB..5.8 CAL (SUB, TAG, DIM, NUM, TXT, REN, PRE, CAL), Scope text ''Numeric data
+      and non-numeric plain text ... all forms other than 485BPOS, 497, SDR...'', NUM key includes dimh
+      (MD5) and iprx, Overview says ''updated quarterly''. Note: pdftotext emitted a ''Unknown filter
+      Crypt'' warning on one object but text extracted fine.'
+    checked_at: '2026-09-04T18:15:42Z'
+    hunt: aaer_sec
+- id: sec_rate_control_announcement_2021
+  name: 'SEC announcement: new rate control limits on EDGAR websites (2021-07-27)'
+  provider: U.S. Securities and Exchange Commission (sec.gov)
+  url: https://www.sec.gov/filergroup/announcements-old/new-rate-control-limits
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:26:09Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch (status inferred). Dated July 27, 2021; covers EDGAR Portal and EDGAR Company Database,
+    'consistent with the agency's Internet Security Policy'.
+  blocked_reason: null
+  evidence: |-
+    Verbatim: 'the SEC will limit automated searches to a total of no more than 10 requests per second regardless of the number of machines used to submit requests' ; 'If a user or application submits more than 10 requests per second to EDGAR websites, the SEC may limit further requests from the relevant IP address(es) for a brief period.'
+  download_plan: |-
+    Policy page; no acquisition.
+  verification:
+    verdict: confirmed
+    reason: Page 'SEC to apply new rate control limits to EDGAR websites', dated July 27, 2021; both quoted
+      sentences about 10 requests per second and temporary IP limiting present verbatim.
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: sec_webmaster_faq
+  name: SEC Webmaster FAQ (Undeclared Automated Tool / rate limit)
+  provider: U.S. Securities and Exchange Commission (sec.gov)
+  url: https://www.sec.gov/about/webmaster-frequently-asked-questions
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:25:54Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'WebFetch (status inferred). FAQ headings: ''I am getting an Undeclared Automated Tool error
+    message. How do I declare my user agent?''; ''Do you provide API data services?''; ''Why am I receiving
+    an Access Denied message?''; ''I want to programmatically download EDGAR filings...''; lag-time questions.
+    References ''Internet Security Policy''.'
+  blocked_reason: null
+  evidence: |-
+    Verbatim: 'Note that our current maximum access rate is 10 requests per second.' ; 'Please declare your user agent in request headers' ; sample 'User-Agent: Sample Company Name AdminContact@<sample company domain>.com'.
+  download_plan: |-
+    Policy page; no acquisition.
+  verification:
+    verdict: confirmed
+    reason: Page returns 'our current maximum access rate is 10 requests per second' and the sample User-Agent/Accept-Encoding/Host
+      headers; FAQ sections include Developers, Security, Full-Text Search as claimed.
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: wikipedia_beneish_mscore
+  name: 'Wikipedia: Beneish M-score (secondary check of the 8-variable formula and threshold)'
+  provider: Wikipedia
+  url: https://en.wikipedia.org/wiki/Beneish_M-score
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:26:01Z'
+  http_status: 200
+  sha256: 24a3f3cbc65dc9356cc889d18f48e0acd4878f2276548bd9f5ba2b14d7a6bd86
+  bytes: 98000
+  local_path: null
+  license: CC BY-SA
+  notes: 98,000 bytes, sha256 24a3f3cbc65dc9356cc889d18f48e0acd4878f2276548bd9f5ba2b14d7a6bd86. States
+    'M-score = -4.84 + 0.92 x DSRI + 0.528 x GMI + 0.404 x AQI + 0.892 x SGI + 0.115 x DEPI - 0.172 x
+    SGAI + 4.679 x TATA - 0.327 x LVGI' and 'The threshold value is -1.78 for the model whose coefficients
+    are reported above (see Beneish 1999, Beneish, Lee, and Nichols 2013, and Beneish and Vorst 2020)'.
+    The page does NOT mention the 5-variable model (no '6.065' on the page). Secondary source only; used
+    to corroborate, not as primary.
+  blocked_reason: null
+  evidence: |-
+    Page fetched and text searched for the formula and threshold.
+  download_plan: |-
+    Not needed for acquisition; reference only.
+  verification:
+    verdict: confirmed
+    reason: Page 200, 97,999 bytes (claim said 98,000; negligible). Contains the 8-variable formula '-4.84
+      + 0.92 x DSRI + 0.528 x GMI + 0.404 x AQI + 0.892 x SGI + 0.115 x DEPI -0.172 x SGAI + 4.679 x TATA
+      - 0.327 x LVGI', three occurrences of the -1.78 threshold, and zero occurrences of '6.065', all
+      as claimed.
+    checked_at: '2026-09-04T18:15:13Z'
+    hunt: aaer_research
+- id: wrds_compustat_access
+  name: Wharton Research Data Services (WRDS) registration and account-type pages (Compustat access)
+  provider: Wharton School, University of Pennsylvania
+  url: https://wrds-www.wharton.upenn.edu/register/
+  access: paywalled
+  status: verified
+  fetched_at: '2026-09-03T22:22:01Z'
+  http_status: 200
+  sha256: 83d6dafd00667ed9b2fbe2b54e882ba378c374f538066149b785328afeaeff66
+  bytes: 117808
+  local_path: null
+  license: Institutional subscription; vendor (S&P Compustat) terms
+  notes: 'Register page 200, 117,808 bytes (sha256 83d6dafd00667ed9b2fbe2b54e882ba378c374f538066149b785328afeaeff66).
+    The form has a required <select id=''id_subscriber''> with 523 <option>s of subscribing institutions;
+    ''Carnegie Mellon University'' is present as <option value=''18''>. Required <select id=''id_user_type''>
+    options: ''Class - Student With Code'', ''Students (Masters / Undergrad)'', ''Faculty'', ''Ph.D.'',
+    ''Staff'', ''Research Assistant (Supervised students only)'', ''Visiting Faculty''. Username 4-15
+    chars; password >=12 chars. Account Types page https://wrds-www.wharton.upenn.edu/pages/about/wrds-account-types/
+    (200, 53,001 bytes, sha256 73bded161ddc7d852c2d91c7953c97ade7006c6463b96e2c88934e42b860b5e1) states
+    accounts are ''available to ... standing permanent faculty of member institutions'', ''current PhD
+    candidates of subscribing institutions'', research assistants ''performing research for a faculty
+    member within the same subscribing institution'', master''s/undergrad ''full-time ... students of
+    subscribing institutions'' (no disk storage; disabled between semesters unless summer access), visitor
+    accounts for non-permanent faculty; class accounts ''set up by a faculty member and approved by their
+    organization''s WRDS Representative''. Home page (200, 83,206 bytes) advertises ''530+ Subscribing
+    Institutions'', ''75,000 WRDS Users''. No page offers Compustat to individuals; access is entirely
+    via institutional subscription. Whether CMU''s WRDS subscription includes Compustat Fundamentals Annual
+    is not visible without login. The earlier guess https://wrds-www.wharton.upenn.edu/pages/about/account-types/
+    returned 404.'
+  blocked_reason: null
+  evidence: |-
+    Register page HTML parsed: institution select includes CMU; user-type options extracted; Account Types page text read.
+  download_plan: |-
+    Human\: (1) go to https://wrds-www.wharton.upenn.edu/register/, choose institution 'Carnegie Mellon University', choose user type matching status (Faculty / Ph.D. / Students (Masters / Undergrad) / Research Assistant), use the @andrew.cmu.edu email; (2) the request is routed to CMU's WRDS representative (typically the business library) for approval; (3) after approval, confirm Compustat - Capital IQ > Fundamentals Annual (comp.funda) is in CMU's subscription; (4) pull the 28 items listed in the JarFraud README for FY1990-2014 (or later) via the WRDS web query or the wrds Python package (needs a .pgpass with the WRDS username; 2FA is enforced). Never commit Compustat extracts to a public repo (license).
+  verification:
+    verdict: confirmed
+    reason: Register page 200, 117,810 bytes (claim 117,808). HTML contains select#id_subscriber and select#id_user_type
+      and the option 'Carnegie Mellon University'. The claim is only that the registration/account-type
+      pages document institution-only access; that is what the page shows. Compustat data itself remains
+      behind institutional subscription (paywalled), as claimed.
+    checked_at: '2026-09-04T18:15:13Z'
+    hunt: aaer_research
+- id: fmp
+  name: Financial Modeling Prep - financial statements API
+  provider: Financial Modeling Prep
+  url: https://site.financialmodelingprep.com/developer/docs
+  access: registration
+  status: partial
+  fetched_at: '2026-09-06T13:56:09Z'
+  http_status: 200
+  sha256: null
+  bytes: 527476
+  local_path: null
+  license: Commercial; free tier exists but limits not verified by me
+  notes: COULD NOT VERIFY YEAR COVERAGE. The developer docs page loads (200, 527 KB) and markets 'free
+    stock market data, including audited, standardized ... income statements, balance sheets, and cash
+    flow' with endpoints under https://financialmodelingprep.com/stable/. But the pricing page returned
+    403 to a scripted client, and I found no statement in the docs HTML of how many years of history are
+    included or what the free tier's history limit is. Every FMP endpoint requires an apikey query parameter.
+    FMP's free tier is widely understood to be severely history-limited, but I did not confirm that and
+    will not assert it.
+  blocked_reason: https://site.financialmodelingprep.com/developer/docs/pricing returned HTTP 403 (919
+    bytes) to a scripted client. History depth is not stated in the fetched docs page.
+  evidence: |-
+    docs page 200/527,476 bytes; marketing text 'free stock market data, including audited, standardized, and real-time updates of income statements, balance sheets, and cas[h flow]'; endpoint examples of the form https://financialmodelingprep.com/stable/market-risk-premium. Pricing page: '403 919 text/html'.
+  download_plan: |-
+    HUMAN ACTION REQUIRED. A person must open https://site.financialmodelingprep.com/developer/docs/pricing in a browser, register for an API key, and confirm (a) the earliest fiscal year returned for a test ticker on the relevant plan and (b) whether redistribution of derived data is permitted. Test with GET https://financialmodelingprep.com/stable/income-statement?symbol=IBM&limit=40&apikey=KEY and inspect the oldest calendarYear returned. Only proceed if it reaches 1990.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: jar_online_supplements_page
+  name: Journal of Accounting Research online supplements and datasheets page (Chicago Booth)
+  provider: University of Chicago Booth / Chookaszian Accounting Research Center
+  url: https://www.chicagobooth.edu/research/chookaszian/journal-of-accounting-research/online-supplements-and-datasheets
+  access: free
+  status: partial
+  fetched_at: '2026-09-03T22:24:29Z'
+  http_status: 200
+  sha256: 66cb78bcc0f0ba2799a237e195d1882c5d361af302f6e54bd1feb717577909f1
+  bytes: 115074
+  local_path: null
+  license: null
+  notes: The README's URL https://research.chicagobooth.edu/arc/journal-of-accounting-research/online-supplements
+    redirects here (200, 115,074 bytes, sha256 66cb78bcc0f0ba2799a237e195d1882c5d361af302f6e54bd1feb717577909f1).
+    A case-insensitive grep for 'Bao' or 'Detecting Accounting Fraud' in the fetched HTML found 0 matches,
+    so the Bao et al. supplement entry is either on a paginated/JS-loaded sub-list or no longer listed;
+    not confirmed.
+  blocked_reason: null
+  evidence: |-
+    Page fetched; target string absent from the HTML.
+  download_plan: |-
+    Human\: browse the page's volume 58 (2020) list for the Bao et al. datasheet/supplement, or rely on the GitHub repo which carries the same files.
+  verification:
+    verdict: confirmed
+    reason: Page 200, 115,102 bytes, title 'Online Supplements and Datasheets | Chookaszian Accounting
+      Research Center'. Case-insensitive grep for 'Bao' or 'Detecting Accounting Fraud' returns 0 matches
+      in the served HTML, confirming the Bao et al. supplement is not visible on this landing page. 'partial'
+      is the correct (already-weak) status.
+    checked_at: '2026-09-04T18:15:15Z'
+    hunt: aaer_research
+- id: simfin
+  name: SimFin - fundamental financial data
+  provider: simfin GmbH
+  url: https://www.simfin.com/
+  access: registration
+  status: partial
+  fetched_at: '2026-09-06T13:57:04Z'
+  http_status: 200
+  sha256: null
+  bytes: 230376
+  local_path: null
+  license: Commercial terms; free tier terms not verified
+  notes: COULD NOT VERIFY YEAR COVERAGE OR FREE-TIER TERMS. The homepage loads (200, 230,376 bytes) and
+    its schema.org block describes 'simfin GmbH' with 'data from 5,000+ stocks'. But /en/data/bulk returned
+    404, /en/pricing/ returned HTTP 500 with a page whose <title> is literally 'simfin error', and the
+    v3 API returned 401 'Full authentication is required to access this resource'. I therefore make NO
+    claim about whether SimFin covers 1990-2009 or what the free tier includes. Do not put a SimFin coverage
+    claim in the scaffold on my authority.
+  blocked_reason: Pricing page 500 (server-side error at simfin.com, not a block on me); API 401 without
+    a key; bulk-download path 404. Year coverage undeterminable without registering.
+  evidence: |-
+    simfin.com/ -> 200, 230,376 bytes, schema.org Organization 'simfin GmbH', description mentions '5,000+ stocks'. simfin.com/en/pricing/ -> 500, body <title>simfin error</title>. simfin.com/en/data/bulk -> 404 (redirected to www.simfin.com/en/data/bulk/). backend.simfin.com/api/v3/companies/general/verbose?ticker=AAPL -> 401 {"error":"Full authentication is required to access this resource"}.
+  download_plan: |-
+    HUMAN ACTION REQUIRED before any scripting. A person must register a free account at simfin.com, read the current plan terms, and read the documented history depth for US fundamentals. Only then can an acquisition script be written; it would be GET https://backend.simfin.com/api/v3/... with an Authorization header carrying the account API key. Do not write the script before the coverage question is answered -- if SimFin starts in 2007 or later it is worthless for this project.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: usc_marshall_aaer_dataset
+  name: AAER Dataset (Dechow, Ge, Larson & Sloan 2011) - USC Leventhal School of Accounting / Marshall
+  provider: USC Marshall School of Business, Leventhal School of Accounting (Google Sites)
+  url: https://sites.google.com/usc.edu/aaerdataset/home
+  access: paywalled
+  status: partial
+  fetched_at: '2026-09-03T22:24:10Z'
+  http_status: 200
+  sha256: 8af6519941a1bbee3784ccf06f5babcb9e476dd57f1b427bf8f770fdd7dfac03
+  bytes: 120449
+  local_path: null
+  license: Proprietary; USC Leventhal Terms of Use (no redistribution)
+  notes: 'Home (200, 120,449 bytes, sha256 8af6519941a1bbee3784ccf06f5babcb9e476dd57f1b427bf8f770fdd7dfac03):
+    ''The dataset currently consists of 4,278 SEC AAERs (1,816 firm misstatement events) issued between
+    May 17th 1982 and December 31st 2021. It contains 1,087 firm misstatement events that affect at least
+    one of the firms'' quarterly or annual financial statements.'' Three files: Details (one obs per firm
+    misstatement event: firm name/identifiers, AAER numbers, reason, accounts affected), Annual and Quarterly
+    (one obs per affected year/quarter, under/overstatement flags). Subpages: /frequency-by-party, /frequency-by-year,
+    /aaers-per-event, /misstatement-type, /buy-the-data, /contact-us. Buy the Data (200, 112,313 bytes,
+    sha256 e9d9127be78905b4a920319a6e713a44f0ada944bbd3f5b1df914d18d11d0745): ''Please see the following
+    link to buy the AAER Data: https://commerce.cashnet.com/LEVAAER'' plus Terms of Use (''You may not
+    reveal, disclose, transfer or share the dataset with anyone, with the exclusion of co-authors of papers
+    and collaborators of projects properly citing use of the dataset'', as-is, no warranty). NO price,
+    eligibility rule, or form is shown on the site; the CashNet storefront was not fetched. Contact Us
+    (200, 109,580 bytes, sha256 7f9666c8a9ddd81bf48d8fb6494c731dc6e36a5ddf7bf930b434213b592b844c): USCLeventhal.AAER.Data@marshall.usc.edu.
+    Citation required: Dechow, Ge, Larson & Sloan (2011) CAR 28:17-82 (SSRN 997483).'
+  blocked_reason: null
+  evidence: |-
+    Three pages fetched and text-extracted; dataset description, purchase link, terms, and contact email read verbatim.
+  download_plan: |-
+    Not scriptable. Human: (1) open https://commerce.cashnet.com/LEVAAER (USC CashNet storefront) to see the current price and complete the purchase; (2) if eligibility or an academic rate is unclear, email USCLeventhal.AAER.Data@marshall.usc.edu from the CMU address stating affiliation and intended use; (3) files are delivered by USC after purchase (delivery mechanism not stated). Store the three files privately; the terms forbid sharing beyond co-authors, so never commit them to a repo. Cite Dechow et al. (2011).
+  verification:
+    verdict: confirmed
+    reason: Home page 200 (120,355 bytes, minor size drift from claimed 120,449 due to dynamic Google
+      Sites HTML) contains the verbatim '4,278 SEC AAERs (1,816 firm misstatement events) issued between
+      May 17th 1982 and December 31st 2021' text. Buy-the-data page links commerce.cashnet.com/LEVAAER;
+      that storefront (200) immediately redirects to a login page with no visible price, so the data itself
+      is not obtainable without purchase/login. Partial + paywalled is the right status.
+    checked_at: '2026-09-04T18:15:48Z'
+    hunt: aaer_research
+- id: beneish_1999_faj_publisher
+  name: Beneish (1999) FAJ 55(5):24-36 publisher landing page, DOI 10.2469/faj.v55.n5.2296
+  provider: Taylor & Francis (via doi.org)
+  url: https://doi.org/10.2469/faj.v55.n5.2296
+  access: paywalled
+  status: blocked
+  fetched_at: '2026-09-03T22:22:44Z'
+  http_status: 403
+  sha256: null
+  bytes: 5655
+  local_path: null
+  license: CFA Institute / Taylor & Francis
+  notes: doi.org resolved to https://www.tandfonline.com/doi/full/10.2469/faj.v55.n5.2296 which returned
+    403 (5,655 bytes of bot-block HTML). Crossref metadata for the DOI verified separately (see beneish_1999_working_paper_pdf).
+  blocked_reason: tandfonline.com returns HTTP 403 to non-browser clients; full text is subscriber-only
+    in any case.
+  evidence: |-
+    curl -L returned 403 from tandfonline.com.
+  download_plan: |-
+    Human\: open the DOI via CMU library proxy and save the PDF; compare Table 4 (published numbering may differ from the working paper's Table 3) against the coefficients above.
+  verification:
+    verdict: confirmed
+    reason: doi.org resolves to https://www.tandfonline.com/doi/full/10.2469/faj.v55.n5.2296 which returned
+      403 with 5,655 bytes of Cloudflare 'Just a moment...' HTML, exactly as claimed.
+    checked_at: '2026-09-04T18:15:12Z'
+    hunt: aaer_research
+- id: jar_erratum_2022
+  name: Erratum to Bao et al. (2020), Journal of Accounting Research 60(4):1635-1646, DOI 10.1111/1475-679X.12454
+  provider: Wiley Online Library / Journal of Accounting Research
+  url: https://onlinelibrary.wiley.com/doi/10.1111/1475-679X.12454
+  access: paywalled
+  status: blocked
+  fetched_at: '2026-09-03T22:22:42Z'
+  http_status: 403
+  sha256: null
+  bytes: 5644
+  local_path: null
+  license: Wiley copyright
+  notes: 'Crossref record (https://api.crossref.org/works/10.1111/1475-679X.12454, 200, 3,660 bytes, sha256
+    508ec3849357739c1fdf2bc4b4c6c76bf162c77400ede6e68651ee4f6187b058) confirms: title ''Erratum'', container
+    Journal of Accounting Research, vol 60 issue 4 pages 1635-1646, issued 2022-08-04, update-to DOI 10.1111/1475-679x.12292
+    type ''erratum''; no abstract; author list empty. Semantic Scholar API returns 404 for this DOI. Substance
+    obtained from Walker (EJW 19(2), Sept 2022) which quotes the erratum verbatim: (p.1635) ''Walker (2021a
+    and 2021b) identified an error in the program codes of Bao et al. (2020) posted on Github that led
+    to an overstatement of model performance metrics''; the error ''resulted in approximately 10% of these
+    spanning serial fraud cases in the training period not being recoded as zero''; (p.1636) ''It continues
+    to dominate the performance of the other models for the test period 2003-2005. Bao et al. (2020) argued
+    that this test period was the cleanest because many accounting frauds in the test years after 2005
+    could be undetected due to reduced regulatory enforcement ...''. Walker says the erratum reports 9
+    hits for 2003-2005 and 10 hits for 2003-2008 (vs 16 in the original) and that erratum Table 1 Panel
+    B (p.1637) shows the logit benchmark at 8 hits. So the correction concerns the recoding of serial-fraud
+    labels that span the training and test periods (17 of 435 fraud cases were given a second p_aaer identifier
+    so they were not zeroed in training), not the test-period labels per se.'
+  blocked_reason: Wiley returns HTTP 403 (bot protection) to both WebFetch and curl for the DOI landing
+    page; the PDF link listed by Crossref (https://onlinelibrary.wiley.com/doi/pdf/10.1111/1475-679X.12454)
+    was not attempted because the same host blocks and the content is subscriber-only.
+  evidence: |-
+    WebFetch and curl both returned 403 (5,644 bytes of Cloudflare HTML). Crossref metadata verified. Verbatim quotes of the erratum read in Walker (2022) PDF lines 22-41 and 167-171.
+  download_plan: |-
+    Human step: open https://doi.org/10.1111/1475-679X.12454 through CMU library proxy (Wiley) and save the PDF (~12 pages); alternatively request from the corresponding author. Do not script against onlinelibrary.wiley.com. Store the PDF outside any public repo (copyrighted).
+  verification:
+    verdict: confirmed
+    reason: Wiley returned 403 with 5,644 bytes of Cloudflare 'Just a moment...' HTML, exactly as claimed.
+      Crossref record for the DOI confirms title 'Erratum', JAR vol 60 issue 4 pp 1635-1646, update-to
+      10.1111/1475-679x.12292 type erratum. Substance is only available second-hand via Walker 2022, which
+      is what the claim states.
+    checked_at: '2026-09-04T18:15:03Z'
+    hunt: aaer_research
+- id: faj_beneish_published
+  name: Beneish (1999), Financial Analysts Journal 55(5):24-36 - published version
+  provider: Taylor & Francis / CFA Institute
+  url: https://www.tandfonline.com/doi/abs/10.2469/faj.v55.n5.2296
+  access: paywalled
+  status: unverified
+  fetched_at: null
+  http_status: null
+  sha256: null
+  bytes: null
+  local_path: null
+  license: All rights reserved
+  notes: I did NOT fetch this URL. It surfaced in WebSearch results only, so I am reporting it unverified
+    rather than claiming an HTTP status I never observed. The working-paper version (beneish1999_wp) matched
+    the scaffold on all nine parameters, so I did not spend a fetch on a page I expected to be paywalled.
+  blocked_reason: null
+  evidence: |-
+    Appeared as a WebSearch result title 'The Detection of Earnings Manipulation: Financial Analysts Journal: Vol 55, No 5'. No fetch performed.
+  download_plan: |-
+    Requires a human with CFA Institute or institutional access. Open https://www.tandfonline.com/doi/abs/10.2469/faj.v55.n5.2296, download the PDF, and spot-check Table 3/Exhibit for the unweighted probit coefficients against -4.840/.920/.528/.404/.892/.115/-.172/4.679/-.327. Only necessary if the project must cite the published version verbatim.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup
+- id: sec_fsds_archive_page
+  name: Financial Statement Data Sets Archive page
+  provider: U.S. SEC DERA (sec.gov)
+  url: https://www.sec.gov/data-research/sec-markets-data/financial-statement-data-sets-archive
+  access: free
+  status: unverified
+  fetched_at: '2026-09-03T22:26:18Z'
+  http_status: null
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'URL surfaced by WebSearch (title ''SEC.gov | Financial Statement Data Sets Archive''). WebFetch
+    timed out after 60 s with no HTTP status; not retried per the sec.gov one-request rule. The main FSDS
+    page already lists 2009q1 onward, so this page may be redundant, but that is not confirmed. [VERIFIER
+    REFUTED: WebFetch returned HTTP 404 Not Found. The URL does not exist; the main FSDS page already
+    lists 2009q1 onward and links no archive page, so drop this source.]'
+  blocked_reason: null
+  evidence: |-
+    No content received (timeout).
+  download_plan: |-
+    Human\: open the URL in a browser once to see whether it lists quarters not on the main page. Script: not needed if the main page continues to list all quarters; otherwise parse it with the same YYYYqN.zip pattern.
+  verification:
+    verdict: refuted
+    reason: WebFetch returned HTTP 404 Not Found. The URL does not exist; the main FSDS page already lists
+      2009q1 onward and links no archive page, so drop this source.
+    checked_at: '2026-09-04T18:14:57Z'
+    hunt: aaer_sec
+- id: wrds_compustat
+  name: WRDS / Compustat Fundamentals Annual
+  provider: Wharton Research Data Services / S&P Global
+  url: https://wrds-www.wharton.upenn.edu/
+  access: paywalled
+  status: unverified
+  fetched_at: null
+  http_status: null
+  sha256: null
+  bytes: null
+  local_path: null
+  license: Subscription; redistribution prohibited
+  notes: 'Carried over from the prior inventory; I did NOT fetch it this session and record no HTTP status.
+    Listed here only to state the conclusion that follows from bao_analysis_csv: for the specific purpose
+    of reproducing Bao et al. (2020) and computing seven of eight Beneish indices on their sample, WRDS/Compustat
+    is NOT required, because the authors'' own public CSV ships the 28 Compustat items for 146,045 firm-years
+    1990-2014. Compustat becomes necessary only if you need xsga (for SGAI), firms outside their sample,
+    or fiscal years after 2014.'
+  blocked_reason: null
+  evidence: |-
+    No fetch performed this session. The substitution conclusion rests on the verified column list of data_FraudDetection_JAR2020.csv.
+  download_plan: |-
+    Only if the owner's institution has a WRDS subscription. A human logs into wrds-www.wharton.upenn.edu, and pulls comp.funda with consol='C', indfmt='INDL', datafmt='STD', popsrc='D' for fyear 1990-2014, requesting at minimum the 28 items in the Bao list plus xsga and oancf. Output must never be committed to a public repo.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: aaer_followup

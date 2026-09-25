@@ -1,0 +1,48 @@
+[
+ {
+  "page": 1,
+  "pages": 1,
+  "per_page": 100,
+  "total": 3,
+  "sourceid": "2",
+  "lastupdated": "2034-01-31"
+ },
+ [
+  {
+   "indicator": {
+    "id": "NY.GDP.MKTP.CN",
+    "value": "SYNTHETIC GDP"
+   },
+   "country": {
+    "id": "CHN",
+    "value": "SYNTHETIC"
+   },
+   "date": "2033",
+   "value": 50000000000000
+  },
+  {
+   "indicator": {
+    "id": "NY.GDP.MKTP.CN",
+    "value": "SYNTHETIC GDP"
+   },
+   "country": {
+    "id": "CHN",
+    "value": "SYNTHETIC"
+   },
+   "date": "2034",
+   "value": 100000000000000
+  },
+  {
+   "indicator": {
+    "id": "NY.GDP.MKTP.CN",
+    "value": "SYNTHETIC GDP"
+   },
+   "country": {
+    "id": "CHN",
+    "value": "SYNTHETIC"
+   },
+   "date": "2032",
+   "value": null
+  }
+ ]
+]

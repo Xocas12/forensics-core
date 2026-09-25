@@ -1,0 +1,112 @@
+# provinces.yaml -- the recorded published-name table for the central bank's regional
+# financial operation reports (registry id pbc_regional_financial_operation_reports), the
+# one admitted source whose published province names are in Chinese.
+#
+# china.clean.pbc_reports.load_province_mapping reads this file and validates it against
+# src/china/clean/provinces.py on every load, so the file and the code cannot drift apart:
+# the canonical names here must be exactly the 31 of PROVINCES, every boundary change
+# recorded there must appear here with the same year and parent, and every sub-provincial
+# unit recorded there must appear under not_provinces with the same parent.
+# china.clean.pbc_reports.map_province_names then refuses any published name this table
+# does not know, because an unmapped name would quietly shrink the panel.
+#
+# Attestation discipline, the same as src/china/clean/provinces.py: a spelling is recorded
+# here only if the repository itself carries it. The sources are data/SOURCES.yaml (quoted
+# link text and request bodies) and the alias table in src/china/clean/provinces.py, whose
+# ATTESTED / TO CONFIRM marks are copied below. A province with no english or no chinese
+# list has no recorded spelling of that kind yet; that is a statement about this
+# repository, not about the world. The Chinese column is completed from a fetched year
+# page's link text, one name at a time, each with its source, never from memory.
+#
+# Matching is exact. There is no fuzzy matching: a name either resolves or the loader
+# raises.
+
+provinces:
+  # The 31 mainland provincial-level units, in the order the yearbook's regional tables
+  # print them (PROVINCES in src/china/clean/provinces.py). Each resolves from its
+  # canonical English name; further spellings are listed only where the repository
+  # attests them.
+  - canonical: Beijing
+  - canonical: Tianjin
+  - canonical: Hebei
+  - canonical: Shanxi
+  - canonical: Inner Mongolia
+    english:
+      # TO CONFIRM, from the alias table in provinces.py: the pinyin romanisations used in
+      # some official tables, never yet seen in an extracted one.
+      - Nei Mongol
+      - Nei Monggol
+      - Inner Mongolia Autonomous Region
+  - canonical: Liaoning
+    chinese:
+      # ATTESTED verbatim in data/SOURCES.yaml, registry id nbs_dg_api_values: the request
+      # body quoted there carries {"text":"辽宁省","code":"210000000000"}. This is the only
+      # Chinese province name this repository contains. The other thirty are recorded when
+      # they have been read off a fetched report page, not before.
+      - 辽宁省
+  - canonical: Jilin
+  - canonical: Heilongjiang
+  - canonical: Shanghai
+  - canonical: Jiangsu
+  - canonical: Zhejiang
+  - canonical: Anhui
+  - canonical: Fujian
+  - canonical: Jiangxi
+  - canonical: Shandong
+  - canonical: Henan
+  - canonical: Hubei
+  - canonical: Hunan
+  - canonical: Guangdong
+  - canonical: Guangxi
+    english:
+      # TO CONFIRM, from provinces.py: long-form autonomous-region names.
+      - Guangxi Zhuang Autonomous Region
+  - canonical: Hainan
+    separated:
+      # docs/known_traps.md trap 2 and BOUNDARY_CHANGES in provinces.py: Hainan separated
+      # from Guangdong in 1988. A series spanning that year is two series.
+      from: Guangdong
+      year: 1988
+  - canonical: Chongqing
+    separated:
+      # docs/known_traps.md trap 2 and BOUNDARY_CHANGES in provinces.py: Chongqing
+      # separated from Sichuan in 1997. A series spanning that year is two series.
+      from: Sichuan
+      year: 1997
+  - canonical: Sichuan
+  - canonical: Guizhou
+  - canonical: Yunnan
+  - canonical: Xizang
+    english:
+      # ATTESTED: registry entry csy_2015_grp_vintage records that the 2015 edition labels
+      # this row "Tibet" where CSY 2024 labels it "Xizang".
+      - Tibet
+      - Tibet Autonomous Region
+      - Xizang Autonomous Region
+  - canonical: Shaanxi
+    english:
+      # TO CONFIRM, from provinces.py: "Shannxi" is a common disambiguation spelling of
+      # Shaanxi; kept explicit so a transcription of it cannot fall through to Shanxi.
+      - Shannxi
+  - canonical: Gansu
+  - canonical: Qinghai
+  - canonical: Ningxia
+    english:
+      # TO CONFIRM, from provinces.py: long-form autonomous-region names.
+      - Ningxia Hui Autonomous Region
+  - canonical: Xinjiang
+    english:
+      # TO CONFIRM, from provinces.py: long-form autonomous-region names.
+      - Xinjiang Uygur Autonomous Region
+
+not_provinces:
+  # Names that appear in the evidence but are not provincial-level units. Each must match
+  # a SubprovincialUnit in provinces.py; the loader refuses this file if the two disagree.
+  # map_province_names sends each to a label that says what it is, so that it can never
+  # enter the panel as a province and never looks like a dropped row.
+  - name: Binhai New Area
+    parent: Tianjin
+  - name: Baotou
+    parent: Inner Mongolia
+  - name: Shenzhen
+    parent: Guangdong
