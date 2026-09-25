@@ -1,0 +1,21 @@
+{
+ "title": "SYNTHETIC harmonized nightlights",
+ "doi": "10.0000/synthetic.0000000",
+ "license": {
+  "name": "SYNTHETIC CC BY 4.0"
+ },
+ "files": [
+  {
+   "id": 111,
+   "name": "SYNTHETIC_NTL_2033.tif",
+   "size": 1000,
+   "computed_md5": "00000000000000000000000000000000"
+  },
+  {
+   "id": 222,
+   "name": "SYNTHETIC_NTL_2034.tif",
+   "size": 2000,
+   "computed_md5": "11111111111111111111111111111111"
+  }
+ ]
+}

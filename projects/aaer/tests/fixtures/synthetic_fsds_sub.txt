@@ -1,0 +1,5 @@
+adsh	cik	name	sic	countryba	stprba	cityba	zipba	bas1	bas2	baph	countryma	stprma	cityma	zipma	mas1	mas2	countryinc	stprinc	ein	former	changed	afs	wksi	fye	form	period	fy	fp	filed	accepted	prevrpt	detail	instance	nciks	aciks
+0009000001-20-000001	9000001	SYNTHETIC ALPHA CORP	7372	US		SYNTHETIC CITY																		1231	10-K	20191231	2019	FY	20200215	20200215 12:00:00.0	0	1	synthetic-20191231.xml	1	
+0009000001-21-000001	9000001	SYNTHETIC ALPHA CORP	7372	US		SYNTHETIC CITY																		1231	10-K	20201231	2020	FY	20210215	20210215 12:00:00.0	0	1	synthetic-20201231.xml	1	
+0009000001-21-000002	9000001	SYNTHETIC ALPHA CORP	7372	US		SYNTHETIC CITY																		1231	10-K	20201231	2020	FY	20210901	20210901 12:00:00.0	0	1	synthetic-20201231.xml	1	
+0009000002-21-000001	9000002	SYNTHETIC BETA INC	7372	US		SYNTHETIC CITY																		1231	10-Q	20210331	2021	Q1	20210430	20210430 12:00:00.0	0	1	synthetic-20210331.xml	1	

@@ -1,0 +1,1065 @@
+# SOURCES.yaml -- the source registry for the `china` project.
+#
+# Nothing enters a pipeline without an entry here. Every entry was produced by an actual
+# fetch attempt during scaffolding; no URL in this file was invented. Where a source could
+# not be reached, the entry records that fact and why, rather than being omitted.
+#
+# Fields
+#   access   free | registration | paywalled | archive_visit | manual_transcription
+#            -- what a human has to do to get it, NOT whether it exists.
+#   status   verified | partial | blocked | unverified
+#            -- what the scaffolding session established about reachability:
+#               verified   fetched, HTTP 200, and the content was confirmed to be what it claims
+#               partial    landing page or some files reached; the full dataset was not confirmed
+#               blocked    exists but cannot be fetched from here (gated, geo-blocked, 403, WAF)
+#               unverified could not be confirmed at all
+#   fetched_at / http_status  the research probe, not an acquisition into data/raw.
+#   sha256 / bytes / local_path  filled by `make data` when a file actually lands in data/raw.
+#   verification.verdict  an INDEPENDENT second agent re-fetched the URL and either
+#                         confirmed, downgraded or refuted the first agent's claim.
+#                         `not_verified` means that second check did not run.
+#
+# Regenerate the acquisition state with `make data`; edit provenance here by hand only with
+# a note saying what was re-checked and when.
+
+- id: ceic_china_economic_database
+  name: CEIC China Economic Database (now under ISI Markets)
+  provider: CEIC / ISI Markets
+  url: https://www.ceicdata.com/en/products/china-economic-database
+  access: paywalled
+  status: verified
+  fetched_at: '2026-09-04T18:16:03Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'The product URL redirected to https://isimarkets.com/ceic/ (200, 138,153 B, sha256 f97ae46a01bdefbb2463655c69c6aefad0fee51c7559a097b68dd34f1a7c18fc),
+    title ''CEIC: Global Macroeconomic Data & Analytics Platform''. Page offers ''Login'' (https://insights.ceicdata.com/login)
+    and ''Don''t have an account? Request a demo''; no public pricing and no data files. Paywalled/subscription
+    confirmed.'
+  blocked_reason: null
+  evidence: |-
+    GET -> 200 after redirect to https://isimarkets.com/ceic/; HTML contains href='https://insights.ceicdata.com/login'>Login</a> and text 'Don't have an account? Request a demo'.
+  download_plan: |-
+    No scripted acquisition. Human decision: check whether the institution's library licenses CEIC (CDMNext/Insights); if so, a librarian-provided login is needed and exports are subject to CEIC's terms. Otherwise skip; the free spine covers the same provincial series with lag.
+  verification:
+    verdict: confirmed
+    reason: 'Redirects to https://isimarkets.com/ceic/ (200, 138,142 B), title ''CEIC: Global Macroeconomic
+      Data & Analytics Platform''; 4 links to insights.ceicdata.com/login and ''Request a demo'' text;
+      no public data or pricing. Paywalled product page confirmed.'
+    checked_at: '2026-09-04T18:16:03Z'
+    hunt: china_proxies
+- id: china_statistical_yearbook_online
+  name: China Statistical Yearbook online editions (stats.gov.cn/sj/ndsj/)
+  provider: National Bureau of Statistics of China
+  url: https://www.stats.gov.cn/sj/ndsj/
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:22:09Z'
+  http_status: 200
+  sha256: 1e6c24df01d51661a9956f05a4b6be6a0a954f3ff664a7ec138347bb9ccc85a5
+  bytes: 79379
+  local_path: null
+  license: null
+  notes: 'Index lists Chinese editions /sj/ndsj/{2005..2025}/indexch.htm, plus yb2004-c/indexch.htm, yearbook2003_c.pdf,
+    2001c/mulu.htm. English index https://www.stats.gov.cn/english/Statisticaldata/yearbook/ (200, 10,283
+    B) lists /sj/ndsj/{2005..2025}/indexeh.htm plus yb2004-e and YB2002e. indexeh.htm (2024, 2023) = 904-byte
+    gb2312 frameset: frames tope.htm, left_.htm (menu), notepyrighteh.htm, bottom.htm. English menu 2024
+    left_.htm (200, 81,548 B, sha256 aa9eb99e...) links tables as href=''html/E03-09.jpg'' etc.; Chinese
+    menu left.htm (200, 60,121 B) has 700 jpg, 29 htm, 27 pdf (appendix zbe23..27.pdf) links. 2020 English
+    menu left_.htm (200, 81,836 B) has 715 jpg + 59 htm; GRP table = html/E0309.jpg. No xlsx/xls links
+    found in 2020 or 2024. lefte.htm does not exist (404). Formats for 2005-2019 and 2021-2023/2025 not
+    checked.'
+  blocked_reason: null
+  evidence: |-
+    Fetched table https://www.stats.gov.cn/sj/ndsj/2024/html/E03-09.jpg -> 200, 556,380 B, image/jpeg, JFIF 2156x1514 baseline, sha256 4cb499b75a1d5e26675bb84ec125ad097b7f9020de8d71d01b5d58c5a0625ba5; menu entry text '3-9 Gross Regional Product (2023)'. Chinese counterpart https://www.stats.gov.cn/sj/ndsj/2024/html/C03-09.jpg -> 200, 525,706 B, image/jpeg, sha256 05bf391de9d2d9e2e54627960c387824a7b2247c3af536db2ffe59943f91666b.
+  download_plan: |-
+    For Y in 2005..2025: GET https://www.stats.gov.cn/sj/ndsj/{Y}/left_.htm (English) and /left.htm (Chinese); decode as gb2312; parse href='html/<file>' entries with their link text (chapter 3 = National Accounts; '3-9 Gross Regional Product (Y-1)' in 2020 and 2024). Download each referenced file from https://www.stats.gov.cn/sj/ndsj/{Y}/html/<file>. Naming differs by year (E0309.jpg in 2020, E03-09.jpg in 2024), so always derive names from the menu, never hard-code. Plain UA works, no cookies, HTTP 200 with correct Content-Type; use <=1 req/s and If-Modified-Since/skip-if-exists for idempotence. Expect ~0.5 MB per JPEG. Tables are images: plan an OCR step (e.g. Tesseract with chi_sim+eng or a table-OCR model) and validate OCR against the national GDP press-release totals. Before relying on OCR, spot-check the 2005-2019 editions' menus for .htm/.xls tables (unverified; earlier editions may have HTML tables).
+  verification:
+    verdict: confirmed
+    reason: Index 200, 79,379 B listing /sj/ndsj/{2005..2025}/indexch.htm. Table image https://www.stats.gov.cn/sj/ndsj/2024/html/E03-09.jpg
+      -> 200, 556,380 B image/jpeg, 2156x1514, sha256 4cb499b7...0625ba5 (identical to claim). 2024 English
+      menu left_.htm -> 200, 81,548 B, link text '3-9 Gross Regional Product (2023)', zero xls links.
+      Free, no login; tables are JPEG scans as described.
+    checked_at: '2026-09-04T18:15:22Z'
+    hunt: china_nbs
+- id: chinadaily_liaoning_2017_01_18
+  name: 'China Daily: Liaoning admits to falsifying data'
+  provider: China Daily
+  url: http://www.chinadaily.com.cn/kindle/2017-01/18/content_27989234.htm
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:23:45Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch. Byline Wu Yong in Shenyang, 2017-01-18.
+  blocked_reason: null
+  evidence: |-
+    Verbatim: Governor Chen Qiufa: 'Liaoning was involved in large-scale financial deception at city and county levels, which lasted a long time and involved many people.' Occasion: annual government work report to the provincial legislature, Tuesday 17 January 2017; years 2011 to 2014. No percentage magnitude is given in this article; it notes provincial GDP grew only 0.26% in 2015.
+  download_plan: |-
+    Single page; GET and archive.
+  verification:
+    verdict: confirmed
+    reason: 'curl 200, 21,939 B; title ''Liaoning admits to falsifying data''; contains ''large-scale
+      financial deception'' and ''0.26''; byline ''Wu Yong in Shenyang | China Daily | Updated: 2017-01-18
+      07:42''. Free.'
+    checked_at: '2026-09-04T18:15:58Z'
+    hunt: china_nbs
+- id: chinadaily_reform_2020_01_07
+  name: 'China Daily (language channel): 国家统计局：我国将全面实施地区生产总值统一核算'
+  provider: China Daily
+  url: https://language.chinadaily.com.cn/a/202001/07/WS5e13e5f7a310cf3e35582e09.html
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:23:35Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch. Dated 2020-01-07; reports NBS head Ning Jizhe's statement of 5 January 2020.
+  blocked_reason: null
+  evidence: |-
+    Verbatim: 'The new accounting system will take effect while calculating the annual regional GDP of 2019'; '地区生产总值将由各省区市统计局负责核算改革为国家统计局统一组织、领导和实施'; data year: '2019年年度地区生产总值核算'.
+  download_plan: |-
+    Single page; GET and archive.
+  verification:
+    verdict: confirmed
+    reason: curl 200, 28,008 B; title '国家统计局：我国将全面实施地区生产总值统一核算 - Chinadaily.com.cn'; contains 'annual
+      regional GDP of 2019' (1) and '统一组织、领导和实施' (4). Free.
+    checked_at: '2026-09-04T18:15:53Z'
+    hunt: china_nbs
+- id: csy_2015_grp_vintage
+  name: CSY 2015 table 3-9 'Gross Regional Product and Indices' — pre-revision provincial panel 2010-2014
+  provider: National Bureau of Statistics of China
+  url: https://www.stats.gov.cn/sj/ndsj/2015/html/EN0309.jpg
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:59:33Z'
+  http_status: 200
+  sha256: 12c186aa8108a3114adb71c2349d8e9e79260b849890f3a8ae81c071b09a58fb
+  bytes: 257058
+  local_path: null
+  license: null
+  notes: 'THIS IS THE PROJECT''S ANCHOR AND IT IS OBSERVABLE. The padded Liaoning series survives on the
+    NBS''s own live server. Cross-vintage contrast: CSY 2024 table 3-9 reports Liaoning 2023 GRP = 30209.4,
+    i.e. only 5.5% above the 28626.58 it claimed for 2014 nine years earlier — the fingerprint of the
+    downward revision.'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 257,058 bytes, JPEG 874x1395. I READ THE IMAGE. It is titled '3-9 Gross Regional Product and Indices' with the note 'Level data in this table are calculated at current prices while indices at constant prices.' It is a 31-province x 5-year panel: GRP levels in 100 million yuan for 2010, 2011, 2012, 2013, 2014, AND indices (preceding year=100) for the same five years. THE LIAONING ROW, VERBATIM: levels 18457.27, 22226.70, 24846.43, 27213.22, 28626.58; indices 114.2, 112.2, 109.5, 108.7, 105.8. These are the PRE-REVISION figures covering exactly the 2011-2014 window Liaoning later admitted was fabricated. Inner Mongolia row: 11672.00, 14359.88, 15880.58, 16916.50, 17770.19. Tianjin row: 9224.46, 11307.28, 12893.88, 14442.01, 15726.93. Summing the 31 published 2014 levels gives 684,349.4 (100m yuan). Note this edition still labels Tibet as 'Tibet' whereas CSY 2024 uses 'Xizang' — a name-mapping issue for the panel builder.
+  download_plan: |-
+    Fetch the analogous table from every edition and treat each as a separate vintage of overlapping years. Older-convention URL: https://www.stats.gov.cn/sj/ndsj/{Y}/html/EN0309.jpg (verified for 2015 and listed in the 2017 TOC). Newer convention: https://www.stats.gov.cn/sj/ndsj/{Y}/html/E03-09.jpg (verified for 2024). Confirm the exact filename from that year's left_.htm rather than assuming, because the table NUMBER also drifts between editions and 3-9 is not guaranteed to be GRP in every year. Send Referer: https://www.stats.gov.cn/sj/ndsj/{Y}/indexeh.htm. OCR each image to a tidy (edition_year, province, data_year, level, index) frame; the multi-year layout of the older editions means a single edition yields several data years, giving overlapping vintage pairs for free.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: csy_2024_grp
+  name: CSY 2024 table 3-9 'Gross Regional Product (2023)' — current-vintage provincial cross-section
+  provider: National Bureau of Statistics of China
+  url: https://www.stats.gov.cn/sj/ndsj/2024/html/E03-09.jpg
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:55:08Z'
+  http_status: 200
+  sha256: 4cb499b75a1d5e26675bb84ec125ad097b7f9020de8d71d01b5d58c5a0625ba5
+  bytes: 556380
+  local_path: null
+  license: null
+  notes: Also the source for the sectoral decomposition, which lets the project test whether the provincial-national
+    gap is concentrated in hard-to-verify sectors (Financial Intermediation, Others, Real Estate).
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 556,380 bytes, JPEG 2156x1514. I READ THE IMAGE. Single-year cross-section for 2023, 31 regions, columns: Gross Regional Product; VA by three strata; VA by sector (Agriculture/Industry/Construction/Wholesale+Retail/Transport,Storage,Post/Hotels+Catering/Financial Intermediation/Real Estate/Others); Per Capita GRP (yuan); Composition (GRP=100); Indices (preceding year=100). Units 100 million yuan. Footnote 'a) Data in this table are preliminary data.' Sample rows: Beijing 43760.7; Tianjin 16737.3; Inner Mongolia 24627.0 (index 107.3); Liaoning 30209.4 (index 105.3); Guangdong 135673.2; Jiangsu 128222.2; Xizang 2392.7. NOTE THE FORMAT CHANGE versus the 2015 edition: no multi-year levels panel, so recent editions give one data year each.
+  download_plan: |-
+    As csy_2015_grp_vintage. Because the recent-edition format is a single-year cross-section, the panel must be assembled one edition per year — which is exactly what preserves vintage identity. The 'preliminary data' footnote matters: the same data year appears again, revised, in the following edition, giving a first-release vs second-release pair per province per year. Capture the footnotes during OCR.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: csy_electricity_by_region
+  name: CSY table 9-14 'Electricity Consumption by Region' — provincial electricity
+  provider: National Bureau of Statistics of China / China Electricity Council
+  url: https://www.stats.gov.cn/sj/ndsj/2024/html/E09-14.jpg
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:55:54Z'
+  http_status: 200
+  sha256: 04484a50e9e34418c70763968491e076e2cba7c12f5eb36ad62675daf1e6e96b
+  bytes: 175041
+  local_path: null
+  license: null
+  notes: 'Answers hunt item 3 for electricity: free, provincial, but sparse-by-edition. Note also the
+    NBS provincial-annual API has a leaf 主要能源产品消费量 (cid ccc1ef64e4a0485f840cd5f6fa192097) that likely
+    carries the annual version, reachable once the values endpoint is recovered.'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 175,041 bytes. I READ THE IMAGE. Title '9-14 Electricity Consumption by Region', units 100 million kW·h, 31 regions. CRITICAL LIMITATION: the columns are SELECTED YEARS ONLY — 1995, 2000, 2005, 2010, 2015, 2020, 2022, 2023 — not an annual series. Footnote verbatim: 'a) Data since 2000 are from China Electricity Council. The data for 2023 are in the form of express reports.' Sample rows: Liaoning 623/749/1111/1715/1985/2423/2551/2663; Inner Mongolia 187/254/668/1537/2543/3900/4291/4823; Tianjin 179/234/385/646/801/875/991/1051; Xizang blank until 2010. The same table exists in CSY 2017 as html/EN0914.jpg (confirmed in that edition's TOC).
+  download_plan: |-
+    PROVINCIAL ELECTRICITY IS GENUINELY FREE. To build an ANNUAL provincial panel, stack editions: each edition's 9-14 contributes its own latest one or two years, so CSY 2013..2024 collectively cover roughly 2012-2023 annually, plus the quinquennial back-years for long history. URL pattern https://www.stats.gov.cn/sj/ndsj/{Y}/html/E09-14.jpg (2020+ convention) or .../html/EN0914.jpg (pre-2020 convention); confirm from left_.htm. ~150-250 KB per image. For a true continuous annual series and for monthly frequency, go to the China Electricity Council (cec.org.cn), which is the upstream source named in the footnote — I did NOT verify cec.org.cn in this session, so treat it as a lead, not a source.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: csy_freight_by_region
+  name: CSY table 16-14 'Freight Traffic by Region' — provincial rail/road/water freight
+  provider: National Bureau of Statistics of China
+  url: https://www.stats.gov.cn/sj/ndsj/2024/html/E16-14.jpg
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:55:54Z'
+  http_status: 200
+  sha256: ae9a06d879ae5441e58295a31623e8ba8af0e9a0149fae4cb6ca2771a2902ad2
+  bytes: 142579
+  local_path: null
+  license: null
+  notes: 'Answers hunt item 3 for rail freight: free and provincial. The ''Not Classified by Region''
+    residual row must be excluded when summing to the national total, or the sum will look inconsistent.'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 142,579 bytes. I READ THE IMAGE. Title '16-14 Freight Traffic by Region (2023)', units 10,000 tons, columns Total / Railways / Highways / Waterways, 31 regions plus a 'National Total' row and a 'Not Classified by Region' residual row. National Total 5,570,636; Railways 503,535; Highways 4,033,681; Waterways 936,746; Not Classified by Region 96,674. RAIL FREIGHT BY PROVINCE, sample: Liaoning 20,073; Inner Mongolia 90,250; Tianjin 11,673; Shanxi 101,001; Shaanxi 46,129; Xizang 104. Footnote: 'a) The freight ton-kilometers not classified by region refers to that completed by civil aviation and pipelines, etc.' Same table exists in CSY 2017 as html/EN1614.jpg ('16-14 Freight Traffic by Region (2016)'), and both editions additionally carry 16-15 Freight Ton-kilometers by Region and 16-17 Cross-region Freight Transport of National Railways.
+  download_plan: |-
+    PROVINCIAL RAIL FREIGHT IS GENUINELY FREE. One cross-section per edition, so build the annual panel by iterating editions: https://www.stats.gov.cn/sj/ndsj/{Y}/html/E16-14.jpg (2020+) or .../html/EN1614.jpg (pre-2020), confirming filename from left_.htm. Also pull the companion 16-15 (ton-kilometres, better proxy than tonnage because it embeds distance) and 16-17 (inter-provincial railway goods exchange, which is a bilateral flow matrix and unusually informative for cross-checking a province against its neighbours). ~140-200 KB each. Idempotent by (year, filename) sha256.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: csy_web_editions
+  name: China Statistical Yearbook, web editions 2012-2024 (frozen vintages)
+  provider: National Bureau of Statistics of China (www.stats.gov.cn)
+  url: https://www.stats.gov.cn/sj/ndsj/2024/indexeh.htm
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:53:53Z'
+  http_status: 200
+  sha256: aa9eb99e8f0c851a4a0947ef9355a942f9c0839b9502677e55b063bf22b21f3a
+  bytes: 904
+  local_path: null
+  license: null
+  notes: 'This is now the project''s primary data source, not a backup. Its decisive property: each edition
+    is a frozen snapshot that was never retro-revised, so the archive of editions IS the vintage series
+    the project needs.'
+  blocked_reason: null
+  evidence: |-
+    I fetched https://www.stats.gov.cn/sj/ndsj/{2012,2015,2017,2019,2024}/indexeh.htm — ALL FIVE returned HTTP 200, 904 bytes each, gb2312 framesets differing only in <title> (verified by diff: the 2017 and 2024 files differ on exactly one line, the title). The frameset loads tope.htm / left_.htm / notepyrighteh.htm. I fetched left_.htm for 2024 (200, 81,548 bytes, sha256 aa9eb99e...) and 2017 (200, 83,937 bytes, sha256 6ab612eb...). The 2024 TOC contains 762 links: 702 .jpg, 33 .htm, 27 .pdf. THERE IS NO EXCEL OR CSV ANYWHERE IN THE TOC. Filename convention CHANGED between editions: 2017 uses html/EN0309.jpg, 2024 uses html/E03-09.jpg — an acquisition script must handle both. I then fetched three leaf tables and READ them as images to confirm content (see the three csy_* sources below).
+  download_plan: |-
+    For each edition year Y in 2012..2024 (and check beyond): GET https://www.stats.gov.cn/sj/ndsj/{Y}/left_.htm, decode as gb18030 (NOT utf-8 — the pages declare gb2312), regex out href="([^"]+)" plus the anchor text, and persist the (url, table number, English title) triple as the edition manifest. Then GET each html/*.jpg with an Referer header of https://www.stats.gov.cn/sj/ndsj/{Y}/indexeh.htm. Idempotence: key the local cache on (year, filename) and sha256 the bytes; these are static archived pages and will not change, so a completed year never needs refetching. Rate-limit to ~2 req/s and set a plain research User-Agent — I hit no throttling at that rate. Budget ~200 MB per edition if downloading a whole volume; for this project download only the ~6 tables per year that matter (3-1, 3-9, 9-14, 16-8, 16-14, and the finance chapter index) which is under 3 MB per edition. Then OCR. Use the Chinese-language TOC (indexch.htm) as a cross-check if an English table number is missing in an older edition. Store each year in its own directory — the directory IS the vintage.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: figshare_li2020_harmonized_ntl
+  name: Harmonization of DMSP and VIIRS nighttime light data from 1992-2024 at the global scale (Li, Zhou,
+    Zhao, Zhao; Scientific Data 2020 dataset, v10)
+  provider: Figshare (article 9828827)
+  url: https://api.figshare.com/v2/articles/9828827
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:16:00Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'Figshare API JSON (200, 13,987 B, sha256 d324f60d969f77457fedb5e5a497d5bd097aca57a3df6591fa7cda7da4d7386b):
+    title ''Harmonization of DMSP and VIIRS nighttime light data from 1992-2024 at the global scale'';
+    doi 10.6084/m9.figshare.9828827.v10; license CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/);
+    published 2025-08-10T01:12:06Z; 34 files, 1,091,935,532 bytes total. Files: Harmonized_DN_NTL_1992..2013_calDMSP.tif
+    (30,262,018 to 38,841,372 B each; 2013 = 37,969,756 B, id 17626034), Harmonized_DN_NTL_2014..2024_simVIIRS.tif
+    (21,834,153 to 31,746,836 B; ids 57065276-57065321), DN_NTL_2013_simVIIRS.tif (40,862,548 B, id 22252821).
+    Download URLs: https://ndownloader.figshare.com/files/<id>. The human landing page via DOI (https://doi.org/10.6084/m9.figshare.9828827
+    -> https://figshare.com/articles/dataset/Harmonization_of_DMSP_and_VIIRS_nighttime_light_data_from_1992-2018_at_the_global_scale/9828827)
+    returned 202 with an empty body (JS-rendered), so the API is the machine-readable landing. Dataset
+    now covers 1992-2024, superseding the 1992-2018/2021 versions named in the brief.'
+  blocked_reason: null
+  evidence: |-
+    GET (Range: bytes=0-1023) https://ndownloader.figshare.com/files/17626034 -> 302 to s3-eu-west-1.amazonaws.com/pfigshare-u-files/17626034/Harmonized_DN_NTL_2013_calDMSP.tif?X-Amz-...Expires=10 -> 206 Partial Content, Content-Range: bytes 0-1023/37969756, Content-Type image/tiff; first bytes 49 49 2a 00 (little-endian TIFF). No cookie/login needed. Note a plain HEAD on the ndownloader URL yields 302 then 403 from S3 because the signed URL is GET-only.
+  download_plan: |-
+    GET https://api.figshare.com/v2/articles/9828827 (public, no key); iterate files[]: for each, if <cache>/<name> is absent or its size != files[i].size, curl -L -o <cache>/<name> https://ndownloader.figshare.com/files/<id> (must follow redirects with GET; the S3 signed URL expires in 10 s so do not pre-resolve); verify size against the API and compute sha256 (API also gives 'computed_md5' per file for idempotent checks). Total ~1.09 GB, 34 files; no rate limit observed, keep ~1 request/s. License CC BY 4.0 - cite Li, Zhou, Zhao, Zhao (2020) Sci Data and the figshare DOI v10.
+  verification:
+    verdict: confirmed
+    reason: 'API 200, 13,987 B JSON: title ''Harmonization of DMSP and VIIRS nighttime light data from
+      1992-2024 at the global scale'', doi 10.6084/m9.figshare.9828827.v10, CC BY 4.0, 34 files; Harmonized_DN_NTL_2013_calDMSP.tif
+      37,969,756 B, 2024_simVIIRS 31,746,836 B, DN_NTL_2013_simVIIRS 40,862,548 B. Range GET on ndownloader/files/17626034
+      -> 302 to signed S3 URL -> 206 image/tiff, first bytes 49 49 2a 00 (TIFF), no login. Free and verified.'
+    checked_at: '2026-09-04T18:16:00Z'
+    hunt: china_proxies
+- id: mcp_cnbs_repo
+  name: GitHub icen-ai/mcp-cnbs — reverse-engineered documentation of the new NBS API
+  provider: GitHub (third party, not authoritative)
+  url: https://github.com/icen-ai/mcp-cnbs
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:00:08Z'
+  http_status: 200
+  sha256: null
+  bytes: 11681
+  local_path: null
+  license: null
+  notes: This is where the working request shape, the category codes (3=national annual, 6=provincial
+    annual), the 12-digit region codes, and the YYYY+'YY' time codes came from. Independent third party,
+    so treat as a hypothesis generator that I then verified against the live server.
+  blocked_reason: null
+  evidence: |-
+    Located via GitHub API search (gh api search/repositories q='china provincial GDP in:name,description,readme'), 5 stars, pushed 2026-04-12, described as '国家统计局数据查询的 MCP 服务器'. Read via gh api repos/icen-ai/mcp-cnbs/contents/{path}: api_introduce.md (11,681 bytes, headed '国家统计局新版数据接口使用文档 ... 基础地址: https://data.stats.gov.cn/dg/website/publicrelease/web/external ... 鉴权: 无需鉴权，公开访问 ... 版本: V2.0 (2026.03.27更新)'), src/constants.ts (single line: export const CNBS_API_BASE = 'https://data.stats.gov.cn/dg/website/publicrelease/web/external'), and src/services/api.ts (contains both a legacy easyquery client and the new client; the new client's fetchNodes/fetchMetrics build exactly the URLs I verified, and fetchSeries POSTs to `${this.baseUrl}/getEsDataByCidAndDt` with a 200 ms inter-request throttle and retryWithBackoff). Its documented tree and indicator endpoints reproduced verbatim against the live server; only its values path is stale.
+  download_plan: |-
+    Reference material, not a data source. Pull with: gh api repos/icen-ai/mcp-cnbs/contents/api_introduce.md --jq '.content' | base64 -d. Pin to a commit SHA if you rely on it, since the author may rewrite it. Cross-check every claim against the live API before coding — one of its three core endpoints is already wrong.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: nbs_dg_api_query_search
+  name: NBS new portal API — keyword search endpoint returning values (/query)
+  provider: National Bureau of Statistics of China
+  url: https://data.stats.gov.cn/dg/website/publicrelease/web/external/query?search=%E5%9C%B0%E5%8C%BA%E7%94%9F%E4%BA%A7%E6%80%BB%E5%80%BC&pagenum=1&pageSize=5
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:04:16Z'
+  http_status: 200
+  sha256: 5422bab35dea556bf138c7b94a6512af948e021899c8aa019c90d118589a2d4b
+  bytes: 3135
+  local_path: null
+  license: null
+  notes: 'Useful as the cheapest possible liveness check in a monitoring cron: if this returns 200 with
+    a ''value'' field, the NBS API is up.'
+  blocked_reason: null
+  evidence: |-
+    GET returned 200 and a JSON body (despite the text/html Content-Type header) containing ACTUAL NUMERIC VALUES, not just metadata. Sample row verbatim: {"indic_id":"0118e52f1ee14eb4be22755079df0861","ek":"1249102673317|db8e5a86c08246e79b1b11251927e740","type_text":"年度数据","show_name":"民族自治地方国内生产总值 (亿元) ","type_value":"3","da_name":"全国","dt":"2024","dt_name":"2024年","treeinfo_globalid":"69c574ab128a44e595cc0b24502b771b.884c062607104a91967b22742537f44f...","i_name":"国内生产总值","dt_type":"YY","da":"000000000000","value":"120399.41","cid":"a0b815990baf418f8fa437a13886dea0"}. Also returns the type dictionary [{月度数据,code 1,dtType MM},{季度数据,2,SS},{年度数据,3,YY}]. This proves the new API serves data values to anonymous external clients and confirms rootId 69c574ab128a44e595cc0b24502b771b.
+  download_plan: |-
+    Use ONLY for cid discovery and for smoke-testing connectivity, not for bulk acquisition — it returns one (latest) observation per matching indicator, not a series. GET {BASE}/query?search={urlencoded Chinese term}&pagenum={n}&pageSize={m}. Parse .data.data[] and harvest cid + indic_id + da + dt to seed the values call. Rate-limit to 1 req/s.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: nbs_dg_api_tree
+  name: NBS new portal API — catalogue tree and indicator metadata (publicrelease/web/external)
+  provider: National Bureau of Statistics of China
+  url: https://data.stats.gov.cn/dg/website/publicrelease/web/external/new/queryIndexTreeAsync?pid=&code=6
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:00:56Z'
+  http_status: 200
+  sha256: a2a11a1f288c7bbb97de5e49e753baf435566ab7cbf76c6ba927300e46cc1416
+  bytes: 508
+  local_path: null
+  license: null
+  notes: This is the live replacement for easyquery. Discovery layer fully working; values layer not yet.
+    The 1992 start date on the GRP leaf matches what the old portal offered.
+  blocked_reason: null
+  evidence: |-
+    EXACT WORKING REQUEST (no cookie, no session, no -k, plain HTTPS, headers = User-Agent: Mozilla/5.0 and Referer: https://data.stats.gov.cn/dg/website/page.html): curl -sS 'https://data.stats.gov.cn/dg/website/publicrelease/web/external/new/queryIndexTreeAsync?pid=&code=6' -> 200, 508 bytes, application/json;charset=UTF-8. RESPONSE SHAPE: {"data":[{...}],"success":true,"state":20000,"message":"成功"}; each node carries _id, name, isLeaf, treeinfo_pid, treeinfo_level, treeinfo_globalid, sdate, edate, type. DRILL-DOWN CHAIN ACTUALLY EXECUTED: code=6 (分省年度数据 / provincial annual) -> root _id c4d82af16c3d4f0cb4f09d4af7d5888e pid=c4d82af16c3d4f0cb4f09d4af7d5888e -> 200/13,588 bytes, 28 subject branches (综合, 国民经济核算, 人口, 能源, 运输和邮电, 金融业, ...) pid=da5ccb68e9de4671ad967247fe427c91 (国民经济核算) -> 200/1,458 bytes, TWO LEAVES: 地区生产总值 (Gross Regional Product): cid=6f8fbd415cbc40ffa7ecb7fd917f2598, isLeaf=true, sdate=1992 地区生产总值指数 (GRP index): cid=05cf8a895d3e41658f4dbc56fdfabf9b, isLeaf=true GET .../new/queryIndicatorsByCid?cid=6f8fbd415cbc40ffa7ecb7fd917f2598&dt=&name= -> 200/18,140 bytes, 14 indicators, e.g. aff57de5ee994283974705914fbed246 = '地区生产总值 (亿元)', 615ce248396a4a5fa52bca05f0633e95 = 第一产业增加值, b8e109ec8d3f465fa39a0de909f730b3 = 第二产业增加值, a3ba91c8d6b84bbb8731128853eaa675 = 工业增加值, 60e33b6cc92b4903aec6cf123db307e9 = 金融业增加值. OTHER USEFUL LEAVES FOUND: 货运量 (freight volume incl. railways) cid=c8a2f82b254f41adaa0d2fb48c8d2c4b sdate=1979; 主要能源产品消费量 cid=ccc1ef64e4a0485f840cd5f6fa192097; 货物周转量 cid=c46722b772bd4975a4c0f6bd9325fff1. Category codes: 1=monthly, 2=quarterly, 3=national annual, 5=provincial quarterly, 6=provincial annual, 7=census/other.
+  download_plan: |-
+    IDEMPOTENT PLAN. Step 1, cache the catalogue: GET {BASE}/new/queryIndexTreeAsync?pid=&code={3|6} then recurse on every node with isLeaf=false using its _id as the next pid, sleeping 200 ms between calls (the reference client icen-ai/mcp-cnbs throttles at 200 ms). BASE = https://data.stats.gov.cn/dg/website/publicrelease/web/external. Persist the whole tree to disk keyed by _id; it changes rarely, so re-crawl monthly at most. Step 2, per leaf: GET {BASE}/new/queryIndicatorsByCid?cid={cid}&dt=&name= and store _id, i_showname, i_mark (the i_mark field carries the statistical-scope note — capture it, it is where accounting-method breaks are documented), du, dp. Step 3 (BLOCKED, see nbs_dg_api_values): the values call. Required headers on every call: User-Agent: Mozilla/5.0 (a default curl UA is not sufficient elsewhere on this host) and Referer: https://data.stats.gov.cn/dg/website/page.html. No auth, no cookie. Expect 0.5-20 KB JSON per call. Note the API time-slices one logical series into several cids by period (typically 5-year blocks), so a long series must be assembled from multiple cids and concatenated locally.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: nbs_provincial_finance_branch
+  name: NBS provincial-annual database, 金融业 (finance) branch — negative result
+  provider: National Bureau of Statistics of China
+  url: https://data.stats.gov.cn/dg/website/publicrelease/web/external/new/queryIndexTreeAsync?pid=62820f82127146d696a993a915c3f681&code=6
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:01:27Z'
+  http_status: 200
+  sha256: null
+  bytes: 621
+  local_path: null
+  license: null
+  notes: Combined with pbc_credit_statistics and the CSY chapter-18 checks, this is a three-way confirmation
+    that provincial bank loans are the one requested proxy that is NOT freely available.
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 621 bytes. The ENTIRE 金融业 (Finance) branch of the provincial annual database contains exactly ONE leaf: '原保险保费收入和赔付支出情况' (primary insurance premium income and claims payments), _id f574f833db894db1815a0317c21d495a. There is no deposits leaf and no loans leaf. Corroborated independently on the yearbook side: CSY 2024 chapter 18 (Finance) has 22 tables, of which the only regional one is '18-22 Premium of Primary Insurance and Claim Payment by Region (2023)'; CSY 2017 chapter 18 likewise has no regional deposits/loans table (its 18-6 is 'Official Interest Rates of Loans of Financial Institutions').
+  download_plan: |-
+    No plan — this documents an absence. For provincial loans outstanding the acquisition script must target one of: (a) the 31 provincial statistical yearbooks, which do carry 金融机构本外币存贷款余额 (an analogous municipal example surfaced in search at https://tjj.nanjing.gov.cn/material/njnj_2023/caizheng/12-3.htm, machine-readable HTML — I did NOT fetch it, it is a lead only), fragmented across 31 provincial bureau sites; (b) 《中国金融年鉴》, paid; (c) PBoC 中国区域金融运行报告 annual PDFs, free but narrative-plus-appendix and needing PDF table extraction; (d) CEIC or Wind, paywalled, already flagged in the inventory.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: nbs_qa_unified_accounting_2019_12_27
+  name: 'NBS: 国家统计局有关负责人就地区生产总值统一核算改革有关问题答记者问 (2019-12-27)'
+  provider: National Bureau of Statistics of China (stats.gov.cn)
+  url: https://www.stats.gov.cn/sj/sjjd/202302/t20230202_1896273.html
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:23:30Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'Fetched via WebFetch (status inferred from returned content). Page title: 国家统计局有关负责人就地区生产总值统一核算改革有关问题答记者问;
+    publication date shown 2019年12月27日.'
+  blocked_reason: null
+  evidence: |-
+    Verbatim: '2017年6月，中央深改组第三十六次会议审议通过《地区生产总值统一核算改革方案》'; '即将在2020年初正式实施，统一核算2019年地区生产总值'; '改革后，地区生产总值将由各省（区、市）统计局负责核算，改革为国家统计局统一组织、领导和实施'; three aspects: '一是改革核算主体', '二是完善核算机制', '三是规范数据公布'.
+  download_plan: |-
+    Single HTML page; GET with any UA, save as UTF-8. Cite as primary source for decision date (June 2017) and first data year (2019 annual GRP, executed early 2020).
+  verification:
+    verdict: confirmed
+    reason: 'curl 200, 96,079 B; title matches. WebFetch confirms publication date 2019/12/27 09:30 and
+      verbatim quotes: ''2017年6月，中央深改组第三十六次会议审议通过《地区生产总值统一核算改革方案》'', ''即将在2020年初正式实施，统一核算2019年地区生产总值'',
+      and the three aspects 改革核算主体/完善核算机制/规范数据公布.'
+    checked_at: '2026-09-04T18:16:39Z'
+    hunt: china_nbs
+- id: nbs_qa_unified_accounting_plan_2017
+  name: 'NBS: 国家统计局有关负责人就《地区生产总值统一核算改革方案》有关问题答记者问 (interview with deputy head 李晓超, 中国信息报)'
+  provider: National Bureau of Statistics of China (stats.gov.cn)
+  url: https://www.stats.gov.cn/sj/sjjd/202302/t20230202_1895929.html
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:26:14Z'
+  http_status: 200
+  sha256: 96ea81d23496cf30778d619f2d0030d5dbaba7672340ca596bd15c00f472596d
+  bytes: 94723
+  local_path: null
+  license: null
+  notes: curl 200. Publication date element was not captured by my tag-stripping (page date is rendered
+    in a separate element); the text places the interview shortly after the 36th meeting of the Central
+    Leading Group for Deepening Reform (2017). Local file nbs_sjjd_1895929.html.
+  blocked_reason: null
+  evidence: |-
+    Verbatim: '...中央全面深化改革领导小组第三十六次会议审议通过了《地区生产总值统一核算改革方案》，提出要坚持真实准确、规范统一、公开透明的原则，改革核算主体，改革核算方法，改革工作机制，实行地区生产总值统一核算，提高核算数据质量，准确反映地区经济发展。近日，《中国信息报》记者就《地区生产总值统一核算改革方案》有关问题采访了国家统计局副局长李晓超。' and '实施地区生产总值统一核算改革后，各省（自治区、直辖市）生产总值核算由现行的省级统计机构核算，改革为国家统计局和省级统计机构共同开展的统一核算。...实现地区生产总值汇总数据与国内生产总值数据的基本衔接' and '但目前我国的地区生产总值汇总数据与国内生产总值数据差距有些偏大'.
+  download_plan: |-
+    Single HTML page; GET and save. Human: open in a browser to read the rendered publication date (expected October 2017) and cite it alongside the 2019-12-27 Q&A.
+  verification:
+    verdict: confirmed
+    reason: curl 200, 94,723 B (byte-identical size to claim); title matches; page contains 李晓超 (2 hits)
+      and '差距有些偏大' (2 hits). Only date string found in HTML is a 2024年6月7日 site-footer date; the page's
+      own publication date is not in the static HTML, consistent with the claim's caveat.
+    checked_at: '2026-09-04T18:15:45Z'
+    hunt: china_nbs
+- id: nbs_yearbook_2023_html_tables
+  name: China Statistical Yearbook 2023 online edition - tables 9-14 Electricity Consumption by Region
+    and 16-14 Freight Traffic by Region (2022)
+  provider: National Bureau of Statistics of China (stats.gov.cn)
+  url: https://www.stats.gov.cn/sj/ndsj/2023/indexeh.htm
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:15:02Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'indexeh.htm (200, 904 B) is a frameset loading left_.htm (200, 81,397 B, GBK) whose table list
+    links every table as html/E<ch>-<nn>.jpg. Chinese edition indexch.htm (200, 889 B) -> left.htm (200,
+    60,216 B): 706 .jpg refs, 30 .htm refs, 0 .xls/.xlsx refs. So the 2023 edition is IMAGE-ONLY; numbers
+    need OCR (Tesseract) or manual transcription. Whether older editions on stats.gov.cn still expose
+    HTML/XLS tables was NOT tested. Table 9-14 columns: 1995, 2000, 2005, 2010, 2015, 2020, 2021, 2022
+    (100 million kWh); footnote ''a) Data since 2000 are from China Electricity Council'' - i.e. the yearbook
+    is a free mirror of CEC provincial consumption but only for selected years per edition (each yearbook
+    edition adds its latest year; a full annual series requires one image per edition). Table 16-14: Total/Railways/Highways/Waterways
+    by region, 2022, 10,000 tons; national railways 498,424; e.g. Shanxi railways 104,514, Liaoning 22,394,
+    Beijing 368. No loans-by-region table exists in this edition (only 18-6 benchmark rates, 18-7 LPR).'
+  blocked_reason: null
+  evidence: |-
+    GET https://www.stats.gov.cn/sj/ndsj/2023/html/E09-14.jpg -> 200, 170,194 bytes, image/jpeg, 798x1406 JPEG; viewed: title '9-14 Electricity Consumption by Region', 31 provinces, e.g. Liaoning 623/749/1111/1715/1985/2423/2576/2551 for 1995..2022; sha256 4ac4bda56241455412ff0eab41d30f41e882238793ea559b81e5827398971bf3. GET https://www.stats.gov.cn/sj/ndsj/2023/html/E16-14.jpg -> 200, 148,514 bytes, 599x1599 JPEG; viewed: '16-14 Freight Traffic by Region (2022)' with Railways column; sha256 10bfd2c553b233d377675a77ee5ee69c11cb031b3d06c4afd8de792fc78be90d. left_.htm sha256 9e2232db7ec403a0e57ea73db546b1d0f4eec63d12fa3d9205e3fdd719114984; left.htm sha256 bde8516b33a3be0c5be145dbf74ee812f6fa05cccec0d145f4d35e6526881d29.
+  download_plan: |-
+    For each edition YYYY in the range hosted at https://www.stats.gov.cn/sj/ndsj/<YYYY>/: GET indexeh.htm, parse the frameset src for the contents frame (left_.htm in 2023), decode as GBK, regex <a href='html/E..-..\.(jpg|htm)'>title</a>, select titles matching 'Electricity Consumption by Region', 'Freight Traffic by Region', 'Freight Ton-kilometers by Region'; GET html/<file> to a cache dir keyed by edition+table; skip if file exists and sha256 matches. Files are 100-200 KB JPEGs; ~1 request/s is fine, generic UA works. Then run OCR (Tesseract, whitelist digits) and validate each column against the national total row / cross-edition overlaps; flag any cell that fails. Only 2023 verified; older editions' URL layout (sj/ndsj vs tjsj/ndsj, htm vs jpg) must be probed per edition.
+  verification:
+    verdict: confirmed
+    reason: 'indexeh.htm 200 (904 B frameset -> left_.htm 200, 81,397 B, 655 html/E*.jpg refs, zero htm/xls).
+      E09-14.jpg 200 170,194 B image/jpeg: viewed, ''9-14 Electricity Consumption by Region'', columns
+      1995/2000/2005/2010/2015/2020/2021/2022, Liaoning 623/749/1111/1715/1985/2423/2576/2551, footnote
+      ''Data since 2000 are from China Electricity Council''. E16-14.jpg 200 148,514 B: ''16-14 Freight
+      Traffic by Region (2022)'', national railways 498,424, Shanxi 104,514, Liaoning 22,394, Beijing
+      368. All quoted figures match. Caveat (as claimed): tables are images only; extraction needs OCR/manual
+      transcription.'
+    checked_at: '2026-09-04T18:15:02Z'
+    hunt: china_proxies
+- id: pbc_credit_statistics
+  name: PBoC 金融机构本外币信贷收支表 / Sources & Uses of Credit Funds of Financial Institutions (XLSX + HTM + PDF)
+  provider: People's Bank of China, 调查统计司
+  url: https://www.pbc.gov.cn/diaochatongjisi/attachDir/2025/11/2025111817140367736.xlsx
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:07:23Z'
+  http_status: 200
+  sha256: 9efbe385a93cfd78820daba3a2d55b52e30ed92178df0f0c20288a61640288fe
+  bytes: 19049
+  local_path: null
+  license: null
+  notes: This closes hunt item 3 for bank loans, negatively — see the fact entry. PBoC's 中国区域金融运行报告 (annual
+    Regional Financial Operation Report) is the plausible free provincial route; two such PDFs (2015 and
+    2024) already exist in this scratch directory from an EARLIER session, so I did not refetch them and
+    I am NOT claiming them as verified by me.
+  blocked_reason: null
+  evidence: |-
+    Chain all fetched at 200: https://www.pbc.gov.cn/diaochatongjisi/116219/116319/index.html -> 200, 89,073 bytes, links to per-year statistics indexes 1999..2026; https://www.pbc.gov.cn/diaochatongjisi/116219/116319/4780803/index.html (2023) -> 200, 36,862 bytes; https://www.pbc.gov.cn/diaochatongjisi/116219/116319/4780803/4780807/index.html (金融机构信贷收支统计 / 'Sources and Uses of Credit Funds of Financial Institutions') -> 200, 31,325 bytes, whose body contains attachment triplets of the form /diaochatongjisi/attachDir/{YYYY}/{MM}/{timestampid}.{xlsx|htm|pdf}. I downloaded one XLSX: 200, 19,049 bytes, valid 'Microsoft Excel 2007+'. I unzipped it and read xl/sharedStrings.xml: 211 strings, header '金融机构本外币信贷收支表 / Sources & Uses of Credit Funds of Financial Institutions (in RMB and Foreign Currency)', '单位：亿元人民币 / Unit: RMB 100 Million Yuan', rows 一、各项存款 Total Deposits, （一）境内存款 Domestic Deposits, 住户存款 Deposits of Households, 非金融企业存款, etc. THE DECISIVE NEGATIVE: there is NO region/province dimension anywhere in this table. It is a national balance sheet.
+  download_plan: |-
+    For the national credit aggregate: crawl https://www.pbc.gov.cn/diaochatongjisi/116219/116319/index.html, follow each year index, then each statistics-category index, and regex the body for /diaochatongjisi/attachDir/\d{4}/\d{2}/\d+\.xlsx. Fetch each XLSX with Referer set to its listing page, ~19 KB each, parse with openpyxl (the sheet is bilingual with merged header cells — read sharedStrings and map by row label, not by fixed row index, because the layout drifts between years). Use https (http returned 404 on one path I tried). This gives NATIONAL loans outstanding only. DO NOT expect provincial data here.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: pbc_regional_financial_operation_reports
+  name: PBoC 中国区域金融运行报告 (China Regional Financial Operation Report) 2012-2024 with 31 provincial + Shenzhen
+    summaries
+  provider: People's Bank of China (pbc.gov.cn, Monetary Policy Department)
+  url: https://www.pbc.gov.cn/zhengcehuobisi/125207/125227/125960/126049/index.html
+  access: free
+  status: verified
+  fetched_at: '2026-09-04T18:16:37Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'Index page 200, 69,906 B, sha256 60f387c7e360a9a53cf62f45bf3d325e7f47617bf71bbf86cffe83b0ea99c45e;
+    first 12 report links seen: 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2015, 2014, 2013, 2012
+    (2016 not among the first 12 matches; may be lower on the page). 2024 report page (200, 33,505 B,
+    sha256 061e45501b539840efc44eade0b85024b81904c6fe4f573fb113a87dfc71ca57, published 2024-07-26) links
+    33 PDFs: ''1.《中国区域金融运行报告（2024）》.pdf'' (HEAD 200, 5,312,156 B) and 32 summaries (Beijing ... Xinjiang,
+    plus Shenzhen), each ~100 KB / 3 pages. Downloaded #7 Liaoning summary: 108,667 B, PDF 1.7, 3 pages,
+    sha256 16fb626857e9821b8ec8b9a0f71d6be32aa241958aafdc6b5e06d3b4a54af8c2; pypdf text contains ''2023年末，全省银行业金融机构本外币各项贷款余额5.5万亿元，比年初增加589亿元，同比增长1.0%''.
+    So free year-end provincial loan balances (本外币各项贷款余额) are available as prose in the summaries (rounded,
+    e.g. 5.5万亿元) and presumably as tables in the main report (not parsed). The full provincial reports
+    live on provincial branch sites; the Shanghai 2024 example URL from search (http://shanghai.pbc.gov.cn/fzhshanghai/113589/5414063/2024072610185883761.pdf)
+    returned 302 -> https then 404.'
+  blocked_reason: null
+  evidence: |-
+    GET index -> 200 with anchors titled 中国区域金融运行报告（2024）...（2017）, 2015年/2014年/2013年/2012年中国区域金融运行报告. GET 2024 page -> 200, 33 .pdf hrefs under /zhengcehuobisi/125207/125227/125960/126049/5415491/73300d7391b844e5958cfd6fd8d18f59/. HEAD 2024072618064073683.pdf -> 200, 5,312,156 B. GET 2024072618082248775.pdf -> 200, 108,667 B, text extracted with pypdf shows the Liaoning loan-balance sentence quoted above.
+  download_plan: |-
+    1) GET the index page; regex href="(/zhengcehuobisi/125207/125227/125960/126049/[0-9]+/[0-9a-f]+/index.html)" with title matching 区域金融运行报告 to get one page per year (2012-2024). 2) GET each year page; regex href="([^"]+\.pdf)" and the numbered link text (N.《<province>金融运行报告（YYYY）》摘要.pdf) to map file->province. 3) GET each PDF once to <cache>/pbc/<year>/<province>.pdf (main report ~5 MB, summaries ~100 KB; ~33 files/year, ~430 total), sha256 each. 4) Extract text with pypdf/pdfplumber and regex '各项贷款余额\s*([0-9.]+)\s*(万亿|亿)元' plus 同比增长; for exact balances parse the main report's tables (unverified layout). Use a generic UA, 1 req/s; pbc.gov.cn served everything without cookies. Older years' page/link layout may differ (2012-2015 have different title patterns) - handle per year. For a longer, exact annual series the paid China Financial Yearbook or NBS portal from an allowed IP would be needed.
+  verification:
+    verdict: confirmed
+    reason: Index 200, 69,906 B; lists 中国区域金融运行报告 for 2004-2015 and 2017-2024 (no 2016 edition anywhere
+      on the page, so the claimed '2012-2024' series has a 2016 gap on this index). Liaoning 2024 summary
+      PDF GET 200, 108,667 B, %PDF-1.7, 3 pages; pypdf text contains '全省银行业金融机构本外币各项贷款余额'. HEAD main 2024
+      report PDF 200, 5,312,156 B. Free provincial loan-balance prose confirmed.
+    checked_at: '2026-09-04T18:16:37Z'
+    hunt: china_proxies
+- id: wayback_nbs_yearbooks
+  name: Wayback Machine mirror of NBS yearbook pages and complete pre-2002 volumes (RAR)
+  provider: Internet Archive
+  url: https://web.archive.org/cdx/search/cdx?url=stats.gov.cn/tjsj/ndsj/*&output=json&limit=40&collapse=urlkey&filter=statuscode:200
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:05:16Z'
+  http_status: 200
+  sha256: null
+  bytes: 7228
+  local_path: null
+  license: null
+  notes: 'This is the insurance policy for hunt item 4: even if NBS retires the older editions from the
+    live site the way it retired easyquery, the vintages survive. Recommend snapshotting all wanted editions
+    to local cold storage NOW rather than depending on either server.'
+  blocked_reason: null
+  evidence: |-
+    CDX query on the OLD path prefix (stats.gov.cn/tjsj/ndsj/*, the pre-2023 site structure) -> 200, 7,228 bytes, 40 rows, all statuscode 200. It shows COMPLETE-VOLUME ARCHIVES: http://www.stats.gov.cn/tjsj/ndsj/1997.rar (capture 20160420183800), 1998.rar (20160603105224), 1999.rar (20160420183824), 2000.rar (20160418093929), 2001.rar (20160418084025), plus per-table HTML for the 2001c edition (a0101c.htm ...) and a 2015/indexeh.htm capture. I then ran curl -sSIL on https://web.archive.org/web/20160420183800id_/http://www.stats.gov.cn/tjsj/ndsj/1997.rar -> HTTP/1.1 200 OK, Content-Type: application/x-rar-compressed, Content-Length: 2643245 (HEAD only; I did not download it). Separately, a CDX query on stats.gov.cn/tjsj/ndsj/2015/html/* -> 200, 2,881 bytes, showing the 2015 edition's table JPEGs archived on 2017-07-16 (CH0101.jpg 133,555 bytes; CH0102.jpg 689,475; CH0103.jpg 328,262; ... CH0203.jpg 19,541) — i.e. an INDEPENDENT frozen copy of a vintage exists off the NBS's own servers.
+  download_plan: |-
+    Enumerate captures with the CDX API rather than guessing snapshot timestamps: GET https://web.archive.org/cdx/search/cdx?url=stats.gov.cn/tjsj/ndsj/{Y}/html/*&output=json&collapse=urlkey&filter=statuscode:200&limit=2000, which returns [urlkey, timestamp, original, mimetype, statuscode, digest, length] rows — the 'length' column lets you size the job before downloading and the 'digest' column gives free integrity checking. Then fetch each capture as https://web.archive.org/web/{timestamp}id_/{original} (the 'id_' suffix returns the ORIGINAL bytes with no Wayback banner injection — essential for images and archives). Throttle hard: 1 request every 2-3 seconds, and expect intermittent 429/503 from web.archive.org; retry with exponential backoff. Prefer the live stats.gov.cn copy when it exists (faster, no throttling) and fall back to Wayback only for editions the live site has dropped (pre-2012) or as an integrity cross-check. For the 1997-2001 RAR volumes, HEAD first (all are single-digit MB), download, and unrar locally.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: wind_economic_database
+  name: Wind Economic Database (EDB) - Wind Information terminal product
+  provider: Wind Information Co. (wind.com.cn)
+  url: https://www.wind.com.cn/portal/en/EDB/index.html
+  access: paywalled
+  status: verified
+  fetched_at: '2026-09-04T18:16:05Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 200, 13,896 B, sha256 4f7a42266bc1048d15166a6cc78b788ab1a666db14c5ca26534a55c10fb4c97e; title
+    'Wind Economic Database'; describes 'A database and analysis platform for global macro and industrial
+    economies ... extraction in the terminal and Excel ... must-have database for economists, strategists'.
+    No free download or public API; access is via the licensed Wind terminal.
+  blocked_reason: null
+  evidence: |-
+    GET -> 200 text/html; page text: 'A database and analysis platform for global macro and industrial economies', 'extraction in the terminal and Excel'. No login-free data links.
+  download_plan: |-
+    No scripted acquisition. Human decision: only via an institutional Wind terminal licence (typically China-based universities); otherwise skip.
+  verification:
+    verdict: confirmed
+    reason: 200, 13,896 B, title 'Wind Economic Database', contains 'terminal and Excel' description;
+      no download links or public API. Licensed-terminal product confirmed.
+    checked_at: '2026-09-04T18:16:05Z'
+    hunt: china_proxies
+- id: worldbank_chn_gdp
+  name: World Bank Indicators API — China GDP, current LCU (NY.GDP.MKTP.CN)
+  provider: World Bank (NBS-sourced)
+  url: https://api.worldbank.org/v2/country/CHN/indicator/NY.GDP.MKTP.CN?format=json&per_page=100&date=1990:2024
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T14:00:08Z'
+  http_status: 200
+  sha256: 14edf7e06f53007de6f7e0fa19b30fce106e385cbc0f64f75ca871a6d89bfd3e
+  bytes: 7193
+  local_path: null
+  license: CC BY 4.0 (World Bank open data terms)
+  notes: USE WITH A VINTAGE WARNING. This is the CURRENT vintage of national GDP, already revised through
+    the 4th economic census. Pairing it with a 2015-vintage provincial sum mixes vintages. For a clean
+    same-vintage gap, take the national denominator from the SAME yearbook edition (CSY table 3-1, e.g.
+    https://www.stats.gov.cn/sj/ndsj/2015/html/EN0301.jpg — filename to be confirmed from that edition's
+    left_.htm; I did not fetch it). I computed the illustrative mixed-vintage number below only to demonstrate
+    the pipeline runs end to end.
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 7,193 bytes, JSON. Response is the standard two-element array: element 0 = {"page":1,"pages":1,"per_page":100,"total":35,"sourceid":"2","lastupdated":"2026-07-13"}, element 1 = 35 observation objects with non-null values for every year 1990-2024. 2021 value = 117382300000000 CNY = 1,173,823.0 (100m yuan). 2014 value = 65,578,290,000,000 CNY = 655,782.9 (100m yuan). This is national annual GDP retrieved AS DATA, machine-readable, in one request.
+  download_plan: |-
+    GET https://api.worldbank.org/v2/country/CHN/indicator/{IND}?format=json&per_page=100&date=1990:2025 for IND in {NY.GDP.MKTP.CN (current LCU, the right unit to compare against 亿元 GRP after dividing by 1e8), NY.GDP.MKTP.KN (constant LCU), NY.GDP.MKTP.KD.ZG (growth)}. No key, no auth, no rate limit encountered. Parse json[1]; page with the 'page'/'pages' fields if per_page is exceeded. Idempotent: cache on (indicator, date-range) and compare the 'lastupdated' field in json[0] to decide whether to refetch — it was 2026-07-13 at time of check.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: xinhua_data_inflation_2018_01_20
+  name: 'Xinhua: China Focus: Local governments fight data inflation'
+  provider: Xinhua (xinhuanet.com)
+  url: http://www.xinhuanet.com/english/2018-01/20/c_136909206.htm
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:23:38Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch. Dateline TIANJIN, Jan. 19; published 2018-01-20.
+  blocked_reason: null
+  evidence: |-
+    Verbatim: 'north China's Inner Mongolia Autonomous Region cut the fiscal revenue in 2016 by 53 billion yuan, or 26.3 percent of the total.'; 'Binhai New Area, a major economic development zone of the city, revised its GDP down 33.4 percent to 665 billion yuan in 2016.'; 'northeast China's Liaoning Province admitted economic data had been falsified from 2011 to 2014. In response to the problem, the province reported a 2.5-percent drop in its 2016 regional GDP, compared with a 6.7-percent expansion in national GDP.'
+  download_plan: |-
+    Single page; GET and archive (xinhuanet.com old URLs sometimes go offline; archive a copy now).
+  verification:
+    verdict: confirmed
+    reason: curl 200, 29,389 B; contains '53 billion yuan', '33.4 percent', '2.5-percent drop'; timestamp
+      2018-01-20 00:42:45, dateline 'Jan. 19 (Xinhua)'. Free.
+    checked_at: '2026-09-04T18:16:00Z'
+    hunt: china_nbs
+- id: xinhua_reform_2019_11_13
+  name: 'Xinhua: China reforms regional GDP accounting to boost data quality'
+  provider: Xinhua (xinhuanet.com)
+  url: http://www.xinhuanet.com/english/2019-11/13/c_138552332.htm
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:24:20Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch; dateline BEIJING, Nov. 13 (Xinhua), 2019-11-13.
+  blocked_reason: null
+  evidence: |-
+    Verbatim: 'China will introduce unified regional gross domestic product (GDP) accounting in early 2020'; since 1985 'country GDP and regional GDP have adopted a graded accounting system'; 'The NBS will lead the unified accounting of regional GDP after the reform. It will organize local statistics offices to map methods of accounting, map and standardize the unified procedures in accounting, conduct unified accounting and release the results.' No mention of the June 2017 approval.
+  download_plan: |-
+    Single page; GET and archive.
+  verification:
+    verdict: confirmed
+    reason: curl 200, 28,926 B; contains 'unified regional gross domestic product' and 'graded accounting';
+      timestamp 2019-11-13 19:37:22, dateline 'Nov. 13 (Xinhua)'. No paywall.
+    checked_at: '2026-09-04T18:15:50Z'
+    hunt: china_nbs
+- id: archive_org_csy_scans
+  name: archive.org holdings of printed China Statistical Yearbook volumes
+  provider: Internet Archive / Open Library
+  url: https://archive.org/advancedsearch.php?q=title%3A%28china+statistical+yearbook%29&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=year&fl%5B%5D=mediatype&rows=20&page=1&output=json
+  access: registration
+  status: partial
+  fetched_at: '2026-09-06T14:05:16Z'
+  http_status: 200
+  sha256: null
+  bytes: 1067
+  local_path: null
+  license: null
+  notes: 'Answers the second half of hunt item 4: no, archive.org does NOT hold a usable frozen copy of
+    the NBS series. The usable frozen copies are the live stats.gov.cn editions and the Wayback mirror
+    of them.'
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 1,067 bytes. numFound = 6, and only three are actually the national CSY: '2009chinastatist0000unse' (2009 China Statistical Yearbook, texts), 'zhongguotongjini0000unse_m7l2' (1997, texts), 'chinastatistical0000nati' (2002 Book & CDROM, texts). The others are the rural yearbook (zhongguonongcunt0000unse), an ethnic-statistics yearbook, and one perma.cc web capture ('perma_cc_DJJ2-J8YJ: China Statistical Yearbook 2019', mediatype web). The 'texts' items with the 0000xxxx identifier suffix are Open Library controlled-digital-lending scans, not open downloads.
+  download_plan: |-
+    NOT a bulk source — coverage is far too thin (3 usable years against the 13 live editions on stats.gov.cn) and the items are lend-only. Use only if a specific paper-only year is needed: a human must create a free archive.org account and borrow the item in the browser reader (see human_actions). Do not build an automated fetcher against these identifiers; the loan endpoints require an authenticated session and automated borrowing would violate the terms.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: caixin_fudged_numbers_2018_01_29
+  name: 'Caixin Global: Fudged Numbers Revealed as Officials'' Performance Redefined'
+  provider: Caixin Global
+  url: https://www.caixinglobal.com/2018-01-29/fudged-numbers-revealed-as-officials-performance-redefined-101204446.html
+  access: paywalled
+  status: partial
+  fetched_at: '2026-09-03T22:24:25Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch returned the visible portion; subscriber-gated. Dated 2018-01-29. Does not state the
+    exact announcement dates.
+  blocked_reason: null
+  evidence: |-
+    Verbatim: 'The Inner Mongolia Autonomous Region government said its true 2016 industrial added value was 290 billion yuan ($45.88 billion), or 40 percent, less than originally reported.'; 'officials in the region's industrial city of Baotou admitted a 49 percent decline in fiscal revenues last year to 13.7 billion yuan.'; 'Binhai officials revealed they had revised 2016 GDP data downward by 33 percent after changing the calculation means and "wringing out data inflation."'
+  download_plan: |-
+    Human\: Caixin subscription for full text; otherwise rely on Xinhua 2018-01-20 for the fiscal-revenue and Binhai figures and cite Caixin's visible text for the 290 bn / 40% industrial figure.
+  verification:
+    verdict: confirmed
+    reason: curl 200, 43,086 B; title matches; contains '290 billion yuan', '49 percent', '33 percent',
+      'wringing out'; Caixin paywall prompt 'Subscribe today for just $.99' present. Paywalled/partial
+      as claimed.
+    checked_at: '2026-09-04T18:16:02Z'
+    hunt: china_nbs
+- id: caixin_liaoning_2017_01_18
+  name: 'Caixin Global: Liaoning Government Admits False Growth Data from 2011-14'
+  provider: Caixin Global
+  url: https://www.caixinglobal.com/2017-01-18/liaoning-government-admits-false-growth-data-from-2011-14-101046468.html
+  access: paywalled
+  status: partial
+  fetched_at: '2026-09-03T22:23:40Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: WebFetch returned the visible (pre-paywall) portion; page is subscriber-gated. Dated 2017-01-18.
+  blocked_reason: null
+  evidence: |-
+    Verbatim: Chen Qiufa, 'Tuesday' (17 Jan 2017), 'in a work report to the local legislature'; 'City and county officials in Liaoning made false claims about fiscal revenues and other data from 2011 to 2014'; 'Fiscal revenues over the three years were exaggerated by around 20% overall.'; 'In some counties, the reported numbers were more than double the actual income'; 'Fiscal data fabrication by cities and counties in Liaoning province was common and lasted a long time, with many parties involved and various tricks applied'.
+  download_plan: |-
+    Human\: a Caixin Global subscription is needed for the full text; otherwise cite the visible portion plus China Daily/Xinhua.
+  verification:
+    verdict: confirmed
+    reason: curl 200, 39,483 B; title matches; quoted phrases 'exaggerated by around 20%', 'more than
+      double', 'lasted a long time', 'various tricks' all present in the served HTML. Page carries Caixin
+      paywall markup ('Subscribe today for just $.99', internalReferrer=Paywall-trial, cons-pay-bt button),
+      so paywalled/partial is the right characterization.
+    checked_at: '2026-09-04T18:15:56Z'
+    hunt: china_nbs
+- id: mot_transport_statistical_bulletins
+  name: Ministry of Transport 2023 交通运输行业发展统计公报 (web) and 2023 铁道统计公报 (PDF)
+  provider: Ministry of Transport of the PRC (mot.gov.cn / xxgk.mot.gov.cn)
+  url: https://xxgk.mot.gov.cn/jigou/zhghs/202406/t20240614_4142419.html
+  access: free
+  status: partial
+  fetched_at: '2026-09-04T18:16:31Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: '2023 industry bulletin page: 200, 45,879 B, sha256 da60a87e344f21dd43c348eecc8b966a868bb9c5e8fb3e266608f18e307cd98f;
+    contains ''（一）铁路。全年完成货运总发送量50.35亿吨，比上年增长1.0%，完成货运总周转量36460亿吨公里、增长1.4%'' - NATIONAL totals only, no
+    by-province rail freight table on the page. 2023 铁道统计公报 PDF: HEAD 200, application/pdf, Content-Length
+    7,473,376 at https://www.mot.gov.cn/shuju/fenxigongbao/hangyegongbao/202601/P020260127538858021035.pdf
+    (not downloaded; provincial content unverified). Bulletin index at https://www.mot.gov.cn/fenxigongbao/hangyegongbao/
+    was returned by search but not fetched. For provincial rail freight use NBS yearbook 16-14 / 16-15
+    (verified) instead.'
+  blocked_reason: null
+  evidence: |-
+    GET bulletin page -> 200 text/html; grep found the national railway freight sentence above and no 分省/各省 table. HEAD railway bulletin PDF -> HTTP/1.1 200 OK, Content-Type application/pdf, Content-Length 7473376.
+  download_plan: |-
+    Annual: fetch https://www.mot.gov.cn/fenxigongbao/hangyegongbao/ (unfetched) to list per-year bulletin pages and PDFs; GET each year's 交通运输行业发展统计公报 HTML (≈45 KB) and 铁道统计公报 PDF (≈7.5 MB) once, sha256, and parse national rail freight tonnage and ton-km as a control total for the provincial sums from the yearbook. Generic UA works; ~1 req/s.
+  verification:
+    verdict: confirmed
+    reason: Bulletin page 200, 45,879 B; contains '货运总发送量50.35亿吨' (national rail freight) and zero occurrences
+      of 分省/各省 — national totals only, no provincial table. HEAD of the 2023 铁道统计公报 PDF -> 200, application/pdf,
+      Content-Length 7,473,376 (not downloaded; provincial content unverified). Partial is the right status.
+    checked_at: '2026-09-04T18:16:31Z'
+    hunt: china_proxies
+- id: nbs_data_portal_new_spa
+  name: NBS data portal new SPA (data.stats.gov.cn/dg/website)
+  provider: National Bureau of Statistics of China
+  url: https://data.stats.gov.cn/
+  access: free
+  status: partial
+  fetched_at: '2026-09-03T22:23:16Z'
+  http_status: 200
+  sha256: 1397e5de18153735d1db7c2da75afb3eec8f20d3727223713be9bf1c94b63b89
+  bytes: 3198
+  local_path: null
+  license: null
+  notes: Redirected to https://data.stats.gov.cn/dg/website/page.html#/pc/national/home. HTML shell only
+    (lang zh-cmn-Hans, element-ui, jquery-ui, modules/platform/css/dsf-platform.pc.css). Data is loaded
+    client-side by JS; API endpoints not identified because I did not execute JS and had reached the fetch
+    budget. No cookies set on this response.
+  blocked_reason: null
+  evidence: |-
+    200, 3,198 B: '<!DOCTYPE html><html lang="zh-cmn-Hans" ...><link href="static/js/libs/element-ui/lib/theme-chalk/index.css?_t=1775124916746" ...><link href="modules/platform/css/dsf-platform.pc.css ...'
+  download_plan: |-
+    Human step: open the SPA in a browser with DevTools, capture the XHR/fetch calls that populate GDP tables (likely JSON POST/GET under /dg/... ), and record parameters. Then script those calls with browser UA, <=1 req/s, caching raw JSON. Alternatively run a headless browser (Playwright) from a mainland IP to drive the SPA and intercept responses.
+  verification:
+    verdict: confirmed
+    reason: 200, 3,198 B text/html, redirected to https://data.stats.gov.cn/dg/website/page.html#/pc/national/home;
+      body is a Vue/element-ui shell (lang zh-cmn-Hans) with no data. 'partial' (landing shell only, data
+      via undiscovered JS API) is the right status.
+    checked_at: '2026-09-04T18:15:05Z'
+    hunt: china_nbs
+- id: cec_china_electricity_council
+  name: China Electricity Council (中国电力企业联合会) statistics - provincial 全社会用电量 express-report tables
+  provider: China Electricity Council (cec.org.cn / english.cec.org.cn)
+  url: https://www.cec.org.cn/upload/1/editor/1674033286551.pdf
+  access: free
+  status: blocked
+  fetched_at: '2026-09-04T18:16:07Z'
+  http_status: null
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'english.cec.org.cn returned 200 but only a 2,610-byte Vue SPA shell (''cec doesn''t work properly
+    without JavaScript''), no data links (sha256 7f67df67cfba3950d6dc970a754c111ba3cf7dc8e53984db6b85489f1423aaff).
+    WebSearch (allowed_domains cec.org.cn) surfaced ''2022年全国电力工业统计快报一览表'' at https://www.cec.org.cn/upload/1/editor/1674033286551.pdf
+    (content unverified). curl to www.cec.org.cn: ''Failed to connect to www.cec.org.cn port 443 after
+    21691 ms'' (curl 28); WebFetch: ''connect ECONNREFUSED 211.160.76.55:443''. So the Chinese CEC site
+    is unreachable from this network, not merely gated. The NBS yearbook table 9-14 footnote states its
+    provincial electricity data since 2000 come from CEC, so the yearbook is a free mirror for selected
+    years.'
+  blocked_reason: www.cec.org.cn TCP connection to 211.160.76.55:443 times out (curl) / is refused (WebFetch)
+    from this network; english.cec.org.cn serves only a JavaScript shell with no data.
+  evidence: |-
+    GET https://english.cec.org.cn/ -> 200, 2,610 B text/html, body is <div id="app"></div> plus script tags only. GET https://www.cec.org.cn/upload/1/editor/1674033286551.pdf -> no HTTP response (curl exit 28, 000 status); WebFetch same URL -> ECONNREFUSED 211.160.76.55:443.
+  download_plan: |-
+    Retry from a China-based or different network: GET https://www.cec.org.cn/upload/1/editor/1674033286551.pdf (expected small PDF with the 2022 全国电力工业统计快报一览表; check whether it contains 分省全社会用电量) and browse the CEC 统计与分析 channel for the equivalent PDFs of other years; store each PDF with sha256 and extract tables with pdfplumber. If CEC stays unreachable, use NBS yearbook table 9-14 across editions (source nbs_yearbook_2023_html_tables) and the NBS portal from an allowed IP.
+  verification:
+    verdict: confirmed
+    reason: 'english.cec.org.cn 200, 2,610 B, body is an empty <div id="app"></div> SPA shell with no
+      data links. www.cec.org.cn PDF: curl exit 28, ''Failed to connect to www.cec.org.cn port 443 after
+      21307 ms'', HTTP 000. Unreachable from this network, reproduced; PDF content still unverified. Blocked
+      status correct.'
+    checked_at: '2026-09-04T18:16:07Z'
+    hunt: china_proxies
+- id: eog_dmsp_v4_composites
+  name: DMSP-OLS Version 4 Nighttime Lights Time Series (stable_lights annual composites 1992-2013)
+  provider: Earth Observation Group, Colorado School of Mines (eogdata.mines.edu)
+  url: https://eogdata.mines.edu/products/dmsp/
+  access: registration
+  status: blocked
+  fetched_at: '2026-09-04T18:15:50Z'
+  http_status: 302
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'Product page is public (200, 109,302 B, sha256 53f37c7396e36e840f30b5dc5e7ff909a90a25ce992b35e5a89240f545907a05)
+    and documents the file naming ''F1?YYYY_v4b_avg_vis.tif'' and ''F1?YYYY_v4b_stable_lights.avg_vis.tif''
+    (values 0-63, 255 = no cloud-free obs) and links directories wwwdata/dmsp/extension_series/, wwwdata/dmsp/monthly_composites/
+    and rad_cal tgz files. The composites directory and a composite file both redirect to Keycloak login,
+    so Content-Length could not be read and the existence of the specific tar name F182013.v4.tar was
+    NOT confirmed (it was my guess; the redirect happens before any 404/200 from the file server). Register
+    page (200, 18,221 B, sha256 5bc835092d8820a217903c668bea61d6e7959ad1e43469b1a22ca35c0b637c90) says:
+    free account with verified e-mail required; and ''Effective June 1 2026 EOG is limiting programmatic
+    access via OpenID Client to paid subscribers.'' Token endpoint shown on that page: https://eogauth.mines.edu/realms/eog/protocol/openid-connect/token
+    (grant_type=password, client_id/client_secret placeholders).'
+  blocked_reason: 'GET https://eogdata.mines.edu/wwwdata/dmsp/v4composites/ and HEAD .../v4composites/F182013.v4.tar
+    both return 302 Location: https://eogauth.mines.edu/realms/eog/protocol/openid-connect/auth?...client_id=eogdata-new-apache...
+    (mod_auth_openidc), landing on a 200 Keycloak login page (8,548 B). Requires an EOG account; scripted
+    (OAuth2) access is paid since 2026-06-01 per the register page.'
+  evidence: |-
+    GET https://eogdata.mines.edu/wwwdata/dmsp/v4composites/ -> 302 -> 200 at eogauth.mines.edu login (8,548 B, text/html). HEAD https://eogdata.mines.edu/wwwdata/dmsp/v4composites/F182013.v4.tar -> 302 Found, Set-Cookie mod_auth_openidc_state_..., Location eogauth.mines.edu/realms/eog/protocol/openid-connect/auth?response_type=code&scope=openid%20email&client_id=eogdata-new-apache&redirect_uri=https%3A%2F%2Feogdata.mines.edu%2Foauth2callback; no Content-Length for the file.
+  download_plan: |-
+    Human step: create a free EOG account at https://eogdata.mines.edu/products/register/ (e-mail verification). Interactive path: log in in a browser, open https://eogdata.mines.edu/wwwdata/dmsp/v4composites/ and download the ~22 annual tarballs (satellite-year, e.g. F10 1992-1994 ... F18 2010-2013; expect several hundred MB each - sizes unverified) into the cache; record sha256. Scripted path (OAuth2 password grant to https://eogauth.mines.edu/realms/eog/protocol/openid-connect/token, Bearer header on GET) is stated to be paid-subscriber only as of 2026-06-01, so budget a subscription or use the browser path. Alternative free, no-login substitute for the same years: source figshare_li2020_harmonized_ntl.
+  verification:
+    verdict: confirmed
+    reason: Product page 200, 109,302 B, title 'DMSP Nighttime Lights', mentions stable_lights. HEAD wwwdata/dmsp/v4composites/
+      -> 302 to eogauth.mines.edu Keycloak openid-connect login, then 200 login form. Register page 200,
+      18,221 B contains 'Effective June 1 2026 EOG is limiting programmatic access via OpenID Client to
+      paid subscribers'. Registration wall reproduced; blocked/registration correct.
+    checked_at: '2026-09-04T18:15:50Z'
+    hunt: china_proxies
+- id: eog_viirs_vnl_annual
+  name: VIIRS Nighttime Lights annual composites (VNL v1 2012-2013, v2 2012-2020, v2.1 2014-2021, v2.2
+    2022+)
+  provider: Earth Observation Group, Colorado School of Mines (eogdata.mines.edu)
+  url: https://eogdata.mines.edu/products/vnl/
+  access: registration
+  status: blocked
+  fetched_at: '2026-09-04T18:15:56Z'
+  http_status: 302
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: Product page public (200, 53,967 B, sha256 480eca3a3f9b29d7669c3093d423a6540143ac520e30dd1e4e21e6d87e0fabd1).
+    It links annual directories https://eogdata.mines.edu/nighttime_light/annual/v10/, /v20, /v21/, /v22/
+    and one explicit file https://eogdata.mines.edu/nighttime_light/annual/v20/2020/VNL_v2_npp_2020_global_vcmslcfg_c202102150000.lit_mask.tif.gz.
+    The annual root and that file both redirect to the Keycloak login, so no directory listing or Content-Length
+    was obtainable anonymously. Same registration/paid-programmatic policy as DMSP (see eog_dmsp_v4_composites).
+  blocked_reason: GET https://eogdata.mines.edu/nighttime_light/annual/ -> 302 -> Keycloak login (200,
+    8,548 B); HEAD of the VNL-page-linked file VNL_v2_npp_2020_global_vcmslcfg_c202102150000.lit_mask.tif.gz
+    -> 302 to https://eogauth.mines.edu/realms/eog/protocol/openid-connect/auth?...client_id=eogdata-new-apache.
+    Free EOG account required; scripted OAuth2 access paid since 2026-06-01 per register page.
+  evidence: |-
+    HEAD https://eogdata.mines.edu/nighttime_light/annual/v20/2020/VNL_v2_npp_2020_global_vcmslcfg_c202102150000.lit_mask.tif.gz -> HTTP/1.1 302 Found, Location: https://eogauth.mines.edu/realms/eog/protocol/openid-connect/auth?response_type=code&scope=openid%20email&client_id=eogdata-new-apache&state=...&redirect_uri=https%3A%2F%2Feogdata.mines.edu%2Foauth2callback; then HTTP/1.1 200 text/html;charset=utf-8 (login form, Set-Cookie AUTH_SESSION_ID / KC_RESTART).
+  download_plan: |-
+    After the human creates the free EOG account: in a browser, open https://eogdata.mines.edu/nighttime_light/annual/v22/<YEAR>/ (2022+) and /v21/<YEAR>/ (2014-2021) and download the '*global_vcmslcfg*.average_masked.dat.tif.gz' (and median_masked) files; expect ~1-3 GB per global file (unverified). Scripted variant: POST grant_type=password&client_id=...&client_secret=...&username=...&password=... to https://eogauth.mines.edu/realms/eog/protocol/openid-connect/token, then GET the file with 'Authorization: Bearer <token>' - but the register page says this OpenID-client path is for paid subscribers from 2026-06-01, so confirm entitlement first. For China-only analysis consider clipping after download; EOG has no server-side subsetting.
+  verification:
+    verdict: confirmed
+    reason: Product page 200, 53,967 B, title 'VIIRS Nighttime Light'. HEAD of the v20/2020 lit_mask.tif.gz
+      -> 302 to eogauth.mines.edu openid-connect auth, then 200 login form. Same registration/paid-programmatic
+      policy as DMSP. Claim reproduced exactly.
+    checked_at: '2026-09-04T18:15:56Z'
+    hunt: china_proxies
+- id: nbs_data_portal_english_easyquery
+  name: NBS English data portal (data.stats.gov.cn/english) legacy easyquery endpoint
+  provider: National Bureau of Statistics of China
+  url: https://data.stats.gov.cn/english/easyquery.htm?m=QueryData&dbcode=hgnd&rowcode=zb&colcode=sj&wds=%5B%5D&dfwds=%5B%7B%22wdcode%22%3A%22zb%22%2C%22valuecode%22%3A%22A0201%22%7D%5D&k1=1788474124000&h=1
+  access: free
+  status: blocked
+  fetched_at: '2026-09-03T22:22:04Z'
+  http_status: 403
+  sha256: 179f6efa8d3ec329a784a78d6fff4d51c158ac7d154c2197a105830fb3dbaeff
+  bytes: 291
+  local_path: null
+  license: null
+  notes: 'GET https://data.stats.gov.cn/english/ -> 404, 144 B, application/json body {"timestamp":"2026-09-03T22:22:04.505+00:00","path":"/english/","status":404,"error":"Not
+    Found"}; no Set-Cookie. All easyquery variants -> 403: national hgnd/A0201 with cookie jar (291 B),
+    provincial fsnd/A020101 rowcode=reg dfwds sj=LAST10 (290 B), national without cookie, national with
+    Chrome UA + Referer + X-Requested-With, and the page form ?cn=C01. WebFetch (different egress) also
+    got 403. TLS: Schannel verified chain OK (ssl_verify_result=0); -k was NOT needed, no certificate
+    problem observed today. Root https://data.stats.gov.cn/ -> 200, 3,198 B, redirected to new SPA https://data.stats.gov.cn/dg/website/page.html#/pc/national/home
+    (element-ui/Vue, static assets stamped _t=1775124916746), no cookies set. Local samples: landing_en.html,
+    nat_hgnd_A0201.json, prov_fsnd_A020101.json, nat_browserua.json, en_easyquery_C01.html, data_root.html.'
+  blocked_reason: 'WAF returns 403 ''reason:UrlACL'' for every /english/easyquery.htm request (all UA/cookie/header
+    combinations, from two different egress IPs: 80.102.39.188 and WebFetch''s). The portal has migrated
+    to a new SPA under /dg/website/; the legacy easyquery API appears decommissioned or restricted to
+    mainland-China IPs. No JSON response was obtained this session, so the response shape could not be
+    verified.'
+  evidence: |-
+    Every easyquery request returned the same 291-byte HTML: '<title>403 Forbidden</title> ... <center>Client IP: 80.102.39.188</center><center>eventID: 1249-1788502925.581-waf04fst reason:UrlACL</center>'. /english/ returned 404 JSON. Root returned the new SPA shell.
+  download_plan: |-
+    Do not script against /english/easyquery.htm from outside China until a human confirms it works from a mainland vantage point. Steps for the human: (1) from a mainland-China IP (VPS or collaborator), open https://data.stats.gov.cn/dg/website/page.html#/pc/national/home in a browser with DevTools > Network, navigate to Annual > National Accounts > GDP and to Regional > Annual by Province > GRP, and record the XHR URLs, methods, query/body parameters, headers, cookies and the JSON shape; (2) also test the legacy URL pattern GET https://data.stats.gov.cn/english/easyquery.htm?m=QueryData&dbcode=hgnd&rowcode=zb&colcode=sj&wds=[]&dfwds=[{"wdcode":"zb","valuecode":"A0201"}]&k1=<epoch_ms>&h=1 and the provincial form dbcode=fsnd&rowcode=reg&colcode=sj&wds=[{"wdcode":"zb","valuecode":"A020101"}]&dfwds=[{"wdcode":"sj","valuecode":"LAST20"}] (historically returned JSON {returncode:200, returndata:{datanodes:[...],wdnodes:[...]}} after first loading the page to obtain a session cookie; NOT verified this session). Once an endpoint is confirmed: browser UA, keep a cookie jar, <=1 request/s, one request per (indicator, region-set, year-window), cache raw JSON to disk keyed by the full query string. Fallback spine if it stays blocked: OCR the yearbook JPEG tables (see yearbook source) or use provincial statistical yearbooks / CEIC-Wind (paywalled).
+  verification:
+    verdict: confirmed
+    reason: 'Re-fetched from a different egress IP (90.166.134.227): 403, 292 B HTML ''403 Forbidden ...
+      eventID: 1249-1788574500.601-waf01fst reason:UrlACL''. WAF URL-ACL block reproduced exactly as claimed;
+      status ''blocked'' is correct.'
+    checked_at: '2026-09-04T18:14:58Z'
+    hunt: china_nbs
+- id: nbs_data_portal_fsnd
+  name: NBS National Data portal, annual by province (fsnd) - English and Chinese easyquery
+  provider: National Bureau of Statistics of China
+  url: https://data.stats.gov.cn/english/easyquery.htm?cn=E0103
+  access: free
+  status: blocked
+  fetched_at: '2026-09-04T18:14:58Z'
+  http_status: 403
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'Four attempts, all HTTP 403 with a 291-byte NBS WAF page: ''eventID: ...-waf02fst reason:UrlACL'',
+    ''Client IP: 80.102.39.188''. Tried: English getTree (m=getTree&dbcode=fsnd&wdcode=zb&id=zb) with
+    generic UA; same with Chrome UA + XHR/Referer headers; English landing cn=E0103; Chinese landing https://data.stats.gov.cn/easyquery.htm?cn=E0103;
+    and WebFetch of the English landing (also 403). The block is on the URL/IP ACL, not on the UA. I could
+    not obtain the fsnd indicator tree, so no zb codes for electricity/freight/loans were verified.'
+  blocked_reason: HTTP 403 'reason:UrlACL' from the NBS WAF for every request from this (Spanish) IP,
+    via both curl and WebFetch; appears to be a geo/IP ACL on data.stats.gov.cn.
+  evidence: |-
+    GET https://data.stats.gov.cn/english/easyquery.htm?m=getTree&dbcode=fsnd&wdcode=zb&id=zb -> 403, 291 bytes text/html, body '403 Forbidden ... Client IP: 80.102.39.188 ... eventID: 1249-1788502941.788-waf02fst reason:UrlACL'. Identical 403/291 bytes for the other three URLs. Saved: nbs_fsnd_tree.json (sha256 65c9b13e2465f33db75f562b550a3d817258718c26e42490337f84403ae78d25), nbs_fsnd_tree_ua.json, nbs_fsnd_landing.html, nbs_cn_landing.html.
+  download_plan: |-
+    Must run from an IP the NBS WAF allows (China-hosted VPS, or test a university/other network first with one GET of the landing page and stop if 403). The well-known easyquery JSON pattern is UNVERIFIED in this session: GET https://data.stats.gov.cn/english/easyquery.htm?m=getTree&dbcode=fsnd&wdcode=zb&id=zb to obtain indicator codes, then m=QueryData&dbcode=fsnd&rowcode=reg&colcode=sj&wds=[{"wdcode":"zb","valuecode":"<ZB>"}]&dfwds=[{"wdcode":"sj","valuecode":"1990-2024"}] with a browser UA, an established session cookie (first load the cn=E0103 page), and >=2 s between requests; responses are small JSON (<200 KB). If blocked, fall back to source nbs_yearbook_2023_html_tables.
+  verification:
+    verdict: confirmed
+    reason: 'Re-fetched landing (cn=E0103) and getTree (dbcode=fsnd) from a different IP (90.166.134.227):
+      both 403, 292-byte NBS WAF page ''reason:UrlACL'', eventID ...-waf01fst. Block reproduced; blocked
+      status is correct. Access remains nominally free but the indicator tree is unobtainable from this
+      network.'
+    checked_at: '2026-09-04T18:14:58Z'
+    hunt: china_proxies
+- id: nbs_easyquery_legacy
+  name: NBS legacy easyquery.htm JSON API (data.stats.gov.cn)
+  provider: National Bureau of Statistics of China
+  url: https://data.stats.gov.cn/easyquery.htm?m=QueryData&dbcode=fsnd&rowcode=zb&colcode=sj&wds=[{"wdcode":"reg","valuecode":"110000"}]&dfwds=[{"wdcode":"zb","valuecode":"A0201"},{"wdcode":"sj","valuecode":"LAST20"}]
+  access: free
+  status: blocked
+  fetched_at: '2026-09-06T13:52:01Z'
+  http_status: 403
+  sha256: null
+  bytes: 292
+  local_path: null
+  license: null
+  notes: This single finding invalidates the endpoint named in the project brief. Everything downstream
+    in this hunt is the consequence.
+  blocked_reason: 'WAF URL-level ACL. Response body: ''403 Forbidden / Client IP: 90.166.134.227 / eventID:
+    1249-1788731522.646-waf05fst reason:UrlACL''. NOT geo-only: the identical URL fetched via WebFetch
+    (Anthropic US infrastructure) also returned 403. The block is on the easyquery.htm path itself, not
+    on parameters, not on the host: https://data.stats.gov.cn/ returns 200 and redirects to /dg/website/page.html#/pc/national/home.
+    Sibling legacy paths tablequery.htm and adv.htm return HTTP 404 with a Spring Boot JSON body ({"path":"/tablequery.htm","status":404,"error":"Not
+    Found","requestId":"1265aec5-71471850"}), i.e. the legacy application is retired, not merely firewalled.
+    /english/easyquery.htm?cn=C01 also 403 UrlACL.'
+  evidence: |-
+    Four separate requests: (1) ?cn=E0103 with research UA -> 403/292; (2) same with Chrome UA + zh-CN Accept-Language + cookie jar -> 403/292; (3) the exact m=QueryData&dbcode=fsnd&rowcode=zb&colcode=sj&wds=...&dfwds=... form with Referer and X-Requested-With -> 403/292; (4) WebFetch on the hgnd (national annual) variant -> 'The server returned HTTP 403 Forbidden.' No parameterisation, header set, or vantage point produced data.
+  download_plan: |-
+    DO NOT BUILD AGAINST THIS ENDPOINT. Any acquisition script targeting easyquery.htm will fail 100% of the time. Remove it from the inventory as a live source and re-point at nbs_dg_api_tree + csy_web_editions below. If a future operator regains access (e.g. from a mainland-China vantage point), the historical contract was GET/POST with m=QueryData, dbcode=fsnd (provincial annual) or hgnd (national annual), rowcode=zb, colcode=sj, wds=[{wdcode:reg,valuecode:<6-digit province code>}], dfwds=[{wdcode:zb,valuecode:<indicator code>},{wdcode:sj,valuecode:LASTnn}] — but treat that as unverified folklore, not a spec.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: harvard_dataverse_search
+  name: Harvard Dataverse search for a mirrored China provincial GDP panel
+  provider: Harvard Dataverse
+  url: https://dataverse.harvard.edu/api/search?q=china%20provincial%20GDP&type=dataset&per_page=15
+  access: free
+  status: unverified
+  fetched_at: '2026-09-06T13:58:18Z'
+  http_status: 200
+  sha256: null
+  bytes: 35889
+  local_path: null
+  license: null
+  notes: Recorded as an honest negative so nobody repeats the search. The verified fallback for the core
+    series is csy_web_editions, not a third-party mirror.
+  blocked_reason: null
+  evidence: |-
+    HTTP 200, 35,889 bytes, status OK, total_count 10,926 — but the relevance ranking is useless for this query. The 15 returned items are survey and replication datasets (SEPP/EEPP panel, HIV behavioural surveys in China, Language Atlas of China, China-CPZ Core Periphery Zones, Socioeconomic Macroregions of China, assorted 'Replication Data for:' packages). NONE is a provincial GDP panel. I did not find a usable mirrored panel here and I am not going to name one I did not fetch.
+  download_plan: |-
+    If pursued later, narrow with the API's facet parameters rather than free text — e.g. &subtree=chinadatalab or &fq=dvName:... — and verify any candidate by downloading its actual file via https://dataverse.harvard.edu/api/access/datafile/{id} and inspecting the columns, not by trusting the dataset title. GitHub was also searched (gh api search/repositories, two queries) and produced nothing usable: the only yearbook-shaped repos are the lonlonago/china-*-statistical-yearbook-* family, whose descriptions read 'Dataset / resource listing. Sponsor to obtain the full data files.' — i.e. paywalled behind sponsorship, with no data in the repo.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
+- id: nbs_dg_api_values
+  name: NBS new portal API — time-series values endpoint (getEsDataByCidAndDt)
+  provider: National Bureau of Statistics of China
+  url: https://data.stats.gov.cn/dg/website/publicrelease/web/external/new/getEsDataByCidAndDt
+  access: free
+  status: unverified
+  fetched_at: '2026-09-06T14:03:00Z'
+  http_status: 404
+  sha256: null
+  bytes: 3046
+  local_path: null
+  license: null
+  notes: The parameters and payload schema are documented in github.com/icen-ai/mcp-cnbs (api_introduce.md,
+    'V2.0 2026.03.27'), which I read via the GitHub API. That doc's base URL constant matched reality
+    exactly (CNBS_API_BASE = https://data.stats.gov.cn/dg/website/publicrelease/web/external, confirmed
+    in src/constants.ts) and its tree/indicator endpoints work verbatim — so the doc was correct when
+    written and the values route has since been renamed or moved. Treat the payload schema as high-confidence
+    and the path as unknown.
+  blocked_reason: null
+  evidence: |-
+    FAILING REQUEST AND ERROR, verbatim. POST https://data.stats.gov.cn/dg/website/publicrelease/web/external/getEsDataByCidAndDt with Content-Type: application/json;charset=UTF-8, Origin and Referer set, body {"cid":"6f8fbd415cbc40ffa7ecb7fd917f2598","indicatorIds":["aff57de5ee994283974705914fbed246"],"das":[{"text":"辽宁省","code":"210000000000"}],"dts":["1992YY-2024YY"],"showType":"1","rootId":"69c574ab128a44e595cc0b24502b771b"} -> HTTP 404, 546 bytes, nginx page reading '404 Not Found ... dps' (rejected at the proxy: that path is not routed). The same POST to .../external/new/getEsDataByCidAndDt -> HTTP 404, 3,046 bytes, the application's own Chinese error page '您访问的页面不存在' (page does not exist). I then used GET-probing to discriminate real routes from missing ones (a live route returns 200/3,099 bytes, a missing one returns exactly 404/3,046 bytes) and probed 13 candidates: /new/getEsData, /new/queryEsData, /new/getData, /new/queryData, /new/queryDataByEk, /new/getEsDataByEk, /new/queryIndexData, /new/queryDataByCid, /new/queryDataJsonByCid, /new/queryDataByCidAndDt, /new/getDataByCidAndDt, /new/queryEsDataByCidAndDt, /new/getEsDataByCidAndDt — ALL 404/3,046. Control: /new/queryIndicatorsByCid -> 200. I also grepped the SPA bundles I downloaded (dsf-dataview.common.js 83 KB, subPage.js 54 KB, dsf-pc.js 45 KB) for 'EsData' — zero hits; the data-page code lives in a lazily-loaded webpack chunk I did not locate. The only endpoint string in those bundles is url:"/metadata/macrodata/kiv/queryMetadataTableData".
+  download_plan: |-
+    NEEDS ONE HUMAN STEP FIRST (see human_actions). Once the real path and payload are captured, the script shape is: POST {BASE}/{path} with JSON {cid, indicatorIds:[...], das:[{text,value_or_code}], dts:["1992YY-2024YY"], showType:"1", rootId:"69c574ab128a44e595cc0b24502b771b"}. das region codes are 12-digit (000000000000 = national; provinces are the 6-digit GB/T 2260 code zero-padded to 12, e.g. Liaoning 210000000000, Inner Mongolia 150000000000, Tianjin 120000000000). dts time codes: annual YYYYYY suffixed 'YY' (2024YY), quarterly 'SS', monthly 'MM', ranges as 'START-END'. Because the API time-slices series across multiple cids, loop over every cid whose [sdate,edate] intersects the wanted window and concatenate. Throttle to 5 req/s or slower, cache responses on disk keyed by (cid, indicatorIds, dts, das) so re-runs are free.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: china_followup
