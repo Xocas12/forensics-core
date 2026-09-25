@@ -1,0 +1,922 @@
+# SOURCES.yaml -- the source registry for the `elections` project.
+#
+# Nothing enters a pipeline without an entry here. Every entry was produced by an actual
+# fetch attempt during scaffolding; no URL in this file was invented. Where a source could
+# not be reached, the entry records that fact and why, rather than being omitted.
+#
+# Fields
+#   access   free | registration | paywalled | archive_visit | manual_transcription
+#            -- what a human has to do to get it, NOT whether it exists.
+#   status   verified | partial | blocked | unverified
+#            -- what the scaffolding session established about reachability:
+#               verified   fetched, HTTP 200, and the content was confirmed to be what it claims
+#               partial    landing page or some files reached; the full dataset was not confirmed
+#               blocked    exists but cannot be fetched from here (gated, geo-blocked, 403, WAF)
+#               unverified could not be confirmed at all
+#   fetched_at / http_status  the research probe, not an acquisition into data/raw.
+#   sha256 / bytes / local_path  filled by `make data` when a file actually lands in data/raw.
+#   verification.verdict  an INDEPENDENT second agent re-fetched the URL and either
+#                         confirmed, downgraded or refuted the first agent's claim.
+#                         `not_verified` means that second check did not run.
+#
+# Regenerate the acquisition state with `make data`; edit provenance here by hand only with
+# a note saying what was re-checked and when.
+
+- id: cecscraper_github
+  name: kkalininMI/CECscraper (R package for scraping the CEC portal)
+  provider: GitHub (Kirill Kalinin)
+  url: https://github.com/kkalininMI/CECscraper
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:25:26Z'
+  http_status: 200
+  sha256: b30f8ced316e699f9a95756a9d2f74bc34977d3dfc22f826a59010edad36d9bd
+  bytes: 30739
+  local_path: null
+  license: null
+  notes: 'gh api repos/kkalininMI/CECscraper: description ''This web scraping package written in R is
+    designed to download the electoral data from the website of Russian Central Election Commission (http://www.izbirkom.ru)'',
+    default branch master, last pushed 2020-10-26T22:33:31Z, 3 stars, Zenodo DOI badge (zenodo.org/badge/212958870.svg).
+    README (30,739 bytes) documents the CEC hierarchy ''general election results -> OIKs/SMDs -> rayons
+    -> precincts'', the drop-down ''Нижестоящие избирательные комиссии'', the jump link ''сайт избирательной
+    комиссии субъекта Российской Федерации'' to the regional subdomain, and states the CEC site ''is no
+    longer available for webscrapping because of many captchas'' - evidence of captcha gating as of 2020.
+    It is a tool, not a dataset.'
+  blocked_reason: null
+  evidence: |-
+    gh 22:25:25Z repo metadata JSON (390 bytes); gh 22:25:26Z raw README 30,739 bytes, sha256 b30f8ced316e699f9a95756a9d2f74bc34977d3dfc22f826a59010edad36d9bd.
+  download_plan: |-
+    git clone https://github.com/kkalininMI/CECscraper (small). Useful only for its URL-walking logic (listURLextractor/rowURLextractor); its target mirror is dead and the live portal is blocked from abroad.
+  verification:
+    verdict: confirmed
+    reason: 'Repo page 200 (407,765 bytes). Raw README from master: 200, 30,739 bytes, sha256 b30f8ced316e699f9a95756a9d2f74bc34977d3dfc22f826a59010edad36d9bd
+      (exact match with claim); contains ''captcha''/''captchas'' and notelections.online references as
+      described. It is a tool, not a dataset, as the claim notes.'
+    checked_at: '2026-09-04T18:16:22Z'
+    hunt: elections_cec_portal
+- id: cikrf_eng_2018_wayback
+  name: cikrf.ru English page 'Results of Russian Presidential Elections 2018' (Wayback copy)
+  provider: Central Election Commission of the Russian Federation via Internet Archive
+  url: http://web.archive.org/web/20190914014035/http://cikrf.ru/eng/information-center/results-of-russian-presidential-elections-2018.php
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:27:15Z'
+  http_status: 200
+  sha256: c9fb173c07641b9f249e4ea6a9be605f43a76460b8d3cf19c082bc66731e5ee5
+  bytes: 34417
+  local_path: null
+  license: null
+  notes: 'Live page blocked (see cikrf_ru_live). Wayback redirect from web/2019/ landed on snapshot 20190914014035:
+    200, 34,417 bytes, UTF-8, title ''Results of Russian Presidential Elections 2018'', text ''Resolution
+    No. 152/1255-7 as of 23/03/2018'', ''Number of voters enrolled on the electoral register 109,008,428'',
+    Putin 56,430,712 (76.69%). The page states the resolution date (23/03/2018), not the polling date,
+    in the text I extracted.'
+  blocked_reason: null
+  evidence: |-
+    curl 22:27:15Z -> 200 34,417 bytes; grep found title, '56,430,712' and '76.69'; sha256 c9fb173c07641b9f249e4ea6a9be605f43a76460b8d3cf19c082bc66731e5ee5.
+  download_plan: |-
+    Single GET of the Wayback URL above (or id_ variant for raw HTML). National totals only; useful as a validation anchor for the sum of precinct data.
+  verification:
+    verdict: confirmed
+    reason: 200, 34,411 bytes, text/html; charset=UTF-8; contains 'Results of Russian Presidential Elections
+      2018' (4x), 'Resolution 152/1255-7', '56,430,712' and '76.69'. sha256 differs from the claim (adc4471...
+      vs c9fb173...) only because of Wayback's injected toolbar/timestamps (6-byte size difference); content
+      matches.
+    checked_at: '2026-09-04T18:16:19Z'
+    hunt: elections_cec_portal
+- id: dkobak_elections_2011
+  name: Russian State Duma election 2011, precinct-level results (dkobak/elections, data/2011.csv.zip)
+  provider: GitHub (repo dkobak/elections, master branch; data scraped by Sergey Shpilkin)
+  url: https://raw.githubusercontent.com/dkobak/elections/master/data/2011.csv.zip
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:51:19Z'
+  http_status: 200
+  sha256: fd8aeceeebe92664872cf6fcaa43a11c2bf3f4914d9667bbd9bf2df6972cbd8f
+  bytes: 3425812
+  local_path: null
+  license: null
+  notes: 'THE primary answer for 2011. Comma-separated, UTF-8, quoted fields, 29 columns, ends with newline.
+    Header (first fields verbatim): region,tik,uik,"Число избирателей, внесенных в список избирателей","Число
+    избирательных бюллетеней, полученных участковой избирательной комиссией",... then all protocol lines
+    including absentee-certificate (открепительные удостоверения) counts, then the 7 parties: 1. СПРАВЕДЛИВАЯ
+    РОССИЯ / 2. ЛДПР / 3. ПАТРИОТЫ РОССИИ / 4. КПРФ / 5. ЯБЛОКО / 6. ЕДИНАЯ РОССИЯ / 7. ПРАВОЕ ДЕЛО, then
+    url. First data row: Республика Адыгея (Адыгея),1 Адыгейская,1,2609,2356,... CSV-parsed: 95,225 data
+    records, 84 distinct region values, 2,730 distinct TIK values, uik column 100% numeric, (region,tik,uik)
+    unique for all 95,225 rows. Registered voters column summed by me = 109,229,337, exactly matching
+    the repo README. 369 rows sit in TIK ''99 Территория за пределами РФ''. No Crimea (correct for 2011).
+    NO precinct name, address or type column.'
+  blocked_reason: null
+  evidence: |-
+    GET returned 200, 3,425,812 bytes, application/zip. Unzipped to ex2011/2011.csv (33,000,696 bytes). `wc -l` = 95,226 lines; Python csv.reader after the header = 95,225 records. Sum of column index 3 = 109,229,337, which equals the figure in the repo's own data/README.md ('Parliamentary election 2011: 95,225 polling stations, 109,229,337 registered voters. The sums agree with vybory.izbirkom.ru').
+  download_plan: |-
+    curl -sS -L --max-time 90 -o data/2011.csv.zip https://raw.githubusercontent.com/dkobak/elections/master/data/2011.csv.zip ; verify sha256 == fd8aeceeebe92664872cf6fcaa43a11c2bf3f4914d9667bbd9bf2df6972cbd8f ; unzip -o to get 2011.csv (33,000,696 bytes, sha256 c285fa860e8f4319fd92091069497de819f5704047fe3b864dbf1d4b899702f2). Idempotent: skip when the zip hash already matches. Parse with pandas.read_csv(..., encoding='utf-8') - default C parser handles the quoted Cyrillic headers; do NOT set sep manually, it is a plain comma. Assert len(df) == 95225 and df.iloc[:,3].sum() == 109229337 as an acquisition gate. No auth, no rate limit beyond GitHub's raw.githubusercontent budget (60 req/hr unauthenticated is ample for one file). Pin the commit for reproducibility: resolve master to a SHA via `gh api repos/dkobak/elections/commits/master --jq .sha` and fetch from https://raw.githubusercontent.com/dkobak/elections/<sha>/data/2011.csv.zip instead of master.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: dkobak_elections_2018
+  name: Russian presidential election 2018, precinct-level results (dkobak/elections, data/2018.csv.zip)
+  provider: GitHub (repo dkobak/elections, master branch; data scraped by Sergey Shpilkin)
+  url: https://raw.githubusercontent.com/dkobak/elections/master/data/2018.csv.zip
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:51:21Z'
+  http_status: 200
+  sha256: 0ecfa337c877a2db52c99460307ea153b9e3a33810811685a1e92e8154287176
+  bytes: 3096195
+  local_path: null
+  license: null
+  notes: 'THE primary answer for 2018. 24 columns. Header verbatim: region,tik,uik,"Число избирателей,
+    включенных в список избирателей","Число избирательных бюллетеней, полученных участковой избирательной
+    комиссией","Число избирательных бюллетеней, выданных избирателям, проголосовавшим досрочно","Число
+    избирательных бюллетеней, выданных в помещении для голосования в день голосования","Число избирательных
+    бюллетеней, выданных вне помещения для голосования в день голосования",Число погашенных избирательных
+    бюллетеней,Число избирательных бюллетеней в переносных ящиках для голосования,Число бюллетеней в стационарных
+    ящиках для голосования,Число недействительных избирательных бюллетеней,Число действительных избирательных
+    бюллетеней,Число утраченных избирательных бюллетеней,"Число избирательных бюллетеней, не учтенных
+    при получении",Бабурин Сергей Николаевич,Грудинин Павел Николаевич,Жириновский Владимир Вольфович,Путин
+    Владимир Владимирович,Собчак Ксения Анатольевна,Сурайкин Максим Александрович,Титов Борис Юрьевич,Явлинский
+    Григорий Алексеевич,url. NOTE the 2018 wording is ''включенных в список'' vs 2011 ''внесенных в список''
+    - same quantity, different string, so do not hard-code the header name across years; use positional
+    index 3 or a regex on ''Число избирателей''. All 8 candidates present. CSV-parsed: 97,699 records,
+    87 distinct regions (adds Республика Крым and город Севастополь vs 2011, and splits out ''98 Город
+    Байконур (Республика Казахстан)'' and ''99 Территория за пределами РФ'' as regions), 2,762 TIKs, uik
+    100% numeric, keys unique. My sum of registered voters = 109,008,428, matching README exactly. README
+    warns this exceeds izbirkom''s 109,001,306 because results at four stations were later cancelled -
+    rows 45559, 45563, 92554, 92561 counting the header as row 1. NO precinct name, address or type column.'
+  blocked_reason: null
+  evidence: |-
+    GET returned 200, 3,096,195 bytes, application/zip. Unzipped to ex2018/2018.csv (32,601,723 bytes). `wc -l` = 97,700; csv.reader after header = 97,699 records. Column-3 sum = 109,008,428, identical to the repo README's stated figure for the 2018 presidential election.
+  download_plan: |-
+    curl -sS -L --max-time 90 -o data/2018.csv.zip https://raw.githubusercontent.com/dkobak/elections/master/data/2018.csv.zip ; verify sha256 == 0ecfa337c877a2db52c99460307ea153b9e3a33810811685a1e92e8154287176 ; unzip -o (2018.csv, sha256 28505ef477187f13109d53092264e848d7601aa174e524fba7a0c07156f9192a). Acquisition gate: assert len(df) == 97699 and df.iloc[:,3].sum() == 109008428. Decide and record two policy flags at ingest: (a) whether to drop the 4 cancelled-result rows named in the README, (b) whether to include Crimea/Sevastopol, which have no 2011 counterpart and will otherwise break any 2011-vs-2018 panel. Same pinning advice as 2011: resolve master to a commit SHA and fetch by SHA. Fetch both years in one script run; combined payload 6.5 MB.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: dkobak_elections_data_readme
+  name: dkobak/elections data/README.md - provenance and per-election reconciliation against izbirkom.ru
+  provider: GitHub (raw.githubusercontent.com)
+  url: https://raw.githubusercontent.com/dkobak/elections/master/data/README.md
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:54:29Z'
+  http_status: 200
+  sha256: null
+  bytes: 6018
+  local_path: null
+  license: null
+  notes: 'Essential companion document - read it before trusting any row count. States: ''This folder
+    contains raw election data for all Russian federal elections from 2000 onwards. Data scraped by Sergey
+    Shpilkin (until 2021) and by Ivan Shukshin (2024).'' Gives per-election station counts and registered-voter
+    totals with an explicit reconciliation against the CEC''s own published totals, plus caveats: 2000
+    is missing all of Chechnya and Yakutia and all foreign stations; 2003 has three regions off by small
+    amounts, likely later-cancelled results; 2018 has 4 cancelled stations (rows 45559, 45563, 92554,
+    92561); 2020 excludes two electronic-voting pseudo-stations; 2024 is missing all 2,268 stations in
+    the four annexed Ukrainian regions. The repo also holds 2000, 2003, 2004, 2007, 2008, 2012, 2016,
+    2020, 2021 and 2024 at the same resolution - so 2012 (95,415 stations) and 2016 (96,871) are available
+    free as extra validation panels.'
+  blocked_reason: null
+  evidence: |-
+    GET 200, 6,018 bytes text/plain. Read in full. Its 2011 and 2018 figures (95,225 / 109,229,337 and 97,699 / 109,008,428) match my own independent parse of the CSVs to the unit, which is a genuine cross-check rather than a restatement.
+  download_plan: |-
+    curl -sS -L -o data/README.md https://raw.githubusercontent.com/dkobak/elections/master/data/README.md . Store it beside the CSVs and surface its per-year caveats as assertions in the ingest tests. Cheap (6 KB); re-fetch on every run and diff to detect upstream revisions.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: dkobak_elections_github
+  name: dkobak/elections - polling-station data for Russian federal elections 2000-2024
+  provider: Dmitry Kobak (GitHub)
+  url: https://github.com/dkobak/elections
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:22:43Z'
+  http_status: 200
+  sha256: null
+  bytes: 6522007
+  local_path: null
+  license: null
+  notes: 'Repo description ''Statistical anomalies in Russian elections'', 160 stars, default branch master,
+    last push 2026-06-09. GitHub API reports no license (spdx_id empty) and there is no LICENSE file in
+    the root listing. data/ listing (gh api repos/dkobak/elections/contents/data): 2000.csv.zip 4,573,941;
+    2003.csv.zip 4,624,824; 2004.csv.zip 3,335,124; 2007.csv.zip 3,797,189; 2008.csv.zip 3,152,697; 2011.csv.zip
+    3,425,812; 2012.csv.zip 3,267,774; 2016.csv.zip 4,008,210; 2018.csv.zip 3,096,195; 2020.csv.zip 1,692,813;
+    2021.csv.zip 3,547,593; 2024.csv.zip 2,436,410; 2024-electronic-voting.csv 4,699; README.md 6,018.
+    Top-level README: ''Raw election data for all Russian federal elections from 2000 to 2024 can be found
+    in data/. Data scraped by Sergey Shpilkin (2000--2021) and by Ivan Shukshin (2024).'' Also contains
+    analysis notebooks: significance2018/elections2018.ipynb, significance2020/referendum2020.ipynb, meduza2018/meduza.ipynb,
+    analysis/. 2011 columns (29): region, tik, uik, ''Число избирателей, внесенных в список избирателей'',
+    ''Число избирательных бюллетеней, полученных участковой избирательной комиссией'', ''...выданных избирателям,
+    проголосовавшим досрочно'', ''...выданных избирателям в помещении для голосования'', ''...выданных
+    избирателям вне помещения для голосования'', ''Число погашенных избирательных бюллетеней'', ''Число
+    избирательных бюллетеней в переносных ящиках'', ''...в стационарных ящиках'', ''Число недействительных...'',
+    ''Число действительных...'', 5 absentee-certificate (открепительные удостоверения) lines, ''Число
+    утраченных избирательных бюллетеней'', ''Число избирательных бюллетеней, не учтенных при получении'',
+    then 7 party columns: ''1. Политическая партия СПРАВЕДЛИВАЯ РОССИЯ'', ''2. ...ЛДПР'', ''3. ...ПАТРИОТЫ
+    РОССИИ'', ''4. ...КПРФ'', ''5. ...ЯБЛОКО'', ''6. ...ЕДИНАЯ РОССИЯ'', ''7. ...ПРАВОЕ ДЕЛО'', url. 2018
+    columns (24): region, tik, uik, ''Число избирателей, включенных в список избирателей'', 8 more protocol
+    lines, ''Число утраченных...'', ''не учтенных при получении'', then candidates Бабурин, Грудинин,
+    Жириновский, Путин, Собчак, Сурайкин, Титов, Явлинский, url. uik column is the bare UIK number (e.g.
+    1, 2); region is a full name (84 distinct in 2011, 87 in 2018); url points to the vybory.izbirkom.ru
+    TIK-level result page (type=233 for 2011 Duma, type=227 for 2018 presidential). Files were zipped
+    2021-09-29. Checksums recorded during research: 2011.csv.zip fd8aeceeebe92664872cf6fcaa43a11c2bf3f4914d9667bbd9bf2df6972cbd8f;
+    2018.csv.zip 0ecfa337c877a2db52c99460307ea153b9e3a33810811685a1e92e8154287176; unzipped 2011.csv c285fa860e8f4319fd92091069497de819f5704047fe3b864dbf1d4b899702f2;
+    unzipped 2018.csv 28505ef477187f13109d53092264e848d7601aa174e524fba7a0c07156f9192a; data/README.md
+    9a9aeea86d56c65a4b8a62d4a21f671f7399d9e289972535144f2207150dc6fb'
+  blocked_reason: null
+  evidence: |-
+    GET raw.githubusercontent.com/dkobak/elections/master/data/2011.csv.zip -> 200, 3,425,812 B, application/zip; unzip -> 2011.csv 33,000,696 B; wc -l = 95,226 lines = header + 95,225 UIK rows; Python csv parse: 29 columns, 84 distinct region values, sum of column 'Число избирателей, внесенных в список избирателей' = 109,229,337 (README states '95,225 polling stations, 109,229,337 registered voters. The sums agree with http://www.vybory.izbirkom.ru [...] vibid=100100028713304&type=233'). First data row: 'Республика Адыгея (Адыгея),1 Адыгейская,1,2609,2356,0,1614,182,560,...,1242,6,http://www.vybory.izbirkom.ru/region/izbirkom?action=show&global=true&root=12000001&tvd=2012000183551&vrn=100100028713299&...&type=233&vibid=2012000183551'. GET .../data/2018.csv.zip -> 200, 3,096,195 B; unzip -> 2018.csv 32,601,723 B; 97,700 lines = header + 97,699 rows; 24 columns; 87 distinct regions; sum of registered voters (col 4) = 109,008,428 (README: '97,699 polling stations, 109,008,428 registered voters. Note: the sums do not fully agree with vybory.izbirkom.ru [...] that lists 109,001,306 registered voters because the results on four polling stations have later been canceled (rows 45559, 45563, 92554, 92561 in the CSV file, assuming header is row 1)'). GET .../data/README.md -> 200, 6,018 B, per-election notes for 2000-2024 with the CEC URL each file was reconciled against.
+  download_plan: |-
+    Idempotent: (1) pin a commit: gh api repos/dkobak/elections/commits/master -q .sha (I did not fetch this; do it at acquisition time) and fetch raw files as https://raw.githubusercontent.com/dkobak/elections/<sha>/data/<year>.csv.zip for year in {2000,2003,2004,2007,2008,2011,2012,2016,2018,2020,2021,2024} plus data/README.md and data/2024-electronic-voting.csv; (2) skip download if a local file exists with the expected sha256 (2011: fd8aecee..., 2018: 0ecfa337... as recorded above; record the others on first fetch); (3) unzip each to <year>.csv (UTF-8, comma-separated, RFC-4180 quoting with doubled quotes inside party names - use a real CSV parser, not split); (4) validate row counts (2011: 95,225; 2018: 97,699) and registered-voter sums (109,229,337 and 109,008,428) against data/README.md. No rate limit concerns for 12 files of 2-5 MB from raw.githubusercontent.com; send a UA string. Alternative single request: https://github.com/dkobak/elections/archive/<sha>.zip (whole repo ~117 MB per API size field, includes notebooks) - not needed. Licensing: no license file; treat as all-rights-reserved for redistribution and ask Kobak (or cite figshare CC-BY set for 2000-2012) if the project needs to re-publish rows.
+  verification:
+    verdict: confirmed
+    reason: 'Repo page 200. GitHub API: ''Statistical anomalies in Russian elections'', 160 stars, default
+      branch master, pushed 2026-06-09, license null. data/ listing matches claim exactly (12 zips 2000-2024
+      + 2024-electronic-voting.csv + README.md 6,018 B). Re-downloaded data/2011.csv.zip: 200, 3,425,812
+      B application/zip; unzipped 2011.csv = 95,226 lines, 29 columns, 95,225 rows, 84 distinct regions,
+      registered-voter sum 109,229,337 (matches README). data/README.md re-fetched, per-election reconciliation
+      notes present.'
+    checked_at: '2026-09-04T18:15:32Z'
+    hunt: elections_mirrors
+- id: dkobak_elections_repo_listing
+  name: dkobak/elections repository and data/ directory listing (all federal elections 2000-2024)
+  provider: GitHub API via gh CLI
+  url: https://api.github.com/repos/dkobak/elections/contents/data
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:51:11Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: 'Repo metadata: default_branch master, pushed_at 2026-06-09T06:03:53Z, 160 stars, license field
+    is NULL - there is NO declared licence on this repository. data/ contains exactly: 2000.csv.zip (4,573,941),
+    2003.csv.zip (4,624,824), 2004.csv.zip (3,335,124), 2007.csv.zip (3,797,189), 2008.csv.zip (3,152,697),
+    2011.csv.zip (3,425,812), 2012.csv.zip (3,267,774), 2016.csv.zip (4,008,210), 2018.csv.zip (3,096,195),
+    2020.csv.zip (1,692,813), 2021.csv.zip (3,547,593), 2024-electronic-voting.csv (4,699), 2024.csv.zip
+    (2,436,410), README.md (6,018). Every file is well under 50 MB; the whole data/ tree is ~41 MB.'
+  blocked_reason: null
+  evidence: |-
+    gh api repos/dkobak/elections returned full_name dkobak/elections, size 117059, pushed_at 2026-06-09T06:03:53Z, license null, 160 stars; gh api repos/dkobak/elections/contents/data returned the 14 entries with the byte sizes listed above.
+  download_plan: |-
+    Enumerate with `gh api repos/dkobak/elections/contents/data --jq '.[] | [.name,.size,.download_url] | @tsv'` (or the unauthenticated https://api.github.com/repos/dkobak/elections/contents/data, 60 req/hr). Loop the download_url values, skipping any file whose local sha256 already matches. LICENCE WARNING: the repo declares no licence, so redistribution rights are unclear - fine for private analysis, but do not re-host the CSVs in your own repo without asking Kobak. The data itself is Russian CEC public record.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: figshare_kobak_aoas2016_supp
+  name: Supplementary data to 'Integer percentages as electoral falsification fingerprints' (Kobak, Shpilkin,
+    Pshenichnikov, AOAS 2016)
+  provider: figshare (Dmitry Kobak)
+  url: https://figshare.com/articles/dataset/kobakEtAl_AOAS2016_suppData_zip/3126883
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:22:47Z'
+  http_status: 200
+  sha256: null
+  bytes: 9717011
+  local_path: null
+  license: 'CC BY 4.0 (figshare API license field: {''value'':1,''name'':''CC BY 4.0''})'
+  notes: 'figshare API record: DOI 10.6084/m9.figshare.3126883.v2, published 2016-03-30, description ''Supplementary
+    data to Kobak, Shpilkin, and Pshenichnikov, 2016, Integer percentages as electoral falsification fingerprints,
+    Ann. Appl. Stat. 10(1) 54-73.'' Zip contents: poland2010.txt 1,478,875; readme.txt 2,059; russia2000.txt
+    9,115,004; russia2003.txt 9,088,449; russia2004.txt 9,190,052; russia2007.txt 8,871,470; russia2008.txt
+    8,649,595; russia2011.txt 9,175,644; russia2012.txt 9,253,139; spain2011.txt 3,378,690. readme.txt:
+    ''All files are tab delimited plain text .txt files in UTF-8 encoding'' and lists the exact vybory.izbirkom.ru
+    URL used for each Russian election (2011: ...tvd=100100028713304&vrn=100100028713299...&type=233;
+    2012: ...tvd=100100031793509...&type=227), plus PKW (Poland), infoelectoral.mir.es (Spain); German
+    2009 data omitted for copyright. Columns are REDUCED (10): region, constituency, pollingStation, registeredVoters,
+    ballotsGivenInside, ballotsGivenOutside, ballotsGivenBefore, ballotsValid, ballotsInvalid, ballotsLeader
+    - only the leader''s votes, not all parties/candidates. Covers 2011 Duma but NOT 2018 (published 2016).
+    Suitable as the exact input that reproduces the AOAS 2016 integer-percentage figures. Checksums recorded
+    during research: 31040bce65e085d9a14bb6193df2c21d0c348ddefa829a3e7d90d0be29c371a5 (kobakEtAl_AOAS2016_suppData.zip);
+    md5 8f3b29bdfb4b17c439430b529b6fc0dc matches figshare computed_md5; russia2011.txt 1bc5232d8515d0994d73aed52ef29dd3ad25739ead061ef31efcdc2c4d22ef08'
+  blocked_reason: null
+  evidence: |-
+    GET https://api.figshare.com/v2/articles/3126883 -> 200, 3,327 B JSON listing one file kobakEtAl_AOAS2016_suppData.zip size 9,717,011 download_url https://ndownloader.figshare.com/files/4865107 computed_md5 8f3b29bd.... GET that download_url -> 302 to s3-eu-west-1.amazonaws.com/pfigshare-u-files/4865107/... (10-second presigned link) -> 200, 9,717,011 B. Local md5 = 8f3b29bdfb4b17c439430b529b6fc0dc (match). unzip -l shows 10 files (68,202,977 B). russia2011.txt: header 'region\tconstituency\tpollingStation\tregisteredVoters\tballotsGivenInside\tballotsGivenOutside\tballotsGivenBefore\tballotsValid\tballotsInvalid\tballotsLeader'; first row 'Республика Адыгея (Адыгея)\tАдыгейская\t1\t2609\t1614\t182\t0\t1792\t4\t1242' (matches Kobak GitHub 2011.csv row 1: registered 2609, ER 1242); wc -l = 95,229 lines including header (i.e. 3 more rows than the GitHub 2011.csv's 95,225; not reconciled).
+  download_plan: |-
+    GET https://api.figshare.com/v2/articles/3126883 (JSON, no auth) to read files[0].download_url and computed_md5; GET the download_url with -L (follows to a presigned S3 URL that expires in 10 s, so do not cache the redirected URL); verify md5 == computed_md5 and sha256 == 31040bce...; skip if local zip already matches. Unzip; parse *.txt as UTF-8 TSV with header. Single 9.7 MB file, no pagination or rate limits. Cite as DOI 10.6084/m9.figshare.3126883.v2, CC BY 4.0.
+  verification:
+    verdict: confirmed
+    reason: 'HTML landing page returns 202 with empty body to curl (JS-rendered), but API https://api.figshare.com/v2/articles/3126883
+      -> 200 (DOI 10.6084/m9.figshare.3126883.v2, published 2016-03-30) and the download https://ndownloader.figshare.com/files/4865107
+      -> 302 to presigned S3 -> 200, 9,717,011 B; local md5 8f3b29bdfb4b17c439430b529b6fc0dc matches computed_md5.
+      unzip -l: 10 files, 68,202,977 B, sizes exactly as claimed. russia2011.txt: 95,229 lines, 10 tab-separated
+      reduced columns, first row Адыгея/Адыгейская/1/2609/.../1242 as claimed. readme.txt lists the izbirkom.ru
+      source URLs. No login required.'
+    checked_at: '2026-09-04T18:16:08Z'
+    hunt: elections_mirrors
+- id: gislab_cik_uik_20140404_head
+  name: GIS-Lab cik_uik_20140404.7z - earliest available commission snapshot (HEAD only)
+  provider: gis-lab.info
+  url: http://gis-lab.info/data/cik/cik_uik_20140404.7z
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:58:45Z'
+  http_status: 200
+  sha256: null
+  bytes: 2846807
+  local_path: null
+  license: null
+  notes: 'Establishes the hard temporal floor of this source: April 2014. I also HEADed http://gis-lab.info/data/cik/cik_uik_20111204.7z
+    (the 2011 election date) and got 404, and the archived wiki''s list of available dates starts at 20140404.
+    Because Russia replaced ad-hoc per-election UIKs with permanent five-year commissions in 2013, the
+    2014 table cannot be back-joined to 2011 precinct numbers with any confidence. CONCLUSION: there is
+    NO verified precinct-type/address source for the 2011 State Duma election.'
+  blocked_reason: null
+  evidence: |-
+    curl -sSIL returned HTTP/1.1 200 OK with Content-Length: 2846807 for 20140404; the same HEAD against cik_uik_20111204.7z returned HTTP/1.1 301 then HTTP/1.1 404 Not Found.
+  download_plan: |-
+    Only relevant if someone wants to attempt a 2011 back-join anyway. Same recipe as the 2018 file with the date substituted. Before spending effort: validate the premise by joining the 20140404 table to the 2012 presidential results (dkobak data/2012.csv.zip, 95,415 stations) and measuring the match rate; if 2012<->2014 already degrades badly, 2011 is hopeless and the 2011 size-conditioning control must run without a precinct-type covariate.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: gislab_cik_uik_20180215
+  name: GIS-Lab GAS-Vybory commission dump cik_uik_20180215.7z - UIK names, addresses, voting-room addresses
+    and coordinates (Feb 2018)
+  provider: gis-lab.info
+  url: http://gis-lab.info/data/cik/cik_uik_20180215.7z
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:57:24Z'
+  http_status: 200
+  sha256: c5f349a9b9f0f0c37a146b3d40aeb8541f667248a260a44b26327d6cf4b7723a
+  bytes: 4881728
+  local_path: null
+  license: null
+  notes: 'THIS IS THE ANCILLARY-COLUMN SOURCE for the size-conditioning trap control, and it is the only
+    verified way to identify special precincts. Header read verbatim: id,iz_id,reserve_iz_id,parent_id,type_ik,region,url,name,address,phone,fax,email,end_date,address_voteroom,phone_voteroom,lat_ik,lon_ik,lat_voteroom,lon_voteroom.
+    100,399 records: 85 type_ik=ik, 2,838 tik, 97,476 uik, across 85 region slugs. UIK name form: ''Участковая
+    избирательная комиссия № 67''; address and address_voteroom are full postal strings that name the
+    host building. 95,118 UIK rows have non-empty address_voteroom; 94,710 have lat_voteroom/lon_voteroom.
+    My keyword scan over name+address+address_voteroom: 898 hospital/medical (больниц|госпитал|медицин|санатор|диспансер),
+    208 military (воинск|войсков|в/ч|военн|гарнизон), 76 penal (СИЗО|изолятор|исправительн|ИК-|колони),
+    146 remote/shift (вахт|полярн|метеост|судно|теплоход|заимк), 34,012 school/lyceum. Treat these as
+    indicative, not authoritative: many address strings truncate the building descriptor to ''здание...''.
+    Redirects http->https. Last-Modified 2018-02-27, i.e. three weeks before the 18 Mar 2018 vote - excellent
+    temporal alignment with the 97,699 result rows. Sibling files at the same date exist for the full
+    SQLite DB (cik_20180215.7z), commission members (cik_people_...) and raw HTML (cik_..._orig.7z). No
+    licence statement was visible on the archived wiki page I read.'
+  blocked_reason: null
+  evidence: |-
+    HEAD returned HTTP 200, Content-Length: 4881728, Content-Type: application/x-7z-compressed, Last-Modified: Tue, 27 Feb 2018 15:55:31 GMT. GET returned 200 / 4,881,728 bytes; sha256 as recorded. Extracted with py7zr to a single member cik_uik.csv of 72,676,329 bytes; `wc -l` = 100,400 lines; csv.DictReader = 100,399 records with the type_ik breakdown above. Header line quoted verbatim in notes.
+  download_plan: |-
+    curl -sS -L --max-time 120 -o cik_uik_20180215.7z http://gis-lab.info/data/cik/cik_uik_20180215.7z (follows a 301 to https). Verify sha256 c5f349a9b9f0f0c37a146b3d40aeb8541f667248a260a44b26327d6cf4b7723a. Extract with py7zr (`pip install py7zr`; no system 7z is present on this machine) - the archive holds one member, cik_uik.csv. Filter type_ik=='uik'. To join onto the dkobak 2018 results you need a two-step key: (a) map the gis-lab `region` slug (e.g. 'penza') to the dkobak region string (e.g. 'Пензенская область') via a hand-checked lookup of the 85 slugs; (b) resolve each UIK's parent_id to its TIK row and match that TIK `name` against the dkobak `tik` field, which carries a numeric prefix ('1 Адыгейская') that must be stripped; (c) parse the integer out of 'Участковая избирательная комиссия № N' for the uik key. Expect imperfect coverage (97,476 commissions vs 97,699 result rows) - carry an unmatched flag rather than dropping rows, since special precincts are exactly the ones most likely to fail the join and dropping them would reintroduce the bias you are controlling for. Other snapshot dates are addressable by substituting the date in the filename; the wiki lists 20140404, 20140629, 20141119, 20150915, 20160229, 20160629, 20170121, 20170719, 20180215, 20180709, 20180906, 20190101, 20190313, 20190617, 20190905, 20191110, 20200212, 20200610, 20200628, 20200910, 20210208, 20210630, 20210914. Rate-limit yourself to ~1 req/s; this is a small volunteer-run host.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: gislab_wiki_wayback
+  name: GIS-Lab wiki 'Данные по избирательным комиссиям РФ из ГАС Выборы' (Wayback snapshot 2026-03-12)
+    - file index and schema
+  provider: 'Internet Archive Wayback Machine (original: wiki.gis-lab.info)'
+  url: http://web.archive.org/web/20260312114810/https://wiki.gis-lab.info/w/%D0%94%D0%B0%D0%BD%D0%BD%D1%8B%D0%B5_%D0%BF%D0%BE_%D0%B8%D0%B7%D0%B1%D0%B8%D1%80%D0%B0%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%BC_%D0%BA%D0%BE%D0%BC%D0%B8%D1%81%D1%81%D0%B8%D1%8F%D0%BC_%D0%A0%D0%A4_%D0%B8%D0%B7_%D0%93%D0%90%D0%A1_%D0%92%D1%8B%D0%B1%D0%BE%D1%80%D1%8B
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:56:59Z'
+  http_status: 200
+  sha256: null
+  bytes: 71064
+  local_path: null
+  license: null
+  notes: 'The only reachable documentation for the cik_uik dumps, since the live wiki is down. Describes
+    the project: scripts that scrape all regional izbirkom subdomains for every TIK and UIK, publishing
+    name, address, phone, fax, email, term end date, plus commission members and the UIK reserve. Yields
+    the five current download URLs (cik_20210914.7z, cik_20210914_orig.7z, cik_people_20210914.7z, cik_people_reserve_20210914.7z,
+    cik_uik_20210914.7z), the full list of 23 archive dates, the cik_uik field-by-field schema, and sections
+    on known deficiencies, the scripts, and example SQL. Also notes the canonical article URL http://gis-lab.info/qa/cik-data.html
+    and that fax/email are usually blank for UIKs.'
+  blocked_reason: null
+  evidence: |-
+    GET 200, 71,064 bytes. Extracted five .7z hrefs under gis-lab.info/data/cik/ and the archive date list; rendered the body text and read the 'Общая информация', 'Скачать данные', 'Архив' and 'Структура данных' sections.
+  download_plan: |-
+    Reference material only; no bulk fetch. curl the snapshot once and cache the HTML alongside the data as provenance. If the live wiki (https://wiki.gis-lab.info/w/Данные_по_избирательным_комиссиям_РФ_из_ГАС_Выборы, currently 502) comes back, prefer it and re-read the deficiencies section. Discover fresher snapshots with https://archive.org/wayback/available?url=<encoded>.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: harvard_dataverse_search
+  name: Harvard Dataverse search for Russian precinct-level election returns (negative result)
+  provider: Harvard Dataverse API
+  url: https://dataverse.harvard.edu/api/search?q=russian+election+precinct&type=dataset&per_page=25
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:55:43Z'
+  http_status: 200
+  sha256: null
+  bytes: 39368
+  local_path: null
+  license: null
+  notes: 'NEGATIVE RESULT, recorded so it is not re-searched. The first 25 hits are: four ''Russian Election
+    Study'' survey waves (1999-2000 doi:10.7910/DVN/47YD9M, 2003-2004 doi:10.7910/DVN/XEYCGT, 2007-2008
+    doi:10.7910/DVN/PTHUG6), ''Russian Post-Presidential Election Survey in 2012'' (doi:10.7910/DVN/24202),
+    ''Replication Data for: Who Defects? Unpacking a Defection Cascade from Russia''s Dominant Party''
+    (doi:10.7910/DVN/DTIEPU), and then the entire MIT Election Data and Science Lab US precinct series
+    (2018/2020/2022/2024 President, Senate, House, State). None of these is Russian UIK-level returns.
+    The Russian items are individual-level opinion surveys, not precinct protocols. Harvard Dataverse
+    is not a route to this data.'
+  blocked_reason: null
+  evidence: |-
+    GET 200, 39,368 bytes JSON; parsed data.total_count = 23463 and printed all 25 item names with global_ids - the full list is in the notes. The word 'precinct' matches the US MEDSL corpus, which is what inflates the count; no Russian precinct dataset appears.
+  download_plan: |-
+    None - do not build acquisition against Dataverse for this project. If re-checking later, one call to https://dataverse.harvard.edu/api/search?q=<terms>&type=dataset&per_page=25 is enough; the API is open, no key needed for public search. The one item that might still be worth a look for a different purpose is doi:10.7910/DVN/DTIEPU (defection cascade replication data), which may carry Russian sub-national aggregates.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: palladain_rus_pres_2018
+  name: Palladain/RussianPresidentialElection2018 - CSV of 2018 presidential results for 97k+ UIKs (from
+    Shpilkin raw data)
+  provider: GitHub user Palladain
+  url: https://github.com/Palladain/RussianPresidentialElection2018
+  access: free
+  status: verified
+  fetched_at: '2026-09-03T22:22:52Z'
+  http_status: 200
+  sha256: null
+  bytes: 14503966
+  local_path: null
+  license: null
+  notes: 'Repo listing: DataFormatting.ipynb, DataFormattingTiks.ipynb, Elections.ipynb, README.md, tiks-utf8.csv
+    426,230, tiks-utf8-sig.csv 426,227, uiks-utf8.csv 14,503,966, uiks-utf8-sig.csv 14,503,969; last push
+    2018-03-24; no license (spdx_id empty). README: ''CSV formatted data of results from 97k+ election
+    sites. Based on Sergey Shpilkin raw data. https://podmoskovnik.livejournal.com/ Raw data can be obtained
+    from google drive: https://drive.google.com/file/d/1hQQM_ceSzwVWBVyJJynW3_3UNKaJe4o5/view'' (that
+    Drive link now returns 404). Columns (23, English): region_name, tik_name, uik_name, registered_voters,
+    received_ballots, early_voting_ballots, onsite_ballots, offsite_ballots, unused_ballots, found_offsite_ballots,
+    found_onsite_ballots, invalid_ballots, valid_ballots, lost_ballots, unaccounted_ballots, baburin,
+    grudinin, zhirinovsky, putin, sobchak, suraykin, titov, yavlinsky. README caveat: ''Total number of
+    votes can differ from official CIKRF data because some of election sites hasn''t been represented
+    in Sergey Shpilkin data.'' Row count 97,705 vs 97,699 in Kobak''s 2018.csv and registered sum 109,024,062
+    vs 109,008,428 - a snapshot taken ~6 days after the election, before some cancellations/corrections;
+    prefer Kobak''s file, use this as a cross-check. Covers 2018 presidential only. Checksums recorded
+    during research: fd164c60a9f8647679a9749d16c4bc58a4c523885fb04e2f194d5f045e554fe6 (uiks-utf8.csv)'
+  blocked_reason: null
+  evidence: |-
+    GET raw.githubusercontent.com/Palladain/RussianPresidentialElection2018/master/uiks-utf8.csv -> 200, 14,503,966 B, text/plain. wc -l = 97,706 (header + 97,705 rows). Header as listed in notes. First rows: '98 Город Байконур (Республика Казахстан),98 Город Байконур (Республика Казахстан),УИК №8140,2132,2000,0,1447,11,542,11,1447,9,1449,0,0,4,176,79,1136,30,9,5,10'. Python sums: registered_voters 109,024,062; putin 56,437,774. gh api repos/Palladain/RussianPresidentialElection2018/readme -> full README quoted above.
+  download_plan: |-
+    GET https://raw.githubusercontent.com/Palladain/RussianPresidentialElection2018/master/uiks-utf8.csv (pin commit SHA via gh api repos/Palladain/RussianPresidentialElection2018/commits/master first); verify sha256 fd164c60...; skip if present. Plain UTF-8 CSV with header, uik_name is a string like 'УИК №8140'. Optionally also tiks-utf8.csv (TIK aggregates). No license: use for validation/cross-check, do not redistribute without asking.
+  verification:
+    verdict: confirmed
+    reason: 'Repo page 200; contents listing matches (uiks-utf8.csv 14,503,966; uiks-utf8-sig.csv 14,503,969;
+      tiks-utf8.csv 426,227; tiks-utf8-sig.csv 426,230; 3 notebooks; README 2,623). Re-downloaded uiks-utf8.csv:
+      200, 14,503,966 B; 97,706 lines = header + 97,705 rows; 23 English columns exactly as claimed; first
+      row Байконур УИК №8140 matches; sums registered_voters 109,024,062 and putin 56,437,774 match claim.
+      Google Drive raw-data link in README -> 404 as claimed.'
+    checked_at: '2026-09-04T18:16:08Z'
+    hunt: elections_mirrors
+- id: pmc_klimek_2012
+  name: Klimek, Yegorov, Hanel & Thurner 2012, 'Statistical detection of systematic election irregularities',
+    PNAS 109(41):16469-16473 - PMC full text and supplementary manifest
+  provider: PubMed Central (PMC3478593)
+  url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3478593/
+  access: free
+  status: verified
+  fetched_at: '2026-09-06T13:53:23Z'
+  http_status: 200
+  sha256: null
+  bytes: 152062
+  local_path: null
+  license: null
+  notes: 'ANSWERS HUNT ITEM 2. The ''Associated Data'' section lists the article''s complete supplementary
+    payload as exactly two items and nothing else: ''supp_109_41_16469__index.html (812B, html)'' and
+    ''1210722109_pnas.201210722SI.pdf (230.9KB, pdf)''. No dataset, no archive, no code. The paper''s
+    Data and Methods section states: ''For each unit on each aggregation level for each country, we have
+    the data of the number of eligible persons to vote, valid votes, and votes for the winning party/candidate.
+    Voting results were obtained from official election homepages of the respective countries (Table S1).
+    Units with an electorate smaller than 100 are excluded from the analysis to prevent extreme turnout
+    and vote rates as artifacts from very small communities.'' So Table S1 in the SI PDF is a list of
+    official source URLs, not the data. Acknowledgments thank Christian Borghesi ''for providing access
+    to his election datasets'' - private transfer, not deposited. Two directly reusable methodological
+    details for your replication: the electorate<100 exclusion rule, and the claim that their parametric
+    model results do not depend significantly on aggregation level.'
+  blocked_reason: null
+  evidence: |-
+    GET 200, 152,062 bytes. Regex over the HTML for href values containing bin/|suppl|SI.pdf|.zip|.xls|.csv|.txt returned only the two /articles/instance/3478593/bin/ links plus pnas.org DCSupplemental deep-links with #targetid anchors (SF1, SF2, ST1-ST4, STXT) that all point into the SAME single SI PDF - i.e. figures S1-S2 and tables S1-S4 live inside that one PDF. Text extraction of the Associated Data section confirmed the two-item file list with sizes.
+  download_plan: |-
+    curl -sS -L -o klimek_pmc.html https://pmc.ncbi.nlm.nih.gov/articles/PMC3478593/ for the full text (works, 200). Do NOT script the SI PDF from PMC - /articles/instance/3478593/bin/1210722109_pnas.201210722SI.pdf returns 200 with a JavaScript proof-of-work challenge page (~1.8 KB) instead of the PDF; see the pnas_si_publisher source for the human step. For the project this is a METHOD reference only: budget zero bytes of Klimek data and use the dkobak CSVs as the Russian input, which are finer-grained (95k precincts) than the aggregation levels Klimek et al. used.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: evgeny_boger_rus_elections_stats
+  name: evgeny-boger/rus-elections-stats - data/president2012.csv.gz and moscow2013.csv (2012 presidential
+    only)
+  provider: GitHub user evgeny-boger
+  url: https://github.com/evgeny-boger/rus-elections-stats
+  access: free
+  status: partial
+  fetched_at: '2026-09-03T22:25:24Z'
+  http_status: 200
+  sha256: null
+  bytes: 4821952
+  local_path: null
+  license: Unlicense (GitHub API spdx_id)
+  notes: 'README: ''get_data.py - download official CEC data; plot_results.py - plot various histograms
+    using ROOT''. Only 2012 presidential at federal level; no 2011 or 2018. Listed via gh api only; data
+    file not downloaded.'
+  blocked_reason: null
+  evidence: |-
+    gh api repos/evgeny-boger/rus-elections-stats/contents/data -> moscow2013.csv 1,164,669; president2012.csv.gz 4,821,952; ukraine_2014_pres.txt 4,892,927.
+  download_plan: |-
+    Only as a 2012 cross-check: GET https://raw.githubusercontent.com/evgeny-boger/rus-elections-stats/master/data/president2012.csv.gz (4.8 MB), gunzip, inspect header. Unlicense = public domain.
+  verification:
+    verdict: confirmed
+    reason: 'Repo page 200. data/ listing: moscow2013.csv 1,164,669; president2012.csv.gz 4,821,952; ukraine_2014_pres.txt
+      4,892,927 (matches). Range-fetched first 4 KB of president2012.csv.gz (206) and decompressed: rows
+      are UIK-level 2012 presidential records (e.g. ''Республика Адыгея (Адыгея)/Красногвардейская/УИК
+      №65'' with izbirkom.ru type=226 URL and protocol counts), no header in sample. Only 2012 presidential,
+      no 2011/2018 -> ''partial'' correct.'
+    checked_at: '2026-09-04T18:16:08Z'
+    hunt: elections_mirrors
+- id: modos189_cikinfo
+  name: modos189/cikinfo - CEC data web app (no data dumps published)
+  provider: GitHub (mirror of gitlab.com/modos189/cikinfo)
+  url: https://api.github.com/repos/modos189/cikinfo
+  access: free
+  status: partial
+  fetched_at: '2026-09-06T13:53:08Z'
+  http_status: 200
+  sha256: null
+  bytes: null
+  local_path: null
+  license: null
+  notes: Checked as a possible alternative mirror; it is not one. The repo is a 2.4 MB web application
+    (described as 'Mirror of the repository on https://gitlab.com/modos189/cikinfo/'), last pushed 2020-09-23,
+    and its releases endpoint returned an EMPTY list - so there are no attached data assets. Any data
+    lives in a backing database, not in the repo. Not worth further pursuit given dkobak/elections already
+    answers the question.
+  blocked_reason: null
+  evidence: |-
+    gh api repos/modos189/cikinfo returned size 2441, pushed_at 2020-09-23T20:12:22Z, description 'Mirror of the repository on https://gitlab.com/modos189/cikinfo/'. gh api repos/modos189/cikinfo/releases returned zero rows.
+  download_plan: |-
+    Skip. If ever needed, `gh api repos/modos189/cikinfo/releases` to re-check for assets, or clone the GitLab original for the scraper code. Related repos surfaced by `gh api 'search/repositories?q=izbirkom&sort=stars'` (28 total hits) that are code-not-data: ulex/izbirkom21 (35 stars), fall-out-bug/izbirkom_viz (13), ystepanoff/izbirkom (7), fall-out-bug/izbirkom_parser (5), kkalininMI/CECscraper (3, an R scraping package), Telichkin/constitution_data (2), mpenkov/prezident2018 (2).
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: shpilkin_livejournal
+  name: Sergey Shpilkin (podmoskovnik) LiveJournal - primary publication venue of Shpilkin's UIK tables
+  provider: LiveJournal
+  url: https://podmoskovnik.livejournal.com/
+  access: free
+  status: partial
+  fetched_at: '2026-09-03T22:25:20Z'
+  http_status: 200
+  sha256: null
+  bytes: 814388
+  local_path: null
+  license: null
+  notes: 'Landing page reachable (title ''Homme de nombres — LiveJournal''). I did not locate a live direct
+    download of Shpilkin''s own 2011 or 2018 tables: the only concrete link I found (the Google Drive
+    file cited in Palladain''s README, https://drive.google.com/file/d/1hQQM_ceSzwVWBVyJJynW3_3UNKaJe4o5/view)
+    returns 404. Shpilkin''s tables are what dkobak/elections redistributes (README credit), so the GitHub
+    mirror is the practical primary.'
+  blocked_reason: null
+  evidence: |-
+    GET https://podmoskovnik.livejournal.com/ -> 200, 814,388 B HTML. HEAD https://drive.google.com/file/d/1hQQM_ceSzwVWBVyJJynW3_3UNKaJe4o5/view?usp=sharing -> 404.
+  download_plan: |-
+    Not needed for acquisition; use dkobak/elections. If provenance documentation is wanted, a human should browse the blog's 2011-12 and 2018-03 posts for the original table links and record them.
+  verification:
+    verdict: confirmed
+    reason: GET -> 200, 814,825 B, title 'Homme de nombres — LiveJournal'. Page contains several Google
+      Drive/Docs links (folders 1apRilLMPs..., 1rb75hfhx..., files 1LJ8o7dI..., 1qw_e2qe..., and the 1hQQM_ce...
+      file), but the 1hQQM_ce... file cited for 2018 returns 404 as claimed; the other Drive links were
+      not verified. Landing page only, no confirmed direct 2011/2018 UIK table download -> 'partial' is
+      correct.
+    checked_at: '2026-09-04T18:16:08Z'
+    hunt: elections_mirrors
+- id: slinko_2018_uik_scrape
+  name: SlinkoIgor/russian_elections_2018 - independent 2018 presidential scrape (table_227_level_3.txt)
+  provider: GitHub user SlinkoIgor
+  url: https://github.com/SlinkoIgor/russian_elections_2018
+  access: free
+  status: partial
+  fetched_at: '2026-09-03T22:25:39Z'
+  http_status: 200
+  sha256: null
+  bytes: 33642803
+  local_path: null
+  license: null
+  notes: Repo has only results_20_Mar_2018_12_03/table_227_level_2.txt (974,044 B) and table_227_level_3.txt
+    (33,642,803 B) plus russian_elections_2018.ipynb; no README, no license; last push 2018-03-31. 'type=227'
+    is the CEC page type for presidential results and level_3 is the UIK level in the CEC hierarchy, and
+    the folder name dates the snapshot to 2018-03-20 12:03 - but I only confirmed the file exists via
+    HEAD; I did not download or inspect its columns/rows.
+  blocked_reason: null
+  evidence: |-
+    gh api repos/SlinkoIgor/russian_elections_2018/contents/results_20_Mar_2018_12_03 -> two files as listed. HEAD https://raw.githubusercontent.com/SlinkoIgor/russian_elections_2018/master/results_20_Mar_2018_12_03/table_227_level_3.txt -> 200, Content-Length: 33642803, Content-Type: text/plain; charset=utf-8.
+  download_plan: |-
+    Only if a third independent 2018 snapshot is wanted: GET the raw URL above (33.6 MB, one request), then inspect the header/delimiter in the notebook russian_elections_2018.ipynb before parsing. Lower priority than dkobak and Palladain.
+  verification:
+    verdict: confirmed
+    reason: 'Repo page 200; results_20_Mar_2018_12_03 contains table_227_level_2.txt 974,044 B and table_227_level_3.txt
+      33,642,803 B as claimed. HEAD on raw level_3 -> 200, Content-Length 33642803, text/plain. Range-fetched
+      first 300 KB (206): tab-separated with header region/tik/uik + Russian CEC protocol lines + 2018
+      presidential candidates (Бабурин, Грудинин, ...), i.e. UIK-level 2018 presidential data. Full file
+      not downloaded (>50 MB budget rule not triggered but only sampled), so ''partial'' stands.'
+    checked_at: '2026-09-04T18:16:08Z'
+    hunt: elections_mirrors
+- id: wayback_vybory_2011_duma
+  name: Wayback Machine copies of vybory.izbirkom.ru pages for the 2011 State Duma election (vrn=100100028713299)
+  provider: Internet Archive (web.archive.org), archiving CEC of Russia pages
+  url: http://web.archive.org/web/20211229055548/http://www.vybory.izbirkom.ru/region/region/izbirkom?action=show&root=1&tvd=100100028713304&vrn=100100028713299&region=0&global=1&sub_region=0&prver=0&pronetvd=null&vibid=100100028713304&type=233
+  access: free
+  status: partial
+  fetched_at: '2026-09-03T22:23:19Z'
+  http_status: 200
+  sha256: 957681fd690ac4c22d2cd994d075576dc61dc7db6d2d9a4f335bdd1418f753ad
+  bytes: 398883
+  local_path: null
+  license: null
+  notes: 'Availability API: closest snapshot 20211229055548, status 200. Fetched it: 398,883 bytes, text/html;charset=Windows-1251,
+    title ''Сведения о проводящихся выборах и референдумах'', field ''Дата голосования 04.12.2011'', ''Наименование
+    комиссии ЦИК России'', 44-row summary table (row 1 ''Число избирателей, внесенных в список избирателей''
+    = 109,229,337 nationally; row 24 ''Всероссийская политическая партия ЕДИНАЯ РОССИЯ'' = 32,371,737
+    = 49.31%), 220 links with vibid=<tvd>&type=233 (regions: ''Республика Адыгея (Адыгея)'' -> vibid=100100028713305,
+    ''Республика Алтай'' -> 100100028713306, ''Республика Башкортостан - Бирская'' -> 100100028713308
+    ...). Region page for Adygea (vibid=100100028713305&type=233) resolved to snapshot 20220120093245:
+    200, 104,051 bytes, same layout with 9 TIK columns (Adygea total 340,097 voters, UR 136,612 = 61.00%);
+    its 28 result links all stay on www.vybory.izbirkom.ru. CDX census (collapse=urlkey, statuscode 200):
+    www.vybory.izbirkom.ru/region/region/* with vrn=100100028713299 -> >=400 distinct URLs (limit hit;
+    types 220:295, 233:82, 341:20; 79 distinct root= values); www.moscow_city.vybory.izbirkom.ru/region/region/moscow_city*
+    -> >=100 distinct URLs (limit hit; types 242:39, 233:24, 453:8, 240:7, 236:7, 220:7) incl. TIK-level
+    type=233 tables e.g. 20120127065103 root=772000025&tvd=2772000306502 (8,214 bytes) and 20130603071302
+    root=772000047&tvd=2772000306525 (4,301 bytes); www.adygei.vybory.izbirkom.ru/region/region/adygei*
+    -> exactly 1 URL (action=finance_download, 576 bytes). So Wayback has the national and regional summary
+    tables reliably, and TIK-level (UIK-column) tables only where crawlers went (Moscow yes, Adygea no).
+    A domain-wide CDX (matchType=domain, filter type=233, limit 80) returned only www.vybory.izbirkom.ru
+    rows because SURT ordering lists the bare host first - inconclusive for other subdomains; a per-subdomain
+    census is required.'
+  blocked_reason: null
+  evidence: |-
+    curl 22:21:59Z availability JSON (551 bytes) -> closest 20211229055548 available:true; curl 22:23:19Z snapshot 200 398,883 bytes; decoded cp1251 shows 'Дата голосования 04.12.2011' and the 109,229,337 / 32,371,737 (49.31%) rows; curl 22:26:34Z Adygea region page 200 104,051 bytes; CDX 22:23:24Z 400 rows (86,032 bytes); CDX moscow_city 22:29:21Z 100 rows (24,456 bytes); CDX adygei 22:26:41Z 1 row (137 bytes).
+  download_plan: |-
+    1) Census: for each regional subdomain slug (derive slugs from the region links on the archived region pages; ~85 subdomains), query http://web.archive.org/cdx/search/cdx?url=www.<slug>.vybory.izbirkom.ru/region/region/<slug>*&filter=original:.*vrn=100100028713299.*type=233.*&filter=statuscode:200&collapse=urlkey&fl=timestamp,original,length&showResumeKey=true&limit=2000 (paginate with resumeKey; each query 1-90 s, some time out at 90 s - use --max-time 300 and retry). 2) Parse tvd= values; keep only TIK-level rows (tvd not equal to the region tvd). 3) Fetch raw bytes with http://web.archive.org/web/<timestamp>id_/<original> (the id_ flag returns the original page without Wayback rewriting), decode Windows-1251, parse the results <table>. Rate <=1 req/s, idempotent by (timestamp, original) -> file. Expect 5-15 KB per TIK page. Coverage will be incomplete; record per-region completeness against the region page's TIK list before use.
+  verification:
+    verdict: confirmed
+    reason: 'Snapshot 20211229055548 returned 200, 398,883 bytes, text/html;charset=Windows-1251, title
+      ''Сведения о проводящихся выборах и референдумах'', ''Дата голосования 04.12.2011'', 109229337 voters,
+      ЕДИНАЯ РОССИЯ 32371737 49.31%, 221 vibid=...&type=233 links. Adygea region page reached via the
+      link in that page (archived URL omits root=1) -> snapshot 20220120093245, 200, 104,049 bytes, contains
+      340097 / 136612 / 61.00 as claimed; the direct URL with root=1 is not archived (availability API
+      returns no snapshot), a minor URL-form detail. Moscow CDX confirms TIK-level type=233 page 20120127065103
+      root=772000025&tvd=2772000306502 (8,214 bytes). ''partial'' is the right status: national/regional
+      tables archived, TIK-level coverage uneven.'
+    checked_at: '2026-09-04T18:15:26Z'
+    hunt: elections_cec_portal
+- id: wayback_vybory_2018_pres
+  name: Wayback Machine copies of vybory.izbirkom.ru pages for the 2018 presidential election (vrn=100100084849062)
+  provider: Internet Archive (web.archive.org), archiving CEC of Russia pages
+  url: http://web.archive.org/web/20211017143447/http://www.vybory.izbirkom.ru/region/region/izbirkom?action=show&root=1&tvd=100100084849066&vrn=100100084849062&region=0&global=1&sub_region=0&prver=0&pronetvd=null&vibid=100100084849066&type=226
+  access: free
+  status: partial
+  fetched_at: '2026-09-03T22:23:22Z'
+  http_status: 200
+  sha256: 7075447561d55e8bf0d6977ce7ce009039ac81e166b01ac362c62ce01ac735cd
+  bytes: 74557
+  local_path: null
+  license: null
+  notes: 'Availability API: closest snapshot 20211017143447, status 200. Fetched: 74,557 bytes, Windows-1251,
+    ''Дата голосования 18.03.2018'', 37-row table: ''Число избирателей, включенных в список избирателей''
+    109,001,306; ''Грудинин Павел Николаевич'' 8,658,732 11.77%; ''Путин Владимир Владимирович'' 56,426,399
+    76.69% (note: 4,313 fewer votes than the 56,430,712 in CEC Resolution 152/1255-7 shown on the cikrf.ru
+    English page - the izbirkom summary snapshot and the final resolution differ slightly). CDX on www.vybory.izbirkom.ru/region/region/*
+    with this vrn: the request timed out at 90 s after 145 rows (32,875 bytes) - types 341:76, 227:59,
+    221:5, 226:3; 94 rows carry cuiknum= (UIK-search pages). CDX on www.adygei.vybory.izbirkom.ru/region/region/adygei*:
+    19 distinct 200 URLs - region root tvd=100100084849067 with types 221/226/227/238/453/469/470/475
+    (2018-03..09), 10 TIK-level type=238 pages vibid=2012000364363..2012000364371 (2018-03-25, 3-5 KB),
+    and one per-UIK page 20190913225540 root=14007009&tvd=4014007256910&type=226. Fetched that leaf: 200,
+    14,242 bytes, breadcrumb ''Республика Адыгея (Адыгея) > Тахтамукайская > УИК №195'', ''Дата голосования:
+    18.03.2018'', 38 rows, voters 1,522, Grudinin 156 12.08%, Putin 1,050 81.33%; links go to www.adygei.vybory.izbirkom.ru
+    (5) and www.adygei.izbirkom.ru (2). Adygea has ~270 UIKs and Wayback holds 19 URLs for it, so UIK-level
+    coverage via Wayback is sparse for 2018; the TIK-level type=238 pages (UIKs as columns) are the useful
+    unit where present.'
+  blocked_reason: null
+  evidence: |-
+    curl 22:22:03Z availability JSON -> 20211017143447 available:true; curl 22:23:22Z snapshot 200 74,557 bytes with 'Дата голосования 18.03.2018' and Putin 56,426,399 76.69%; CDX 22:23:32Z partial (rc=28 timeout, 145 rows); CDX adygei 22:27:08Z 19 rows (4,289 bytes); curl 22:28:20Z UIK 195 leaf 200 14,242 bytes with the rows quoted above.
+  download_plan: |-
+    Same procedure as 2011 but filter type=238 (TIK page listing UIK columns) and type=226 (summary/leaf): CDX per regional subdomain with filter=original:.*vrn=100100084849062.*, showResumeKey pagination, --max-time 300; fetch http://web.archive.org/web/<ts>id_/<original>; decode Windows-1251. Also harvest the cuiknum= search pages only if needed for UIK number mapping. Budget ~1 req/s. Expect 3-5 KB per TIK/UIK page. Quantify coverage per region against the region page's TIK list (2018 Adygea region page lists TIK vibids 2012000364363-2012000364371) before deciding whether Wayback is worth it; expect large gaps.
+  verification:
+    verdict: confirmed
+    reason: 'Snapshot returned 200, 74,544 bytes (claim said 74,557; Wayback toolbar variance), Windows-1251,
+      ''Дата голосования 18.03.2018'', 109001306 voters, ''Путин Владимир Владимирович 56426399 76.69%''.
+      Adygea UIK 195 leaf (20190913225540, root=14007009&tvd=4014007256910&type=226) returned 200, 14,241
+      bytes with ''УИК №195'', ''Тахтамукайская'', 1522 voters, Putin 1050 81.33%, Grudinin 156 12.08%
+      exactly as claimed. ''partial'' status correct: UIK-level Wayback coverage is sparse.'
+    checked_at: '2026-09-04T18:15:29Z'
+    hunt: elections_cec_portal
+- id: cec_vybory_izbirkom_live
+  name: CEC of Russia results portal (ГАС Выборы web front-end) - www.vybory.izbirkom.ru
+  provider: Central Election Commission of the Russian Federation
+  url: http://www.vybory.izbirkom.ru/region/region/izbirkom?action=show&root=1&tvd=100100028713304&vrn=100100028713299&region=0&global=1&sub_region=0&prver=0&pronetvd=null&vibid=100100028713304&type=233
+  access: free
+  status: blocked
+  fetched_at: '2026-09-03T22:22:36Z'
+  http_status: null
+  sha256: null
+  bytes: 0
+  local_path: null
+  license: null
+  notes: 'Hostname does not resolve from this machine or from WebFetch''s network. nslookup www.vybory.izbirkom.ru
+    / vybory.izbirkom.ru against the system resolver (192.168.1.1), 8.8.8.8 and 1.1.1.1 returned no A
+    record; curl rc=6 ''Could not resolve host'' on http and https, with and without www; WebFetch: ''getaddrinfo
+    ENOTFOUND www.vybory.izbirkom.ru''. Regional subdomain www.adygei.vybory.izbirkom.ru also does not
+    resolve via 8.8.8.8. izbirkom.ru itself resolves to 5.143.246.137 and its NS records are ns1.izbirkom.ru
+    / ns2.izbirkom.ru (self-hosted), so either the hostname was retired or the authoritative DNS answers
+    only Russian clients - indistinguishable from here. URL structure (from archived pages): root = /region/region/izbirkom?action=show&root=1&tvd=<root_tvd>&vrn=<vrn>&region=0&global=1&sub_region=0&prver=0&pronetvd=null&vibid=<root_tvd>&type=<T>;
+    region level = same endpoint with vibid=<region_tvd> (2011: Adygea 100100028713305, Altai 100100028713306,
+    Bashkortostan-Birskaya 100100028713308 ...); TIK/UIK level lives on www.<region_slug>.vybory.izbirkom.ru/region/region/<region_slug>?action=show&root=<root>&tvd=<tik_tvd>&vrn=<vrn>&region=<code>&global=true&sub_region=<code>&prver=0&pronetvd=null&vibid=<tik_tvd>&type=<T>.
+    2011 Duma: vrn=100100028713299, root_tvd=100100028713304, summary-table type=233 (Moscow TIK example
+    root=772000025&tvd=2772000306502&region=77). 2018 presidential: vrn=100100084849062, root_tvd=100100084849066,
+    summary type=226, per-TIK type=238 seen in 2018 crawls, per-UIK leaf root=<tik_root>&tvd=<uik_tvd>&type=226
+    (Adygea UIK 195: root=14007009&tvd=4014007256910). Leaf tables are server-rendered HTML tables (rows
+    = protocol lines 1..N then candidates/parties with ''count pct%'' cells; columns = subordinate commissions),
+    Windows-1251 encoded, 3-15 KB. Not JS-rendered. CECscraper README (2020) states the CEC site became
+    unusable for scraping ''because of many captchas''.'
+  blocked_reason: 'DNS: hostname does not resolve from any public resolver tried (system, 8.8.8.8, 1.1.1.1)
+    nor from WebFetch''s network (ENOTFOUND); authoritative NS are CEC-hosted and the CEC IP 5.143.246.137
+    drops/refuses foreign TCP connections, consistent with geo-restriction to Russian IPs.'
+  evidence: |-
+    curl 2026-09-03T22:21:37Z rc=6 'Could not resolve host: www.vybory.izbirkom.ru' (http); 22:22:36Z rc=6 for https://www.vybory.izbirkom.ru and http://vybory.izbirkom.ru; WebFetch getaddrinfo ENOTFOUND; nslookup via 8.8.8.8 and 1.1.1.1 returned name with no address. URL structure and leaf format confirmed from Wayback copies (see wayback_* sources).
+  download_plan: |-
+    Not fetchable from outside Russia. If a human confirms access from a Russian IP: walk (1) root page for the election vrn (2011: vrn=100100028713299&tvd=100100028713304&type=233; 2018: vrn=100100084849062&tvd=100100084849066&type=226) on www.vybory.izbirkom.ru, parse the ~83-86 region <a href> links (…&vibid=<region_tvd>&type=<T>); (2) each region page, collect the 'сайт избирательной комиссии субъекта' / TIK links that jump to www.<region_slug>.vybory.izbirkom.ru; (3) on the subdomain, fetch each TIK page with type=233 (2011) / type=226 (2018) whose columns are the UIKs (one HTTP GET per TIK, ~2,800 TIKs total, 5-15 KB each => ~30 MB per election); decode Windows-1251; parse <tr> rows by protocol line number. Use <=1 request/s, a fixed UA, persistent cookies, retry-with-backoff on 5xx, and store raw HTML keyed by (vrn, tik_tvd). Expect captcha challenges (documented by CECscraper, 2020) - stop and hand to a human if an HTML response lacks the results table.
+  verification:
+    verdict: confirmed
+    reason: 'Re-fetched 2026-09-04T18:14:53Z: curl rc=6 ''Could not resolve host''; nslookup against 8.8.8.8
+      returns NXDOMAIN (''Non-existent domain''). Claimed status ''blocked'' with http_status null is
+      accurate. URL structure claims are consistent with the Wayback copies inspected below.'
+    checked_at: '2026-09-04T18:14:53Z'
+    hunt: elections_cec_portal
+- id: cikrf_ru_live
+  name: CEC of Russia main site (cikrf.ru / www.cikrf.ru)
+  provider: Central Election Commission of the Russian Federation
+  url: https://www.cikrf.ru/
+  access: free
+  status: blocked
+  fetched_at: '2026-09-03T22:22:57Z'
+  http_status: null
+  sha256: null
+  bytes: 0
+  local_path: null
+  license: null
+  notes: 'www.cikrf.ru, cikrf.ru and izbirkom.ru all resolve to 5.143.246.137 (system resolver and 8.8.8.8).
+    TCP connects to port 80 and 443 time out after ~21 s from this machine (curl rc=28: ''Failed to connect
+    to www.cikrf.ru port 80 after 21253 ms'', same for :443 on www.cikrf.ru and cikrf.ru). WebFetch from
+    Anthropic''s network got ''connect ECONNREFUSED 5.143.246.137:443'' on the English 2018 results page.
+    Two different networks, two different failure modes (silent drop vs RST) - a deliberate IP-level block
+    of non-Russian traffic, not a dead server.'
+  blocked_reason: TCP connection to 5.143.246.137:80/:443 times out from this machine (curl rc=28) and
+    is refused (ECONNREFUSED) from WebFetch's network; DNS resolves fine. Geo/IP block.
+  evidence: |-
+    curl 22:21:37Z http://www.cikrf.ru/ rc=28 after 21253 ms; 22:22:36Z https://www.cikrf.ru/ rc=28 after 21015 ms; 22:22:57Z https://cikrf.ru/ rc=28 after 21134 ms; WebFetch http://www.cikrf.ru/eng/information-center/results-of-russian-presidential-elections-2018.php -> connect ECONNREFUSED 5.143.246.137:443.
+  download_plan: |-
+    Only via a Russian IP (VPN/proxy) or via Wayback (see cikrf_eng_2018_wayback). cikrf.ru hosts official resolutions/PDF protocols, not the UIK tables; not needed for precinct data.
+  verification:
+    verdict: confirmed
+    reason: 'Re-fetched 2026-09-04T18:14:54Z: curl rc=28 ''Failed to connect to www.cikrf.ru port 443
+      after 21361 ms''. Host resolves but TCP connect times out, matching the claimed IP-level block.
+      Status ''blocked'' is correct.'
+    checked_at: '2026-09-04T18:14:54Z'
+    hunt: elections_cec_portal
+- id: gislab_wiki_live
+  name: GIS-Lab wiki page (live host) - currently down
+  provider: wiki.gis-lab.info
+  url: https://wiki.gis-lab.info/w/%D0%94%D0%B0%D0%BD%D0%BD%D1%8B%D0%B5_%D0%BF%D0%BE_%D0%B8%D0%B7%D0%B1%D0%B8%D1%80%D0%B0%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%BC_%D0%BA%D0%BE%D0%BC%D0%B8%D1%81%D1%81%D0%B8%D1%8F%D0%BC_%D0%A0%D0%A4_%D0%B8%D0%B7_%D0%93%D0%90%D0%A1_%D0%92%D1%8B%D0%B1%D0%BE%D1%80%D1%8B
+  access: free
+  status: blocked
+  fetched_at: '2026-09-06T13:56:15Z'
+  http_status: 502
+  sha256: null
+  bytes: 166
+  local_path: null
+  license: null
+  notes: Documented so nobody re-tries it and concludes the data is gone. The wiki subdomain is down but
+    the DATA subdomain (gis-lab.info/data/cik/) is fully alive and served me a 4.88 MB archive one minute
+    later. Wiki outage != dataset loss.
+  blocked_reason: HTTP 502 Bad Gateway from the origin (166-byte error body). Server-side outage of the
+    wiki subdomain, not geo-blocking or TLS failure - the sibling host gis-lab.info responds normally
+    from here.
+  evidence: |-
+    curl -sS -L with a 60 s timeout returned '502 166 text/html; charset=UTF-8' with url_effective unchanged (no redirect), and the 166-byte body is a bare gateway error page containing no article content or download links. One minute later the sibling host gis-lab.info answered a HEAD and then a 4,881,728-byte GET with HTTP 200, proving the failure is scoped to the wiki subdomain and is not a network- or TLS-level block from this location.
+  download_plan: |-
+    Do not depend on it. Use the Wayback snapshot (source gislab_wiki_wayback) for documentation and hit gis-lab.info/data/cik/ directly for files. Optionally re-probe the live wiki once per acquisition run and prefer it on 200.
+  verification:
+    verdict: not_verified
+    reason: no verdict returned for this id
+    checked_at: null
+    hunt: elections_followup
+- id: klimek_pnas_2012_si
+  name: Klimek, Yegorov, Hanel & Thurner 2012 PNAS 'Statistical detection of systematic election irregularities'
+    - Supporting Information / dataset
+  provider: PNAS (doi:10.1073/pnas.1210722109); PMC3478593; IIASA PURE eprint 9865
+  url: https://www.pnas.org/doi/suppl/10.1073/pnas.1210722109
+  access: free
+  status: blocked
+  fetched_at: '2026-09-03T22:24:23Z'
+  http_status: 403
+  sha256: null
+  bytes: 5609
+  local_path: null
+  license: null
+  notes: 'Article abstract page https://www.pnas.org/doi/abs/10.1073/pnas.1210722109 -> WebFetch 403;
+    SI page -> curl 403 (5,609 B bot-block HTML). PMC copy: https://www.ncbi.nlm.nih.gov/pmc/articles/pmid/23010929/
+    redirected to https://pmc.ncbi.nlm.nih.gov/articles/pmid/23010929/ -> 200 but 21,355 B page titled
+    ''Checking your browser - reCAPTCHA''; WebFetch of https://pmc.ncbi.nlm.nih.gov/articles/PMC3478593/
+    likewise returned only the reCAPTCHA screen. IIASA PURE https://pure.iiasa.ac.at/id/eprint/9865/ ->
+    200, 46,277 B, links the paper PDF at https://pure.iiasa.ac.at/id/eprint/9865/1/Statistical%20detection%20of%20systematic%20election%20irregularities.pdf
+    (not fetched; this is the article, not the SI). A WebSearch snippet claims the SI table lists ''official
+    sources of election results'' and that ''raw data [is] made available for download at http://www.complex-systems.meduniwien.ac.at/''
+    - that host now 301-redirects to https://complex-systems.meduniwien.ac.at/ which does not resolve
+    in DNS (curl error 6). So the Klimek dataset itself is NOT currently downloadable from any URL I could
+    confirm. Klimek''s Russia 2011 and 2012 inputs are by their own description the CEC precinct results,
+    i.e. the same underlying data as Kobak''s files.'
+  blocked_reason: pnas.org returns HTTP 403 to non-browser clients (both curl and WebFetch); PMC serves
+    a reCAPTCHA interstitial; the authors' data host complex-systems.meduniwien.ac.at no longer resolves.
+  evidence: |-
+    curl https://www.pnas.org/doi/suppl/10.1073/pnas.1210722109 -> '403 5609 text/html'. WebFetch https://www.pnas.org/doi/abs/10.1073/pnas.1210722109 -> 'HTTP 403 Forbidden'. curl PMC by PMID -> 200 but <title>Checking your browser - reCAPTCHA. curl http://www.complex-systems.meduniwien.ac.at/ -> 301 then 'Could not resolve host: complex-systems.meduniwien.ac.at'.
+  download_plan: |-
+    Human\: open https://www.pnas.org/doi/10.1073/pnas.1210722109 in a browser, click 'Supporting Information', save the SI PDF (pnas.1210722109.sapp.pdf or similar) into the project's docs, and transcribe the SI data-source table. Then check the Wayback Machine (web.archive.org/web/2013*/complex-systems.meduniwien.ac.at*) for the election data download the SI points to; if absent, email P. Klimek / S. Thurner (now at Complexity Science Hub Vienna, csh.ac.at) for the per-country files. For the Russian 2011/2012 anchors, Kobak's data/2011.csv and data/2012.csv are the same CEC precinct data and are sufficient to reproduce the Klimek turnout-bimodality figure.
+  verification:
+    verdict: confirmed
+    reason: curl -> 403, 5,630 B text/html bot-block page, same as claimed. Claim already marked blocked;
+      nothing to upgrade. SI content could not be inspected.
+    checked_at: '2026-09-04T18:15:15Z'
+    hunt: elections_mirrors
+- id: datahub_2011_duma
+  name: '''2011 Duma election, Russia'' dataset on old.datahub.io'
+  provider: Datahub (CKAN, legacy)
+  url: https://old.datahub.io/dataset/2011-duma-election-russia
+  access: free
+  status: unverified
+  fetched_at: '2026-09-03T22:23:49Z'
+  http_status: 404
+  sha256: null
+  bytes: 107
+  local_path: null
+  license: null
+  notes: 'Surfaced by WebSearch as a precinct-level 2011 Duma dataset downloaded from izbirkom.ru with
+    voting-machine locations. Cannot be confirmed to still exist: the host''s TLS certificate is expired
+    (curl error 35 SEC_E_CERT_EXPIRED; WebFetch ''certificate has expired''), and with certificate checking
+    disabled the URL returns 404 (107 B). Treat as dead.'
+  blocked_reason: null
+  evidence: |-
+    curl -> 'schannel: SEC_E_CERT_EXPIRED', no HTTP status; WebFetch -> 'certificate has expired'; curl -k -> '404 107 text/plain'.
+  download_plan: |-
+    None. If the metadata is wanted, a human can try web.archive.org for old.datahub.io/dataset/2011-duma-election-russia; the CKAN resource files (if any were ever attached) may be archived there.
+  verification:
+    verdict: confirmed
+    reason: curl -> error 35 SEC_E_CERT_EXPIRED (expired TLS certificate), no HTTP status; with -k ->
+      404, 107 B text/plain. Dataset is effectively dead, exactly as the claim states (claim already 'unverified'
+      / treat as dead). Nothing stronger can be granted.
+    checked_at: '2026-09-04T18:15:15Z'
+    hunt: elections_mirrors
+- id: notelections_online_mirror
+  name: notelections.online - former captcha-free mirror of the CEC portal (cited by CECscraper)
+  provider: Ivan Shukshin (private)
+  url: http://notelections.online/region/izbirkom?action=show&vrn=100100028713299&region=0&prver=0&pronetvd=null
+  access: free
+  status: unverified
+  fetched_at: '2026-09-03T22:28:26Z'
+  http_status: 200
+  sha256: 1ab5b0111215a05297888f31144492a3d4eeef50326640bf82d6343fd7cfeb09
+  bytes: 12774
+  local_path: null
+  license: null
+  notes: 'CECscraper''s README (2020) says the CEC site became unscrapable due to captchas and points
+    to this mirror. Today http://notelections.online/ redirects to https and returns a 12,774-byte UTF-8
+    page titled ''Ivan Shukshin - Electoral Analyst'' (personal site: observations, investigations). The
+    two izbirkom-style URLs for the 2011 and 2018 vrns return the identical 12,774-byte homepage with
+    no forms and no vrn= links. The mirror no longer exists at this domain. [VERIFIER REFUTED: Redirects
+    to https and returns a 12,774-byte page titled ''Ivan Shukshin – Electoral Analyst'' with zero ''vrn=''
+    occurrences; it is a personal site, not a CEC mirror. The claimant already reported this and marked
+    it ''unverified'' (matching), but as a data source the mirror does not exist at this domain, so the
+    source claim itself is refuted. CECscraper README does reference notelections.online (13 mentions),
+    so the provenance of the pointer is real.]'
+  blocked_reason: null
+  evidence: |-
+    curl 22:27:14Z https://notelections.online/ 200 12,774 bytes; curl 22:28:26Z both vrn URLs 200 12,774 bytes, same content (title 'Ivan Shukshin - Electoral Analyst', LINKS with vrn: none).
+  download_plan: |-
+    None - defunct as a data mirror. A human could contact the site owner (site lists 'About') to ask whether the mirrored CEC dump still exists offline.
+  verification:
+    verdict: refuted
+    reason: Redirects to https and returns a 12,774-byte page titled 'Ivan Shukshin – Electoral Analyst'
+      with zero 'vrn=' occurrences; it is a personal site, not a CEC mirror. The claimant already reported
+      this and marked it 'unverified' (matching), but as a data source the mirror does not exist at this
+      domain, so the source claim itself is refuted. CECscraper README does reference notelections.online
+      (13 mentions), so the provenance of the pointer is real.
+    checked_at: '2026-09-04T18:16:20Z'
+    hunt: elections_cec_portal
