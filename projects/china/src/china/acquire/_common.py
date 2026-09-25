@@ -15,7 +15,7 @@ entry's ``sha256``, ``bytes``, ``local_path`` and ``status`` with the fetched fi
 registry entry has one such slot and :func:`fetch_files` issues one ``fetch`` per member under
 one source id, so after a completed family crawl the entry's ``sha256`` belongs to whichever
 member was fetched last, and the digest the registry was written with is gone. That is a
-property of the shared library, which this project vendors as a submodule and does not edit;
+property of the shared library, which a project card does not edit;
 it has been raised upstream as needing a flag that logs a family member to ``fetch_log.jsonl``
 without touching the entry's integrity fields.
 

@@ -97,8 +97,8 @@ What this does and does not cost:
 - **What is genuinely lost is `SOURCES.yaml` as a digest record for the family entries after
   run one.** Do not read a family entry's `sha256` and call it that entry's digest.
 
-This is behaviour of the shared library, which this project vendors as a submodule at
-`packages/forensics_core` and must not edit. It is raised upstream as a library change:
+This is behaviour of the shared library at `packages/forensics_core`, which a china card
+must not edit. It is raised as a library change:
 `fetch` needs a way to log a family member without rewriting the entry's integrity fields.
 
 ## Blocked, with the actual failure
@@ -179,8 +179,7 @@ differently.
   `UnicodeEncodeError: 'charmap' codec can't encode characters`. Several registry `name`
   fields are in Chinese and the shared runner prints them to a cp1252 console. Set
   `PYTHONIOENCODING=utf-8` before running. This is a limitation of the shared runner, not of
-  this project; it is reported upstream rather than patched here, because
-  `packages/forensics_core` is a submodule.
+  this project; it is reported as a library change rather than patched from a china card.
 - **The first run of any yearbook table acquirer also fetches 21 contents frames**, one per
   edition from 2005 to 2025, in English.
   That is deliberate: a table is located by its printed title in the edition's own menu,
