@@ -5,10 +5,13 @@ transcribe. Both are generated from code (`gosplan.transcribe.schema`,
 `gosplan.transcribe.targets`), so this document describes them but is not their definition.
 If the two ever disagree, the code is right and this file is stale.
 
-Everything below concerns **transcription**. The machine-readable sources this project also
-uses (FAOSTAT, USDA, Maddison, Harrison, the World Bank archive, the Hokkaido series) keep
-their publishers' own schemas and are documented in `data/SOURCES.yaml`; the only field this
-project adds to them is the registry id.
+Most of what follows concerns **transcription**. The machine-readable sources this project
+also uses (FAOSTAT, USDA, Maddison, Harrison, the World Bank archive, the Hokkaido series)
+keep their publishers' own schemas, recorded in `data/SOURCES.yaml`. Where a loader exists
+(`gosplan.clean`), it keeps every published column under its published name and adds four:
+the registry id, the unit, the territorial basis and the currency basis. Which sources load,
+and which do not and why, is in [Machine-readable sources](#machine-readable-sources-gosplanclean)
+below.
 
 ---
 
@@ -247,6 +250,75 @@ first. A single index number is not a result.
 The Hokkaido SRC files code missing values as `0.0`. A loader that does not handle this turns
 "not published" into "the value was zero", which is the same error the nil-mark rule exists to
 prevent, arriving through a different door.
+
+---
+
+## Machine-readable sources (`gosplan.clean`)
+
+`gosplan.clean` loads the sources that need no transcription. The rule is the card's: **no
+column name, sheet name, unit or base year is used unless the registry records it.** Where
+the registry does not record what a loader needs, there is no loader, and the gap is listed
+here and in `gosplan.clean.UNLOADED`. A partial set of loaders with documented gaps is the
+intended state, not an unfinished one. The tests fail if a source id appears in the code but
+not in this section.
+
+### Columns every loader adds
+
+| Column | Meaning |
+|---|---|
+| `source_id` | the `SOURCES.yaml` id |
+| `unit` | the unit as the publisher states it, verbatim; never normalised or converted |
+| `territorial_basis` | `TerritorialBasis` vocabulary (trap 2); `unstated` where the publisher does not say |
+| `currency_basis` | `CurrencyBasis` vocabulary (trap 1); **blank** where the registry does not record which rouble a series is in |
+
+A blank `currency_basis` is the loader's version of the transcription rule that a transcriber
+who cannot tell leaves the cell blank. It means the series is not yet comparable across 1961.
+
+Every loaded frame has passed through `gosplan.seal.filter_sealed`; `frame.attrs["n_withheld"]`
+is the number of rows withheld, and that count is the only thing reported about them.
+
+### Loaded
+
+| Source | Loader | File read | Published columns kept | Basis columns |
+|---|---|---|---|---|
+| `usda_psd_cotton_bulk` | `load_usda_psd_cotton` | `psd_cotton.csv` inside `psd_cotton_csv.zip` (or the CSV itself) | `Commodity_Code`, `Commodity_Description`, `Country_Code`, `Country_Name`, `Market_Year`, `Calendar_Year`, `Month`, `Attribute_ID`, `Attribute_Description`, `Unit_ID`, `Unit_Description`, `Value`; only rows with `Commodity_Code` `2631000` | `unit` = `Unit_Description`; `territorial_basis` = `unstated`; `currency_basis` = `not_monetary` (a unit that looks monetary is refused, since the registry records none) |
+| `hokudai_sess` | `load_hokudai_sess` | one `S<code>.csv`, or every such file in `data/raw/hokudai_sess/series/` | `CODE NUMBER`, `FULL NAME`, `UNIT`, `SOURCE`, then one row per year column as `year`, `value_raw` (cell as published) and `value` | `unit` = `UNIT`; `territorial_basis` = `unstated`; `currency_basis` blank |
+
+Loader-level rules, each taken from the registry:
+
+- **USDA.** The header must equal the twelve recorded columns exactly. `Value` is thousands of
+  480 lb lint bales for `Production` (recorded), not tonnes and not seed cotton; the loader
+  does not convert. No union total exists for 1987-1991 and the loader does not build one.
+  Both `Market_Year` and `Calendar_Year` are kept, and the seal withholds a row if either
+  falls in the held-out window.
+- **SESS.** `0.0` is missing (registry download plan: "Treat 0.0 as missing"); `value_raw`
+  keeps the published `0.0` so the recoding is visible. `UNIT` is kept as published even
+  where the registry records it disagreeing with the magnitudes ("Mil. rubles" over figures
+  in billions). The files have no region column, so the full series name is offered to the
+  seal as both region and series. The registry records no currency basis for any SESS series,
+  so every monetary series from this loader carries a blank `currency_basis`
+  (`workorders/AMBIGUITY-WO-504-5.md`).
+- **Encoding.** No entry records a text encoding. Files are read as strict UTF-8, which fails
+  loudly rather than substituting characters.
+
+### Not loaded
+
+| Source | Format | What is missing | Report |
+|---|---|---|---|
+| `faostat_qcl_bulk_europe_ussr` | CSV (wide) in zip | The registry names `Area Code`, `Item Code`, `Element Code` and writes years as `Y1961`, but not the unit column, the area/item/element name columns, or the flag column it says must be kept; encoding recorded only as "latin-1/UTF-8". | `AMBIGUITY-WO-504-1` |
+| `faostat_qcl_bulk_asia_uzbekistan` | CSV (wide) in zip | Same layout and same gaps as the Europe file. | `AMBIGUITY-WO-504-1` |
+| `maddison_mpd2023` | `.xlsx` (readable with openpyxl) | Sheet `Full data` and its columns `countrycode, country, region, year, gdppc, pop` are recorded, but not the unit or price base year of `gdppc` (the index-number problem, trap 3), and `pop` is "thousand" only by implication. | `AMBIGUITY-WO-504-3` |
+| `harrison_sovietgrowth` | Excel 97-2003 BIFF8 `.xls` | **Needs a converter.** `openpyxl` cannot read BIFF; `xlrd` or LibreOffice would be needed and neither is a dependency. Sheet `Appendix A. Basic data` is recorded; column headers are not. | `AMBIGUITY-WO-504-2` |
+| `harrison_ussr_ww2` | six old-BIFF `.xls` (header version 1.0, codepage -535) | **Needs a converter**, as above. No sheet names or column headers recorded, only embedded strings. | `AMBIGUITY-WO-504-2` |
+| `wb_soviet_economic_decline` | zip of MicroTSP `.DB` files and Lotus 1-2-3 `USSR.WK1` | **Needs a converter.** No reader for either format in the stack. Series names (`YOFF`, `YKHAN`, `GNPWEST`, ...) are recorded; units and bases are not. | `AMBIGUITY-WO-504-2` |
+| `harrison_plan_fraud` | `.xlsx` (readable with openpyxl) | Sheet names recorded; headers only as "include Establishment, Accused, #Accused, Where, Branch", header row not recorded. It is a case index with no numeric column for a unit to describe and no recorded year or series column, so it cannot be routed through the seal without an unverified `declare_clean`. | `AMBIGUITY-WO-504-4` |
+| `harrison_greatwar_munitions_pdf` | PDF | Tables in PDF appendices: extraction or transcription, not a loader. | none |
+| `pwt_110` | `.xlsx` | The registry records that PWT has no USSR entity, and records no column names for its `Data` sheet. Nothing to load for this project. | none |
+
+Of the legacy formats: **loaded** -- nothing in a legacy format; **need a converter** --
+`harrison_sovietgrowth`, `harrison_ussr_ww2`, `wb_soviet_economic_decline`. Two readable
+`.xlsx` workbooks (`maddison_mpd2023`, `harrison_plan_fraud`) are unloaded for missing
+registry facts, not for format.
 
 ---
 
