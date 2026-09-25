@@ -15,7 +15,7 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      - run: uv sync --all-extras
+      - run: uv sync --all-packages
       - run: uv run pytest -q
 
   lint:
@@ -23,14 +23,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v9.0.0
-      - run: uv sync --all-extras
+      - run: uv sync --all-packages
       - run: uv run ruff check .
       - run: uv run ruff format --check .
 
+  registries-valid:
+    # Nothing enters a pipeline without a SOURCES.yaml entry, so the registries must parse and
+    # satisfy their own validators on every push.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+      - run: uv sync --all-packages
+      - run: make validate-sources
+
+  no-data-committed:
+    # HARD RULE: raw data never enters git. Reproducibility comes from `make data`.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: nothing under data/raw, data/interim or data/processed
+        run: |
+          set -e
+          bad=$(git ls-files | grep -E 'projects/[^/]+/data/(raw|interim|processed)/' | grep -v '\.gitkeep$' || true)
+          if [ -n "$bad" ]; then echo "ERROR: committed data:"; echo "$bad"; exit 1; fi
+          echo "no data committed"
+
   no-analysis-before-its-phase:
-    # CONTRACT rule 4. Every module under any analysis/ must still be a stub. This is the one
-    # invariant a passing test suite would not catch, because an implemented analysis module
-    # passes its tests perfectly well.
+    # CONTRACT rule 4: every analysis module is still a stub. A passing suite would not catch
+    # this, because an implemented analysis module passes its tests perfectly well.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -38,7 +59,7 @@ jobs:
         run: |
           set -e
           found=0
-          for f in $(find src -path '*/analysis/*.py' -not -name '__init__.py' 2>/dev/null); do
+          for f in $(find packages projects -path '*/analysis/*.py' -not -name '__init__.py' 2>/dev/null); do
             if ! grep -q "NotImplementedError" "$f"; then
               echo "ERROR: $f contains no NotImplementedError; analysis has been implemented"
               found=1

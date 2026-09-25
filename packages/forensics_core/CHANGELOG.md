@@ -1,12 +1,22 @@
 # Changelog
 
-Releases of `forensics_core`, the method library vendored into `forensic-elections` and
-`forensic-economy` as the submodule `packages/forensics_core`.
+Changes to `forensics_core`, the method library at `packages/forensics_core`.
 
-Every entry names the `INTERFACES.md` changes it carries, because the two project repositories
-code against that contract and a silent change there breaks them both.
+Every entry names the `INTERFACES.md` changes it carries, because all four projects code
+against that contract and a silent change there breaks them.
 
-Tags are `core-vX.Y.Z`. A project repository moves to a release with `scripts/bump_core.sh`.
+Versions 0.1.0 to 0.3.0 were tagged `core-vX.Y.Z` while the library was a separate repository
+vendored into two project repositories as a submodule. Since the merge the projects use the
+library at the same commit, so there is nothing to tag or bump.
+
+## Unreleased
+
+- The library, `forensic-elections` and `forensic-economy` are one repository. The library
+  moved to `packages/forensics_core/`; `scripts/release.sh`, the projects' `bump_core.sh`
+  and the `submodule-parity` CI job are gone. No INTERFACES change.
+- The projects were pinned to 0.3.0 and now run against the library as it is on `main`, which
+  adds `effect.py` (WO-109), `power/aggregation.py` (WO-101) and `redteam.py` (WO-108) and
+  reads `__version__` from installed metadata. All four project suites pass against it.
 
 ## 0.3.0
 

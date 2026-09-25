@@ -1,0 +1,65 @@
+[project]
+name = "forensics-workspace"
+version = "0.1.0"
+description = "Statistical forensics of strategically reported data: the shared method library (packages/forensics_core) and its four projects — elections, aaer, china and gosplan — in one uv workspace."
+requires-python = ">=3.12"
+dependencies = [
+    "forensics-core[parquet]",
+    "forensic-elections",
+    "forensic-aaer",
+    "forensic-china",
+    "forensic-gosplan",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "pre-commit>=3.7",
+    "nbstripout>=0.7",
+    "nbformat>=5.10",
+    "jupyter>=1.0",
+    "pyyaml>=6.0",
+    "pyarrow>=14.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*", "projects/*"]
+
+[tool.uv.sources]
+forensics-core = { workspace = true }
+forensic-elections = { workspace = true }
+forensic-aaer = { workspace = true }
+forensic-china = { workspace = true }
+forensic-gosplan = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = [
+    "packages/forensics_core/tests",
+    "projects/elections/tests",
+    "projects/aaer/tests",
+    "projects/china/tests",
+    "projects/gosplan/tests",
+]
+# importlib import mode: the four projects deliberately share test file names
+# (test_analysis_stubs.py, test_acquire_registry.py) so the suites stay comparable.
+# Under the default prepend mode those basenames collide in sys.modules at collection
+# and one project silently shadows another.
+addopts = "-ra --import-mode=importlib"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["data", "notebooks/*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "NPY", "PD", "RUF"]
+ignore = ["E501", "RUF012"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["B011", "PD"]

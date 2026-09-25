@@ -16,12 +16,12 @@ This document contains no results. No number in it is a finding.
 
 The programme has four projects and one asymmetry:
 
-| Project | Repository | Ground truth |
+| Project | Path | Ground truth |
 |---|---|---|
-| `elections` | `forensic-elections` | Published, replicable falsification signatures, plus genuine control elections |
-| `aaer` | `forensic-economy` | Enforcement actions as positives (SEC Accounting and Auditing Enforcement Releases) |
-| `china` | `forensic-economy` | Partial: admitted falsification, a reform discontinuity |
-| `gosplan` | `forensic-economy` | Almost none: one anchor event |
+| `elections` | `projects/elections` | Published, replicable falsification signatures, plus genuine control elections |
+| `aaer` | `projects/aaer` | Enforcement actions as positives (SEC Accounting and Auditing Enforcement Releases) |
+| `china` | `projects/china` | Partial: admitted falsification, a reform discontinuity |
+| `gosplan` | `projects/gosplan` | Almost none: one anchor event |
 
 Three of them can answer "did the detector rank the right units at the top?" because
 somebody outside the data already knows the answer. `gosplan` cannot. There is no archive
@@ -611,33 +611,28 @@ is unreliable and should be reported as such.
 
 ## 7. Layout
 
-`forensics-core` is a standalone git repository: the shared method library, its tests and
-this document.
-
-It is vendored into both project repositories as a git submodule at
-`packages/forensics_core`:
+The library and the four projects live in one repository:
 
 ```
-forensics-core/                     the library, edited here
-  src/forensics_core/eval/harness.py
-  src/forensics_core/eval/metrics.py
-  docs/method_transfer.md           this file
-
-forensic-elections/
-  packages/forensics_core/          submodule, read-only from this repo
+forensics-core/
+  packages/forensics_core/            the library
+    src/forensics_core/eval/harness.py
+    src/forensics_core/eval/metrics.py
+    docs/method_transfer.md           this file
   projects/elections/
-
-forensic-economy/
-  packages/forensics_core/          the same submodule
   projects/aaer/
   projects/china/
   projects/gosplan/
 ```
 
-Nothing under `packages/forensics_core` is edited from a project repository. A method that
-needs changing is changed in this repository, and the projects update their submodule
-pointer. That is what makes a transfer claim meaningful: `elections` and `gosplan` are
-scored by the same code at the same commit, not by two versions of an idea that drifted
-apart.
+Until September 2026 the library was a separate repository vendored into two project
+repositories as a git submodule, with a CI check that the two pointers agreed. One tree makes
+that check unnecessary: `elections` and `gosplan` are scored by the same code at the same
+commit, not by two versions of an idea that drifted apart, which is what makes a transfer
+claim meaningful.
 
-The public surface of the library is fixed in `INTERFACES.md` at the repository root.
+A method that needs changing is changed under `packages/forensics_core`, in a pull request of
+its own, with its `INTERFACES.md` change recorded in `CHANGELOG.md`, never as a side effect of
+a project card.
+
+The public surface of the library is fixed in `packages/forensics_core/INTERFACES.md`.

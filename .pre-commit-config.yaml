@@ -5,3 +5,20 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.7.1
+    hooks:
+      - id: nbstripout
+  - repo: local
+    hooks:
+      - id: no-data-in-git
+        name: refuse to commit anything under projects/*/data/{raw,interim,processed}
+        entry: >-
+          bash -c 'if git diff --cached --name-only | grep -E "^projects/[^/]+/data/(raw|interim|processed)/" | grep -v "\.gitkeep$"; then echo "ERROR: raw/interim/processed data must not be committed (HARD RULE 5)"; exit 1; fi'
+        language: system
+        pass_filenames: false
+      - id: validate-sources
+        name: validate every SOURCES.yaml against the provenance schema
+        entry: uv run python -m forensics_core.provenance.manifest validate
+        language: system
+        files: ^projects/[^/]+/data/SOURCES\.yaml$

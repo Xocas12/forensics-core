@@ -1,11 +1,11 @@
 # CONTRACT — statistical forensics programme
 
-These rules bind every session, human or model, in `forensics-core`, `forensic-elections` and
-`forensic-economy`. **Violations invalidate the session's output**, whatever else it achieved.
+These rules bind every session, human or model, in this repository: the `forensics_core`
+library and the `elections`, `aaer`, `china` and `gosplan` projects. **Violations invalidate the session's output**, whatever else it achieved.
 A session that produces a correct result by a forbidden route has produced nothing usable,
 because the route is what the result's credibility rests on.
 
-This file is identical in all three repositories. It is adapted from the thirteen rules of
+It is adapted from the thirteen rules of
 [`Xocas12/gosplan-env`](https://github.com/Xocas12/gosplan-env)'s `CONTRACT.md`, which governs a
 sibling project by the same author.
 
@@ -78,8 +78,7 @@ implementation while its phase is still closed. Computing a Benford p-value on a
 file "just to check the loader works" — use a synthetic fixture.
 
 **What catches it:** `test_analysis_stubs.py` in each project, which asserts every public callable
-under `analysis/` raises `NotImplementedError`. There are 16 such modules across the two project
-repositories.
+under `analysis/` raises `NotImplementedError`. There are 16 such modules across the four projects.
 
 ## 5. THE HELD-OUT ANCHOR
 
@@ -106,7 +105,7 @@ card that calls it is violating this rule by another route. See
 ## 6. RAW DATA NEVER ENTERS GIT
 
 `data/raw/`, `data/interim/`, `data/processed/`, `data/.cache/` and `data/fetch_log.jsonl` are
-gitignored in both project repositories. Reproducibility comes from `make data` plus
+gitignored for every project. Reproducibility comes from `make data` plus
 `SOURCES.yaml`, not from committed blobs.
 
 Test fixtures are the exception and are not data: they live in `tests/fixtures/`, are prefixed
@@ -115,7 +114,7 @@ Test fixtures are the exception and are not data: they live in `tests/fixtures/`
 **A violation looks like:** `git add -f data/raw/precincts.csv` because the source went offline.
 Writing a generated dataframe to `data/interim/` so the next card can read it.
 
-**What catches it:** `.gitignore` in both project repositories, lines 2–10.
+**What catches it:** `.gitignore`, lines 2–10.
 
 ## 7. EVERY FETCH IS LOGGED
 

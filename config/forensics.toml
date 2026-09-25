@@ -1,0 +1,33 @@
+# forensic-stats shared configuration.
+#
+# HARD RULE 6: SEC EDGAR (and, by our own policy, every other host) is contacted with a
+# descriptive User-Agent that includes a real contact address. Scripts that fetch from the
+# network REFUSE TO RUN while `contact` still holds the placeholder below.
+#
+# Fill in: your name or project name, and an email address you actually read.
+#   contact = "Jane Doe jane.doe@example.edu"
+# To keep the value out of git, copy this file to config/forensics.local.toml (gitignored);
+# the local file wins when both exist.
+
+[http]
+contact = "REPLACE_ME <you@example.org>"
+user_agent_prefix = "forensic-stats/0.1"
+default_timeout_seconds = 120
+
+# Per-host request ceilings (requests per second). SEC's published limit is 10 rps; we
+# stay well below it. Anything not listed uses `default`.
+[rate_limits]
+default = 2.0
+"www.sec.gov" = 4.0
+"data.sec.gov" = 4.0
+"efts.sec.gov" = 4.0
+"www.cia.gov" = 1.0
+"data.stats.gov.cn" = 0.5
+"vybory.izbirkom.ru" = 0.5
+"raw.githubusercontent.com" = 4.0
+"api.github.com" = 2.0
+
+[cache]
+# Every successful fetch is content-addressed and recorded; a URL is never fetched twice
+# unless the caller passes force=True.
+never_refetch = true
