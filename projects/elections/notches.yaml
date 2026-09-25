@@ -1,0 +1,116 @@
+# Incentive discontinuities for the elections project.
+#
+# READ THIS BEFORE ADDING AN ENTRY.
+#
+# Every notch here carries `status: unverified`, and that is not laziness. It is the honest
+# state of the evidence, and it makes this project the weakest instance of the programme's
+# unifying hypothesis rather than its flagship.
+#
+# The hypothesis is that distortion concentrates where the incentive function jumps. In
+# `gosplan` that is an institutional fact: a bonus is paid on reported plan fulfilment of 100
+# per cent, so the discontinuity is written into a pay schedule. Here there is no such
+# schedule. The candidate thresholds are round numbers, and the reason to expect anything at
+# them is that a target handed to a local official is likely to be a round number, which is a
+# plausible inference and not a documented rule.
+#
+# WHAT WAS ACTUALLY CHECKED. `data/SOURCES.yaml` was searched for any record of an electoral
+# target, quota, bonus or instruction to officials. It contains none: the 26 sources are
+# results data, scraping tools, archived portal pages and the methods literature. Nothing in
+# this repository documents an incentive attached to any particular vote share or turnout
+# figure. Anyone who can supply such a source should add it and change the status.
+#
+# CONSEQUENCE FOR THE ANALYSIS. Because the incentive is inferred, a bunching result here is
+# weaker evidence than the same result would be in `gosplan`. The right reading of a spike at
+# 70 per cent is "reported figures cluster on a round number", which the digit family already
+# tests with a null that accounts for precinct size, and NOT "officials were paid to reach 70
+# per cent". `scan_all` output from this file should be reported alongside the
+# integer-percentage results rather than as an independent line of evidence.
+#
+# The thresholds are those the literature and the round-number hypothesis point at. Every one
+# of them names trap 1, small precincts, because at 100 registered voters every attainable
+# turnout is a whole percentage and bunching at any round number arises by arithmetic.
+
+- id: turnout_50
+  variable: turnout_boxes
+  threshold: 50.0
+  kind: notch
+  side: above
+  incentive: >
+    Inferred, not documented. A turnout target of half the electorate is the roundest
+    available and the one most likely to be handed down or reported against. No rule
+    attaching any consequence to reaching it is recorded in this repository.
+  evidence: >
+    unverified. data/SOURCES.yaml records no electoral target, quota, bonus or instruction to
+    officials; its 26 entries are results data, scraping tools, archived portal pages and the
+    methods literature. The threshold is proposed on the round-number hypothesis alone.
+  confounds:
+    - "trap 1: small precincts land on whole percentages by arithmetic, and 4,228 stations in the 2011 file have 100 or fewer registered voters"
+    - "trap 5: turnout has two definitions here, ballots in boxes and ballots issued, and they differ by lost and uncounted ballots"
+    - a genuine mode in turnout near half the electorate, which is where many honest electorates sit
+  status: unverified
+  notes: >
+    Scanned because it is the roundest threshold, not because it is the best supported.
+
+- id: turnout_70
+  variable: turnout_boxes
+  threshold: 70.0
+  kind: notch
+  side: above
+  incentive: >
+    Inferred, not documented. The literature on falsification in this setting discusses
+    round-number targets in this range; no schedule attaching a consequence to 70 per cent is
+    recorded here.
+  evidence: >
+    unverified. As for turnout_50: nothing in data/SOURCES.yaml documents a target. Recorded
+    because the integer-percentage literature this project replicates works on exactly these
+    round values.
+  confounds:
+    - "trap 1: small precincts land on whole percentages by arithmetic"
+    - "trap 2: honest heterogeneity between urban and rural electorates produces clustering without misreporting"
+    - "trap 6: several round thresholds are scanned, so some will look notable by chance"
+  status: unverified
+
+- id: turnout_95
+  variable: turnout_boxes
+  threshold: 95.0
+  kind: notch
+  side: above
+  incentive: >
+    Inferred, not documented. Near-complete turnout is the region where the published
+    signatures concentrate, so it is the threshold most worth scanning even though no rule
+    attaches to it.
+  evidence: >
+    unverified. No target is recorded in this repository. docs/validation_anchors.md records
+    that the published claims concern the joint turnout and vote-share distribution near the
+    complete-turnout corner, which is why this threshold is included.
+  confounds:
+    - "trap 1: small precincts, which are also where genuinely near-complete turnout is most common"
+    - "trap 2: a second mode near complete turnout has honest causes, and bimodality alone is not a signature"
+    - institutional precincts such as hospitals, barracks and ships, where near-complete turnout is normal
+  status: unverified
+
+- id: winner_share_50
+  variable: winner_share
+  threshold: 50.0
+  kind: notch
+  side: above
+  incentive: >
+    The one candidate on this list with a REAL discontinuity in outcome rather than in reward:
+    in a presidential contest an absolute majority in the first round avoids a run-off. That is
+    a genuine jump in consequences. What is not documented here is that anyone was rewarded for
+    delivering it at a particular polling station, which is the claim a notch needs.
+  evidence: >
+    unverified as an incentive on the reporting unit. data/SOURCES.yaml records no rule
+    attaching a consequence to any precinct's vote share; the run-off rule is a feature of the
+    electoral system rather than something recorded here, and the discontinuity it creates
+    applies at the NATIONAL total, not at a precinct. A precinct-level spike at 50 per cent
+    therefore needs a separate argument about how a national threshold reaches a local
+    official, and this repository does not supply one.
+  confounds:
+    - "trap 1: small precincts"
+    - "trap 3: the result is sensitive to which regions are included"
+    - genuine competitive balance clustering vote shares near half in two-way contests
+  status: unverified
+  notes: >
+    The most interesting entry, because the discontinuity is real but sits at the wrong level
+    of aggregation. Kept for exactly that reason.

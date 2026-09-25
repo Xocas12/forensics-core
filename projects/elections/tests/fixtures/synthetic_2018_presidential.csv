@@ -1,0 +1,7 @@
+region,tik,uik,SYN3 Число избирателей,SYN4 полученных,SYN5 досрочно,SYN6 помещении,SYN7 вне помещения,SYN8 погашенных,SYN9 переносных,SYN10 стационарных,SYN11 недействительных,SYN12 действительных,SYN13 утраченных,SYN14 не учтенных,SYN15 Бабурин,SYN16 Грудинин,SYN17 Жириновский,SYN18 Путин,SYN19 Собчак,SYN20 Сурайкин,SYN21 Титов,SYN22 Явлинский,url
+Testonia,1 Alpha,11,100,110,0,55,5,50,5,55,2,58,0,0,2,8,6,30,4,3,3,2,https://example.invalid/uik/11
+Testonia,1 Alpha,12,500,600,5,275,20,300,25,275,10,290,0,0,10,40,30,150,20,15,15,10,https://example.invalid/uik/12
+Faketown Republic,2 Beta,13,80,100,0,40,0,60,0,40,0,40,0,0,2,5,4,20,3,2,2,2,https://example.invalid/uik/13
+Faketown Republic,2 Beta,14,1000,1200,0,750,50,400,100,700,20,780,0,0,20,100,80,400,60,40,50,30,https://example.invalid/uik/14
+Nowhere Krai,3 Gamma,15,2000,2400,20,930,50,1400,50,950,40,960,0,0,20,120,100,480,80,60,60,40,https://example.invalid/uik/15
+Nowhere Krai,3 Gamma,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,https://example.invalid/uik/16
