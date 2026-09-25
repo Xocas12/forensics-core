@@ -1,0 +1,8 @@
+Commodity_Code,Commodity_Description,Country_Code,Country_Name,Market_Year,Calendar_Year,Month,Attribute_ID,Attribute_Description,Unit_ID,Unit_Description,Value
+2631000,Synthetic commodity,UR,Union of Soviet Socialist Repu,1960,1960,8,1,Production,2,1000 480 lb. Bales,111
+2631000,Synthetic commodity,UR,Union of Soviet Socialist Repu,1961,1961,8,3,Area Harvested,4,synthetic unit,222
+2631000,Synthetic commodity,UZ,Uzbekistan,1980,1980,8,1,Production,2,1000 480 lb. Bales,333
+2631000,Synthetic commodity,UZ,Uzbekistan,1986,1985,8,1,Production,2,1000 480 lb. Bales,444
+2631000,Synthetic commodity,UZ,Uzbekistan,1990,1990,8,1,Production,2,1000 480 lb. Bales,555
+2631000,Synthetic commodity,UZ,Uzbekistan,1991,1991,8,1,Production,2,1000 480 lb. Bales,
+9999999,Synthetic other commodity,UZ,Uzbekistan,1980,1980,8,1,Production,2,synthetic unit,666
