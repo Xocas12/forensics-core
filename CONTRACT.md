@@ -1,16 +1,16 @@
-# CONTRACT — statistical forensics programme
+# CONTRACT - statistical forensics programme
 
-These rules bind every session, human or model, in `forensics-core`, `forensic-elections` and
-`forensic-economy`. **Violations invalidate the session's output**, whatever else it achieved.
-A session that produces a correct result by a forbidden route has produced nothing usable,
-because the route is what the result's credibility rests on.
+These are the standards this programme is written to. They bind me, and anyone else
+contributing to `forensics-core`, `forensic-elections` or `forensic-economy`. **Work that
+breaks one of them does not count**, whatever else it achieved: a correct result reached by a
+forbidden route is not usable, because the route is what its credibility rests on.
 
-This file is identical in all three repositories. It is adapted from the thirteen rules of
-[`Xocas12/gosplan-env`](https://github.com/Xocas12/gosplan-env)'s `CONTRACT.md`, which governs a
-sibling project by the same author.
+The same file is kept in all three repositories, and in the sibling
+[`gosplan-env`](https://github.com/Xocas12/gosplan-env).
 
-Each rule below states **what a violation looks like concretely** and **what catches it**. A rule
-nobody can test against is decoration, and is marked as such where no automated check exists yet.
+Each rule states **what a violation looks like concretely** and **what catches it**. A rule
+nobody can test against is decoration, and is marked as such where no automated check exists
+yet.
 
 ---
 
@@ -36,33 +36,35 @@ recorded fact about access, not a missing source.
 
 ## 2. STOP AND REPORT
 
-When the work order, its whitelist and this contract do not determine a choice, **file an
-ambiguity report and end the session.** Choosing the reasonable default is a violation.
+When the plan, the data and this contract do not determine a choice, **stop and write the
+question down** rather than picking the reasonable default. Recording an unresolved question
+is a complete outcome, not a failure to deliver.
 
-Filing an ambiguity report is correct behaviour and a successful outcome, not a failure to
-deliver. Fluent invention is the failure mode this rule exists to prevent, and it is fluent
-precisely because the invented choice usually *is* reasonable.
+Fluent invention is the failure mode this rule exists to prevent, and it is fluent precisely
+because the invented choice usually *is* reasonable.
 
-**A violation looks like:** a card that says "score the control corpus" when no control corpus
-exists, answered by building one and proceeding. Picking `alpha = 0.05` because it is
-conventional, when the card did not say and the choice changes the reported result.
+**A violation looks like:** a plan that says "score the control corpus" when no control corpus
+exists, answered by quietly building one and proceeding. Picking `alpha = 0.05` because it is
+conventional, when the choice was never made explicitly and it changes the reported result.
 
-**What catches it:** review of the session report, which must list ambiguity reports filed.
+**What catches it:** nothing automatic. The open questions are carried in the repository's
+issues and in `docs/`; a result that depended on an undocumented choice is caught only in
+review.
 
 ## 3. FROZEN TESTS
 
-Tests are read-only for implementers. If a test looks wrong, file an ambiguity report; do not
-edit it, do not skip it, do not `xfail` it, and do not special-case the implementation to satisfy
-it.
+A test is not edited to make the code pass. If a test looks wrong, say why in writing before
+touching it; do not skip it, do not `xfail` it, and do not special-case the implementation to
+satisfy it.
 
-The lead may change a test, and must say in the commit message what the old test asserted, why it
-was wrong, and what the new one asserts instead.
+A test may be changed when it is actually wrong, and the commit message must then say what the
+old test asserted, why that was wrong, and what the new one asserts instead.
 
 **A violation looks like:** adding `@pytest.mark.skip` with a comment saying the test is flaky.
 Loosening `assert x < 0.2` to `assert x < 0.6` so a run passes. Deleting an assertion that fails
 and keeping the ones that pass.
 
-**What catches it:** `git diff` on `tests/` in any implementer pull request.
+**What catches it:** `git diff` on `tests/` in any pull request.
 
 ## 4. NO ANALYSIS BEFORE ITS PHASE
 
@@ -100,7 +102,7 @@ the person writing the exclusion.
 
 **What catches it:** `gosplan.seal`, which holds the anchor definition, and `check_grouping`,
 which refuses a grouping that isolates it. `unseal()` must not be called from analysis code; a
-card that calls it is violating this rule by another route. See
+caller is violating this rule by another route. See
 `projects/gosplan/docs/HELD_OUT.md`.
 
 ## 6. RAW DATA NEVER ENTERS GIT
@@ -113,7 +115,7 @@ Test fixtures are the exception and are not data: they live in `tests/fixtures/`
 `synthetic_`, and never appear under any `data/`.
 
 **A violation looks like:** `git add -f data/raw/precincts.csv` because the source went offline.
-Writing a generated dataframe to `data/interim/` so the next card can read it.
+Writing a generated dataframe to `data/interim/` so a later step can read it.
 
 **What catches it:** `.gitignore` in both project repositories, lines 2–10.
 
@@ -153,14 +155,11 @@ A detector that fires on 30% of clean units and 40% of suspect ones has found no
 alone reads as a discovery.
 
 **Status:** the machinery exists — `forensics_core.control` defines the corpus, the three
-kinds of control and the calibration verdict ([WO-103](https://github.com/Xocas12/forensics-core/issues/14)).
-The real external control tables do not. Poland 2010 and Spain 2011 come out of the Kobak,
-Shpilkin and Pshenichnikov supplement via
-[WO-204](https://github.com/Xocas12/forensic-elections/issues/5), which is itself waiting on
-[WO-200](https://github.com/Xocas12/forensic-elections/issues/1) to run the acquisition for
-real. Until that chain completes, every corpus that can be built is within-dataset or
-synthetic and `has_external_control()` returns `False` for all of them, which is the honest
-state rather than a bug.
+kinds of control and the calibration verdict. The real external control tables do not.
+Poland 2010 and Spain 2011 come out of the Kobak, Shpilkin and Pshenichnikov supplement, and
+extracting them is still outstanding. Until it is done, every corpus that can be built is
+within-dataset or synthetic and `has_external_control()` returns `False` for all of them,
+which is the honest state rather than a bug.
 
 **A violation looks like:** reporting that a detector flagged 12 of 40 regions, without saying what
 it flagged among regions with no reason for suspicion. Constructing a fresh detector of the same
@@ -197,24 +196,24 @@ and what the original said.
 **A violation looks like:** running three tests, finding one significant, and writing the plan
 around it. Deciding the correction family after seeing which findings survive.
 
-**What catches it:** [WO-003](https://github.com/Xocas12/forensics-core/issues/10), the
-pre-registration document, and the G1 gate signature. `forensics_core.correction` fixes the
+**What catches it:** the pre-registration document, and the G1 gate signature. `forensics_core.correction` fixes the
 hypothesis family in code, so the family is a committed object rather than a choice made at
 reporting time.
 
 ## 12. WHITELIST DISCIPLINE
 
-Read only the files a card's whitelist names. Write only the files its "Write only" list names.
-Run the completion command verbatim. Report in the card's format. One card, one branch, one pull
-request.
+One task, one branch, one pull request, touching only the files that task needs. A change set
+whose scope is declared before the work starts is reviewable without re-reading the whole
+repository; one that grows as it goes is not.
 
-The whitelist is what makes parallel work safe, and what makes a session's output reviewable
-without re-reading the repository.
+The rule bites hardest across projects. The calibration results must not be consulted while
+deciding how to specify the target analysis, because that is how a held-out anchor stops being
+held out (rule 5).
 
 **A violation looks like:** a pull request that also fixes an unrelated typo in another module.
-Reading the elections results to decide how to write a gosplan card.
+Reading the elections results to decide how to frame the gosplan analysis.
 
-**What catches it:** the pull request diff against the card's write list.
+**What catches it:** the pull request diff against the scope stated in its description.
 
 ## 13. ACCESS POLICIES ARE OBSERVED
 
@@ -241,5 +240,5 @@ it changed.
 
 Rules are never silently renumbered. `gosplan/seal.py` cites rule 5 and
 `forensics_core/eval/harness.py` cites rule 9 by number, and the frozen list in
-`tests/test_contract.py` exists so that a future session cannot quietly drop, reorder or reword a
+`tests/test_contract.py` exists so that a later change cannot quietly drop, reorder or reword a
 rule without saying so.

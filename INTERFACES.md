@@ -1,7 +1,7 @@
 # forensics_core - interface contract
 
 This file fixes the public signatures of the shared library so that the four projects (and
-parallel implementers) build against one stable surface. **Implementations may add keyword
+parallel contributors) build against one stable surface. **Implementations may add keyword
 arguments with defaults; they may not rename or remove anything listed here.** Where a
 function is marked `STUB`, ship the signature, a docstring citing the method, and raise
 `NotImplementedError("...")` with a one-line description of what remains.

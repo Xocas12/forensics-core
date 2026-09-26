@@ -4,9 +4,9 @@ This directory is where a **published** power atlas lives: a measured curve, on 
 `forensic-elections` and `forensic-economy` can load and cite. The human-readable summary is
 `docs/power_atlas.md`; this file is the storage contract.
 
-No atlas is committed here yet. `WO-200` has not run, so no elections hierarchy has been
+No atlas is committed here yet. the elections hierarchy has not been generated here, so no elections hierarchy has been
 acquired and the curves that exist so far are synthetic measurements of the methods on
-generated data (WO-100, WO-101). Publishing those is permitted — synthetic is one of the two
+generated data . Publishing those is permitted — synthetic is one of the two
 allowed populations — but nothing has been published into this directory, and an empty
 directory is the honest state rather than a gap. The first real atlas lands here when there is
 a measurement worth citing.

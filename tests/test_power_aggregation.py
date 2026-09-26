@@ -232,9 +232,9 @@ def test_averaging_leaves_the_signal_near_the_background_rate_by_group_size_eigh
 
 
 def test_neither_semantics_keeps_the_integer_signal_past_group_size_four():
-    """Measured, and it contradicts the card.
+    """Measured, and it contradicts the plan.
 
-    WO-101's implementation note says averaging percentages "destroys the integer-percentage
+    The original implementation note said averaging percentages "destroys the integer-percentage
     signal by construction", implying that summing counts is the safe choice. Measured on
     unequal denominators with every unit snapped onto an exact integer percentage, the
     ordering is the other way round:

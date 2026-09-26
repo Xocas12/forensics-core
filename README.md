@@ -51,18 +51,37 @@ Every statistical routine is pure (no I/O, no globals, no plotting) and returns 
   conservation; find the minimum perturbation restoring feasibility; flag the nodes needing
   large corrections" is mature engineering, and its vocabulary is used deliberately.
 
+## Used in anger
+
+The library is not a plan. Its digit, bunching and dispersion routines were run end to end on
+192,924 Russian precinct protocols in
+[`forensic-elections`](https://github.com/Xocas12/forensic-elections), and reproduced two of
+the three published signatures that project uses as validation anchors. The findings, the
+controls and the caveats are in that repository's
+[RESULTS.md](https://github.com/Xocas12/forensic-elections/blob/main/RESULTS.md).
+
+What that exercise returned to this library:
+
+- `digits.integer_pct.integer_excess` and `integer_excess_by_group` carried the headline
+  result and its regional ranking;
+- the size-band stratification is what separated a real finding from the arithmetic artefact
+  small polling stations produce, which is the control that makes the number mean anything;
+- nothing in the statistical core had to be changed to do it. The bug the run exposed was in
+  the project's column map, not here.
+
 ## Related repositories
 
 Five repositories, one programme. All public.
 
 | Repository | What it is | State |
 |---|---|---|
-| [psephos](https://github.com/Xocas12/psephos) | standalone election anomaly-detection tool, CLI and library | **works**; 47 tests |
-| [forensics-core](https://github.com/Xocas12/forensics-core) | the shared research method library | scaffold; 605 tests, no analysis run |
-| [forensic-elections](https://github.com/Xocas12/forensic-elections) | Russian federal elections, the calibration project | scaffold; 736 tests, no analysis run |
-| [forensic-economy](https://github.com/Xocas12/forensic-economy) | accounting enforcement, Chinese provincial statistics, Soviet statistics | scaffold; 995 tests, no analysis run |
-| [gosplan-env](https://github.com/Xocas12/gosplan-env) | multi-agent environment where reporting pathologies emerge from incentives | skeleton; nothing run |
+| [psephos](https://github.com/Xocas12/psephos) | standalone election anomaly-detection tool, CLI and library | works; 47 tests |
+| [forensics-core](https://github.com/Xocas12/forensics-core) | the shared method library | implemented; 840 tests; carried the elections result |
+| [forensic-elections](https://github.com/Xocas12/forensic-elections) | Russian federal elections, the calibration project | **anchors 1 and 3 reproduced on real data**; 914 tests |
+| [forensic-economy](https://github.com/Xocas12/forensic-economy) | accounting enforcement, Chinese provincial statistics, Soviet statistics | method scaffolding and source registries; no analysis run yet |
+| [gosplan-env](https://github.com/Xocas12/gosplan-env) | multi-agent environment where reporting pathologies emerge from incentives | specification and tests; environment not yet implemented |
 
-The four research repositories work under a discipline that forbids running anything before its
-gate, and none of them contains a result. psephos is deliberately the opposite: it is meant to
-be run today.
+The calibration project has been run and has a result. The two projects that carry the
+programme's actual question - Chinese provincial statistics and the Soviet series - have not,
+and their `analysis/` modules still raise `NotImplementedError` rather than returning a
+plausible number.

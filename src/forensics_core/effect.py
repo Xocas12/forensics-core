@@ -3,7 +3,7 @@
 Integer excess is a count, bunching is normalised excess mass, underdispersion is a variance
 ratio. Three incomparable tables cannot answer "which method family gives the most detection
 power per unit of distortion", which is this programme's stated research question for
-elections (ROADMAP.md, WO-109).
+elections (ROADMAP.md).
 
 The scale
 ---------

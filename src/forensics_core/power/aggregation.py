@@ -20,8 +20,8 @@ The two aggregation semantics are not the same question
     Average the percentages the units already carry. This is what a careless analyst does when
     handed a column of percentages and no counts.
 
-Both are supported because reporting both turned up something the WO-101 card got backwards.
-The card's note says averaging "destroys the integer-percentage signal by construction",
+Both are supported because reporting both turned up something the original plan got
+backwards. That plan said averaging "destroys the integer-percentage signal by construction",
 implying that summing counts is the safe choice. Measured on unequal denominators, with every
 unit snapped onto an exact integer percentage (share of units still within 0.05 of an integer;
 the background rate is 0.10):

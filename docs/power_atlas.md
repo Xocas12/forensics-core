@@ -87,13 +87,13 @@ Nothing interpolates and nothing extrapolates.
   by extrapolation, one step further from view.
 
 Each `PowerAtlas` carries a `cite()` line naming the method, the rung, the library release, the
-seed and the settings. A number quoted in a card carries that line.
+seed and the settings. A number quoted anywhere carries that line.
 
 ## What is published, and what is not
 
-**Nothing is committed under `data/atlas/` yet.** `WO-200` has not run, so no elections
+**Nothing is committed under `data/atlas/` yet.** the elections hierarchy has not been generated here, so no elections
 hierarchy has been acquired, and the curves measured so far are synthetic measurements of the
-methods on generated data (WO-100, WO-101). Publishing those is permitted — synthetic is one of
+methods on generated data . Publishing those is permitted — synthetic is one of
 the two allowed populations — but the first real atlas lands only when there is a measurement
 worth citing. An empty directory is the honest state.
 
@@ -118,14 +118,14 @@ docstring:
 | 4 | 0.089 | 0.235 |
 | 8 | 0.100 | 0.150 |
 
-Averaging retains *more* than summing counts, the opposite of what the WO-101 card expected.
+Averaging retains *more* than summing counts, the opposite of what the plan expected.
 The finding that constrains a card is neither direction: **both collapse to the background rate
 by a group size of four to eight**, so the integer-percentage test does not survive aggregation
 under either semantics and a gosplan card must not run it on aggregates at all. That is what
 `aggregation=` in a query is for — and, for this method, the rung at which the answer becomes
 "no".
 
-**The underdispersion family is weak on synthetic data.** Recorded in the WO-100 commit: the
+**The underdispersion family is weak on synthetic data.** Recorded when the atlas was built: the
 too-smooth test gives power 0.00 against variance losses of 50 per cent and 80 per cent at every
 sample size up to 1000, and detects only a 95 per cent loss; at `n = 50` it does not reach power
 0.8 even there. Its false-positive rate is 0.00 throughout, so the test is extremely
