@@ -2,7 +2,7 @@
 
 gosplan has one anchor, so power and false-positive rates cannot be estimated there from
 labels. Injecting a distortion of known magnitude into data believed clean is the only way
-to get an operating characteristic on the target's own data shape (ROADMAP.md, WO-102).
+to get an operating characteristic on the target's own data shape (ROADMAP.md).
 
 The one design rule that matters here: **an injector is not the estimator run backwards.**
 ``inject_rounding`` does not know what tolerance ``forensics_core.digits.integer_pct`` tests
@@ -119,8 +119,8 @@ class InjectionRecord:
     effect_size : float
         The injector's effect-size argument, verbatim: ``fraction`` for rounding, ``mass``
         for bunching, ``magnitude`` for padding, ``retain`` for smoothing. The mechanism
-        name says which, because the four are not in one unit (WO-109 exists to build that
-        vocabulary).
+        name says which, because the four are not in one unit; putting them on a common
+        effect-size axis is what `effect.py` is for.
     indices : numpy.ndarray
         Positions (``int64``, ascending) where the returned series differs from the input.
     seed : int | None
@@ -305,7 +305,7 @@ def inject_bunching(
     bin's worth -- and the recovered ``normalized_excess`` is directly comparable with
     ``mass``; the test suite checks the two agree to within the polynomial fit error. At
     any other bin width the two differ by that width's share of the window and must be
-    converted before they are compared (the common vocabulary is WO-109's job).
+    converted before they are compared (the common vocabulary is `effect.py`'s job).
     """
     thr = float(threshold)
     if not np.isfinite(thr):

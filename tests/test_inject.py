@@ -258,7 +258,7 @@ def test_bunching_misspecified_estimator_still_recovers_the_effect():
     curvature, and the resulting bias does not have a predictable sign: under-fitting near the
     threshold pushes the counterfactual DOWN and so inflates the estimated excess. Measured
     here, the misspecified fit recovers more than the well-specified one, not less. That is a
-    fact about the estimator worth carrying into the power atlas (WO-100), not a defect in the
+    fact about the estimator worth carrying into the power atlas, not a defect in the
     injector, and asserting the opposite direction would be asserting something untrue.
     """
     v = lognormal_running_variable(16)

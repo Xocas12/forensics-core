@@ -3,7 +3,7 @@
 The order in which this programme gets built, and why that order.
 
 This document is a map, not a specification. Where it summarises `CONTRACT.md`, the contract
-wins. Every card below is a GitHub issue; the issue body is the card. Nothing here is a result,
+wins. Nothing in this file is a result,
 and no number in any of these repositories may be cited as one.
 
 ## The programme
@@ -30,7 +30,7 @@ it is not.
 
 **Unifying hypothesis.** Distortion concentrates at discontinuities in the incentive function.
 Every project has a notch: the 100 per cent plan-fulfilment bonus, the round vote share, the
-analyst consensus, the provincial growth target. WO-104 makes that a single experiment run
+analyst consensus, the provincial growth target. The notch catalogue makes that a single experiment run
 across four datasets instead of four separate stories.
 
 **Second signal, weighted equally.** Fabricated series contain too little noise. A reported
@@ -77,35 +77,35 @@ Therefore the cotton series, its physical correlates, and any breakdown that iso
 not be plotted, tested, scored or summarised before G3 is signed.** Acquiring, transcribing and
 validating that data is permitted. Looking at its distributional properties is not.
 
-WO-500 enforces this in code rather than in prose, because the person who breaks the rule will
+The held-out seal enforces this in code rather than in prose, because the person who breaks the rule will
 be someone who forgot it. The seal refuses to return held-out rows without a token that does not
 exist until G3 is signed.
 
 ## The ideas this roadmap is built around
 
-Five things worth knowing before reading the card list, because most of the cards exist to serve
+Five things worth knowing before reading the plan, because most of the work exists to serve
 one of them.
 
-1. **The power atlas (WO-100, WO-101, WO-111).** elections has about 95,000 precincts; gosplan
+1. **The power atlas.** elections has about 95,000 precincts; gosplan
    will have a few hundred sector-years. The most valuable thing the calibration projects can
    hand the target project is not a detector, it is a power curve. If integer-percentage excess
    has no power at n = 300, gosplan cannot use it, and knowing that before P4 saves a phase.
    The aggregation ladder answers the companion question: Soviet data is aggregate, so how much
    power survives aggregation? elections can answer that because it has a real hierarchy.
 
-2. **The injection harness (WO-102).** gosplan has no labels, so make some: inject a distortion
+2. **The injection harness.** gosplan has no labels, so make some: inject a distortion
    of known magnitude into a series believed clean and measure recovery. This is the only way to
    get an operating characteristic on the target's own data shape. The harness is deliberately
    built so an injector is not the estimator run backwards, because otherwise the power curve
    measures self-consistency.
 
-3. **The false-positive budget (WO-103, WO-108, WO-204).** A detector that fires everywhere is
+3. **The false-positive budget.** A detector that fires everywhere is
    useless. elections holds the programme's only genuine external controls, two non-Russian
    elections shipped in the same supplement as a replication target. Every claim ships with its
    behaviour on data where nothing should be found, and gosplan inherits that number because it
    cannot compute one of its own.
 
-4. **The `gosplan-env` coupling (WO-506).** The owner's sibling repository simulates enterprises
+4. **The `gosplan-env` coupling.** The sibling repository simulates enterprises
    facing a plan, a bonus notch, an audit and a ratchet, and it knows the true quantity behind
    every reported one. That is a detector test bench for exactly the data shape gosplan faces.
    Its own plan scopes this coupling to **estimator robustness and nothing else**, and that
@@ -113,12 +113,12 @@ one of them.
    find one in the archives either, which is the strongest negative result available here. No
    number from a simulator is evidence about the historical USSR.
 
-5. **A second, weaker label set (WO-505).** A case-level dataset of Soviet plan-fraud
+5. **A second, weaker label set.** A case-level dataset of Soviet plan-fraud
    prosecutions, 1943 to 1962, recording reported against actual quantities. It is not a second
    anchor: it is prosecution-selected exactly as the enforcement releases are, and it covers a
    different period. But it may convert gosplan from one anchor to one anchor plus a
    positive-unlabelled label set, which would be a real upgrade to a project whose central
-   weakness is having no labels. The card is written to be sceptical of it.
+   weakness is having no labels. It should be approached sceptically.
 
 
 ## The gates, as issues
@@ -132,54 +132,55 @@ one of them.
 | G4 | [GATE G4](https://github.com/Xocas12/forensics-core/issues/5) |
 | G5 | [GATE G5](https://github.com/Xocas12/forensics-core/issues/6) |
 
-## Cards in this repository (forensics-core)
+## Plan for this repository (forensics-core)
 
+The library is built. Every item below that is marked done has a module and a test suite
+behind it; "done" here means implemented and covered, not that it has been used on a research
+question. Where it has been used, the elections calibration is the evidence.
 
-### The shared method library
+| # | Task | Status |
+|---|---|---|
+| 1 | `CONTRACT.md`, the standards the programme is held to | **done** - thirteen rules, frozen by `test_contract.py` |
+| 2 | Submodule release and bump discipline, so the project repositories cannot diverge | **done** - `scripts/bump_core.sh` |
+| 3 | Pre-registration document and the analysis plan G1 requires | open - needs a human. A programme about motivated misreporting has no standing to criticise anyone if its own analyses are chosen after seeing the data |
+| 4 | Power atlas: detection power as a function of sample size | **done** - `power/atlas.py` |
+| 5 | Aggregation ladder: the power lost when data is aggregated | **done** - `power/aggregation.py`. Measuring it contradicted the plan that specified it, and the measurement won |
+| 6 | Distortion injection harness: turn a clean dataset into a labelled test bed | **done** - `inject.py` |
+| 7 | Control corpus and the false-positive budget | **done** in code - `control.py`. The *external* control tables (Poland 2010, Spain 2011) are still not acquired, so `has_external_control()` returns `False`, which is the honest state |
+| 8 | Notch catalogue: make the unifying hypothesis one experiment instead of four stories | **done** - `notches.py` |
+| 9 | Give `transfer()` a control path and return the fitted detector | **done** - `eval/harness.py`, `controls=` parameter |
+| 10 | Fix the `fit_on` default so positive-unlabelled learning sees the unlabelled pool | **done** - the default is now `auto` |
+| 11 | Make `evaluate()` and `transfer()` agree about what the detector sees at fit time | **done** - one fitting regime, shared |
+| 12 | Null corpus and a standing red-team pass against the detectors | **done** - `redteam.py` |
+| 13 | A common effect-size vocabulary, so power curves from different methods compare | **done** - `effect.py` |
+| 14 | Register the unsupervised methods as detectors, so they run through one harness | **done** - `detectors.py` |
+| 15 | Publish the power atlas as a lookup other repositories can cite | **done** - `power/lookup.py` |
 
-| Card | Phase | Gate | Diff | Depends on | What it buys |
-|---|---|---|---|---|---|
-| [WO-000](https://github.com/Xocas12/forensics-core/issues/7) Write CONTRACT.md, the rules that bind every session in the programme | P0 | G0 | 2 | - | Every other card assumes a shared discipline that is currently only implicit in three READMEs. |
-| [WO-001](https://github.com/Xocas12/forensics-core/issues/8) Create workorders/ with TEMPLATE.md and AMBIGUITY_TEMPLATE.md in all three repositories | P0 | G0 | 1 | WO-000 | The issues in these repositories are card summaries; the cards themselves need a home in the tree so a session can read one without network access, and so the ambiguity route is a form rather than a suggestion. |
-| [WO-002](https://github.com/Xocas12/forensics-core/issues/9) Submodule release and bump discipline so the two project repositories cannot diverge | P0 | G0 | 3 | WO-001 | forensic-elections and forensic-economy each pin packages/forensics_core at a commit. |
-| [WO-003](https://github.com/Xocas12/forensics-core/issues/10) Write the pre-registration document and the analysis plan that G1 requires | P1 | G1 | 4 | WO-100, WO-102, WO-103, WO-104 | (needs a human) A programme whose subject is motivated misreporting has no standing to criticise anyone if its own analyses are chosen after seeing the data. |
-| [WO-100](https://github.com/Xocas12/forensics-core/issues/11) Power atlas: measure detection power as a function of sample size | P1 | G1 | 4 | WO-102 | elections has about 95,000 precincts; gosplan will have a few hundred sector-years. |
-| [WO-101](https://github.com/Xocas12/forensics-core/issues/12) Aggregation ladder: measure the power lost when data is aggregated | P1 | G1 | 3 | WO-100 | Soviet statistics are aggregate; elections are not. |
-| [WO-102](https://github.com/Xocas12/forensics-core/issues/13) Distortion injection harness: turn any clean dataset into a labelled test bed | P1 | G1 | 4 | - | gosplan has one anchor, so power and false-positive rates cannot be estimated there from labels. |
-| [WO-103](https://github.com/Xocas12/forensics-core/issues/14) Control corpus and the false-positive budget | P1 | G1 | 3 | WO-102 | A detector that fires everywhere is useless, and the programme's own CONTRACT requires every claim to ship with its behaviour on data where nothing should be found. |
-| [WO-104](https://github.com/Xocas12/forensics-core/issues/15) Notch catalogue: make the unifying hypothesis one experiment instead of four stories | P1 | G1 | 3 | - | The programme's unifying hypothesis is that distortion concentrates at discontinuities in the incentive function, and every project has one: the plan-fulfilment bonus, the round vote share, the analyst consensus, the provincial growth target. |
-| [WO-105](https://github.com/Xocas12/forensics-core/issues/16) Give transfer() a control path and return the fitted detector | P1 | G1 | 3 | WO-103 | The library's own method_transfer. |
-| [WO-106](https://github.com/Xocas12/forensics-core/issues/17) Fix the PUDetector fit_on default so positive-unlabelled learning sees the unlabelled pool | P1 | G1 | 2 | - | transfer() defaults to fit_on='labeled', which calls source. |
-| [WO-107](https://github.com/Xocas12/forensics-core/issues/18) Make evaluate() and transfer() agree about what the detector sees at fit time | P1 | G1 | 2 | WO-106 | The two entry points currently use different fitting regimes, so a source_report is not strictly a report on the object that scored the target. |
-| [WO-108](https://github.com/Xocas12/forensics-core/issues/19) Null corpus and a standing red-team pass against the detectors | P1 | G1 | 3 | WO-103 | Reporting a false-positive rate on a control chosen by the same person who built the detector is weak evidence. |
-| [WO-109](https://github.com/Xocas12/forensics-core/issues/20) A common effect-size vocabulary so power curves from different methods can be compared | P1 | G1 | 3 | WO-102 | Integer excess is a count, bunching is normalised excess mass, underdispersion is a variance ratio. |
-| [WO-110](https://github.com/Xocas12/forensics-core/issues/21) Register the unsupervised methods as detectors so they run through one harness | P1 | G1 | 2 | - | The library's core methods are unsupervised, but the harness is built around Detector objects and the registry currently holds only the four generic wrappers. |
-| [WO-111](https://github.com/Xocas12/forensics-core/issues/22) Publish the power atlas as a lookup other repositories can cite | P1 | G1 | 2 | WO-100, WO-101, WO-109 | An atlas nobody can query is a private artefact. |
+What is left here is not code. It is item 3, and it is the one that cannot be delegated: the
+analysis plan has to be written down before the remaining projects are run, or the programme
+fails its own first rule.
 
-## Cards in the other repositories
+## Plans in the other repositories
 
-This roadmap is shared; the full card list lives in each repository's own copy.
-
-- [forensic-elections](https://github.com/Xocas12/forensic-elections/issues) (11 cards)
-- [forensic-economy](https://github.com/Xocas12/forensic-economy/issues) (27 cards)
+- [forensic-elections](https://github.com/Xocas12/forensic-elections) - run; see its `RESULTS.md`
+- [forensic-economy](https://github.com/Xocas12/forensic-economy) - not run
 
 ## Working rules
 
-One card, one branch, one pull request. Read only what the card's whitelist names, write only
-what its "Write only" list names, run the completion command verbatim, and report in the card's
-format.
+One task, one branch, one pull request, scoped to the files that task needs.
 
-When the card and its whitelist do not determine a choice, **file an ambiguity report and end
-the session.** Choosing the reasonable default is a violation. Filing an ambiguity report is
-correct behaviour, not failure.
+When the plan and the data do not determine a choice, stop and write the question down rather
+than picking the reasonable default. Recording an unresolved question is a complete outcome.
 
 The full rules are in [`CONTRACT.md`](CONTRACT.md): thirteen of them, each stating what a
 violation looks like concretely and what catches it. The file is identical in all three
 repositories, and `test_contract.py` freezes the rule numbers, because `gosplan/seal.py`
 cites rule 5 and `eval/harness.py` cites rule 9 by number.
 
-## Standing warning
+## Where this stands
 
-Nothing in these repositories has been run. There are no results, no estimates and no findings.
-Every module under any `analysis/` raises `NotImplementedError`, every `data/raw` is empty, and
-all six gates are unsigned.
+This library has been run on real data: it carried the elections calibration, reproducing two
+of the three published signatures on 192,924 precinct protocols
+([RESULTS.md](https://github.com/Xocas12/forensic-elections/blob/main/RESULTS.md)). The
+projects that carry the programme's actual question - Chinese provincial statistics and the
+Soviet series - have not been run, and say so.

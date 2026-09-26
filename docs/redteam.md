@@ -81,7 +81,7 @@ reacting to the shape of the corruption, not its size.
 
 ### Consequence: the OCR gate
 
-`terminal_digit_test` **may not be run on transcribed data** until WO-502 has measured the
+`terminal_digit_test` **may not be run on transcribed data** until the transcription disagreement rate has been measured for the
 real inter-transcription error rate and shown it below the firing threshold. On the grid
 above the threshold is **0.05** (the lowest tested rate at which the test fires in more than
 half of replicates).
@@ -153,7 +153,7 @@ gap is visible rather than absent.
 
 | trap | generator | why not yet scored |
 |---|---|---|
-| `elections-2` honest bimodality | `heterogeneous_mixture` | The turnout-bimodality analysis is a project-level module that still raises `NotImplementedError` (CONTRACT rule 4). Scoring it is WO-209's job. |
+| `elections-2` honest bimodality | `heterogeneous_mixture` | The turnout-bimodality analysis is a project-level module that still raises `NotImplementedError` (CONTRACT rule 4). Scoring it belongs to that project. |
 | `china-2` boundary changes | `level_shift` | `dispersion.too_smooth_test` operates on per-unit collections; a break test is not yet a registered detector. |
 | `gosplan-3` index-number problem | `reweighting` | Same: no detector currently takes a growth index as input. |
 

@@ -1,8 +1,9 @@
 """The published power atlas: a frozen format, a loader, and the queries a card asks.
 
-WO-100 measured power as a function of sample size, WO-101 measured what aggregation costs, and
-WO-109 put the four method families on one effect-size axis. All three left the result in memory
-as a DataFrame. A curve that lives only in the session that produced it cannot answer the
+Three earlier pieces of work measured power as a function of sample size, measured what
+aggregation costs, and put the four method families on one effect-size axis. All three left the
+result in memory as a DataFrame. A curve that lives only in the process that produced it cannot
+answer the
 question gosplan and china actually have -- *is this detectable at my sample size* -- and cannot
 be cited: a later reader has no way to tell which library release, which estimator settings or
 which seed produced the number. This module freezes the on-disk format, loads it, and answers
@@ -38,7 +39,8 @@ the same failure as answering by extrapolation, one step further from view.
 Refusing to extrapolate
 -----------------------
 For a sample size the stored atlas never measured, nothing here interpolates. The refusal is
-the one WO-100 wrote, applied to the loaded frame: an atlas that does not cover ``n`` raises,
+the one the sample-size atlas defines, applied to the loaded frame: an atlas that does not
+cover ``n`` raises,
 an atlas whose measured effects never reach the target power raises, and an atlas whose
 false-positive rate is too far above nominal at that ``n`` raises rather than lending its power
 column to a claim it cannot support.
