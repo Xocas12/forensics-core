@@ -81,9 +81,9 @@ This is a real distinction between the mechanisms, not an artefact of the scale:
 
 The scale is kept, and its use is split.
 
-**As a comparison axis for detection power** — all four mechanisms, without qualification.
-This is what the power atlas needs, and it needs only that the mechanisms be ordered on one
-number. Nothing above threatens that.
+**As a comparison axis for detection power** — within one mechanism on one fixture, where it
+is monotone in the native parameter. Across mechanisms it is conditional on the level each
+fixture sits at, and does not by itself rank method families; the next section says why.
 
 **As a substantive claim about how much output was misreported** — `padding` and `bunching`
 only. `effect.as_quantity_claim` refuses to write the sentence otherwise, either because the
@@ -103,6 +103,49 @@ directionality, say — and all four would then read as quantity claims. The num
 rounding would be a quantity of output that no one ever reported. The card explicitly allows
 the conclusion that two families are not commensurable in a particular respect, and they are
 not: they are commensurable for power, and not for quantity.
+
+## It also moves with the level of the series
+
+`|after − before| / |before|` is relative to how far each value sits from zero. Multiplying a
+series by 10 leaves the scale alone; adding a constant to it does not. For three of the four
+injectors the movement itself does not grow with the level — smoothing shrinks deviations
+whose size has nothing to do with the level, bunching moves units a fixed `window` past the
+threshold, rounding moves a count by at most half a percentage point of its denominator — so
+their displacement falls roughly as 1/level. The detectors do not move at all: the von Neumann
+ratio behind `too_smooth_test` is shift-invariant, and `bunching_estimator` bins relative to
+the threshold.
+
+| mechanism | fixture | level | displacement | what the detector sees |
+|---|---|---|---|---|
+| `smoothing` | N(0, 8), n = 60, retain = 0.2 | 20 | 0.1910 | von Neumann ratio 0.665355 |
+| `smoothing` | same draw | 100 | 0.02047 | 0.665355 |
+| `smoothing` | same draw | 1000 | 0.002013 | 0.665355 |
+| `smoothing` | same draw | 10000 | 0.000201 | 0.665355 |
+| `bunching` | N(0, 12), n = 4000, mass = 0.6, window = 4, threshold at the level | 100 | 0.003138 | the same 311 units moved |
+| `bunching` | same draw | 1000 | 0.000307 | the same 311 units moved |
+| `bunching` | same draw | 10000 | 0.0000307 | the same 311 units moved |
+| `rounding` | denominators 400–3000, fraction = 0.5 | share 0.55 | 0.00231 | same denominators |
+| `rounding` | same denominators | share 0.11 | 0.01159 | same denominators |
+| `padding` | N(0, 8), n = 60, magnitude = 0.1 | 100 | 0.026667 | multiplicative |
+| `padding` | same draw | 1000 | 0.026667 | multiplicative |
+
+Smoothing loses a factor of about 95 between levels 20 and 1000 with nothing about its
+detectability changed. So "power per unit of distortion" compared across families is partly a
+property of where each fixture was put, and the ranking can flip when the fixture levels are
+moved. Padding is the exception, because a multiplicative inflation scales with the level.
+
+What this leaves:
+
+- Within one mechanism on one fixture, the axis is sound. It is monotone in every native
+  parameter, as the first table shows.
+- A cross-family comparison must state each fixture's level and is conditional on it. It is
+  not a ranking of method families, and nothing here certifies one.
+- Normalising the level away (by the deviation SD for smoothing, by the window or density
+  bandwidth for bunching) would need the scale to know the mechanism, which it deliberately
+  does not. That is an open choice, not one made here.
+
+No code ranks families on this axis today: `power.atlas.power_curve` and the atlas use each
+injector's native effect size, and no atlas is published.
 
 ## Native units are never replaced
 

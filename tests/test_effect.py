@@ -255,3 +255,83 @@ def test_the_effect_round_trips_to_a_dict():
     assert isinstance(
         CommonEffect(**{k: v for k, v in d.items() if k != "moves_quantity"}), CommonEffect
     )
+
+
+# ---------------------------------------------------------------- the scale moves with the level
+
+
+def test_smoothing_displacement_moves_with_the_level_while_the_detector_does_not():
+    """docs/effect_size.md records 0.1910 / 0.02047 / 0.002013 / 0.000201 at levels
+    20 / 100 / 1000 / 10000, and a von Neumann ratio of 0.665355 at every one of them."""
+    from forensics_core.dispersion.underdispersion import smoothness_ratio
+
+    draw = np.random.default_rng(0).normal(0.0, 8.0, size=60)
+    recorded = {20: 0.1910, 100: 0.02047, 1000: 0.002013, 10000: 0.000201}
+    ratios = []
+    for level, figure in recorded.items():
+        ser = draw + level
+        out, _ = inject_smoothing(ser, retain=0.2, seed=1)
+        assert measure_effect(ser, out).displacement == pytest.approx(figure, rel=5e-3)
+        ratios.append(smoothness_ratio(out))
+    assert ratios[0] == pytest.approx(0.665355, abs=1e-6)
+    assert max(ratios) - min(ratios) < 1e-9, "the von Neumann ratio is shift-invariant"
+
+
+def test_bunching_displacement_moves_with_the_level_while_the_same_units_move():
+    """docs/effect_size.md records 0.003138 / 0.000307 / 0.0000307 at levels 100 / 1000 / 10000,
+    the same 311 units moving each time."""
+    draw = np.random.default_rng(0).normal(0.0, 12.0, size=4000)
+    recorded = {100: 0.003138, 1000: 0.000307, 10000: 0.0000307}
+    offsets = []
+    for level, figure in recorded.items():
+        run = draw + level
+        out, _ = inject_bunching(
+            run, threshold=float(level), mass=0.6, window=4.0, side="above", seed=1
+        )
+        eff = measure_effect(run, out)
+        assert eff.displacement == pytest.approx(figure, rel=1e-2)
+        assert eff.n_touched == 311
+        offsets.append(np.sort(out[out != run] - level))
+    for other in offsets[1:]:
+        np.testing.assert_allclose(other, offsets[0], atol=1e-9)
+
+
+def test_rounding_displacement_moves_with_the_share_level():
+    """docs/effect_size.md records 0.00231 at share 0.55 and 0.01159 at share 0.11."""
+    den = np.random.default_rng(0).integers(400, 3000, size=4000).astype(float)
+    for share, figure in ((0.55, 0.00231), (0.11, 0.01159)):
+        val = np.random.default_rng(0).binomial(den.astype(int), share).astype(float)
+        out, _ = inject_rounding(val, den, fraction=0.5, seed=1)
+        assert measure_effect(val, out).displacement == pytest.approx(figure, rel=5e-3)
+
+
+def test_padding_displacement_does_not_move_with_the_level():
+    """The exception: a multiplicative inflation scales with the level. docs/effect_size.md
+    records 0.026667 at levels 100 and 1000."""
+    draw = np.random.default_rng(0).normal(0.0, 8.0, size=60)
+    for level in (100, 1000):
+        ser = draw + level
+        out, _ = inject_padding(ser, years=np.arange(20, 36), magnitude=0.1, seed=1)
+        assert measure_effect(ser, out).displacement == pytest.approx(0.026667, rel=1e-4)
+
+
+def test_the_docs_do_not_certify_the_axis_for_cross_family_power_comparison():
+    """The axis moves with the level for smoothing, bunching and rounding while their detectors
+    do not, so no document may certify it for ranking method families without qualification."""
+    from pathlib import Path
+
+    import forensics_core.effect as effect_module
+
+    root = Path(__file__).resolve().parents[1]
+    texts = {
+        "effect.py": effect_module.__doc__ or "",
+        "docs/effect_size.md": (root / "docs" / "effect_size.md").read_text(encoding="utf-8"),
+        "docs/power_atlas.md": (root / "docs" / "power_atlas.md").read_text(encoding="utf-8"),
+    }
+    for name, text in texts.items():
+        flat = " ".join(text.split())
+        assert "all four, without qualification" not in flat, name
+        assert "all four mechanisms, without qualification" not in flat, name
+        assert "All four are comparable as an axis for detection power" not in flat, name
+        assert "level" in flat and "0.1910" in flat, f"{name} must state the level dependence"
+    assert "Nothing above threatens that" not in texts["docs/effect_size.md"]
