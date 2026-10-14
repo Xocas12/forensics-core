@@ -62,6 +62,7 @@ from forensics_core.power.atlas import (
     ATLAS_COLUMNS,
     AtlasError,
     PowerSpec,
+    _require_too_smooth_record,
     detectable,
     load_atlas,
     minimum_detectable_effect,
@@ -323,7 +324,9 @@ def publish_atlas(
         be told, or published as ``None`` ("measured once, unrepeatable").
     settings : mapping, optional
         Further estimator settings to record. They are part of the atlas: two atlases that
-        differ here are different atlases.
+        differ here are different atlases. A too-smooth atlas must record its ``detrend`` and
+        ``n_perm`` here or in the frame's spec, under a method named ``too_smooth_<detrend>``;
+        :func:`~forensics_core.power.atlas.too_smooth_atlas` does both.
 
     Returns
     -------
@@ -347,6 +350,7 @@ def publish_atlas(
             "no method name is available: a ladder frame has no method column, so pass "
             "method=... when publishing one"
         )
+    _require_too_smooth_record(resolved, merged)
 
     if "level" in frame.columns and "n_units" in frame.columns:
         stored, rung, rung_settings = _from_ladder(frame, aggregation, semantics, resolved)

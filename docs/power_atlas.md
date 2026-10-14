@@ -24,7 +24,11 @@ method, and record whether it rejects at `alpha`. Repeat. The rejection fraction
 The row at effect size zero is the **false-positive rate**, and it is not optional. A power
 number without it cannot be read: a method that rejects everything has power 1.0 and is
 useless. `power_curve` always measures it, and every lookup refuses to answer from an atlas
-whose false-positive rate at that sample size is more than twice nominal.
+whose false-positive rate at that sample size is more than twice nominal, or so far below
+nominal that a calibrated test would land that low less than 1 time in 100 (`FPR_LOW_TAIL`).
+`power_curve` warns about the same rows when it builds them. A rate far below nominal is not
+caution: it means the null the test assumes does not match how the samples were drawn, and a
+power column measured against that null says nothing about the method.
 
 ## The frozen format
 
@@ -45,6 +49,12 @@ method, n, effect_size, power, power_se, n_replicates, alpha, false_positive_rat
 
 An atlas carrying no version is refused at load. A number whose source release cannot be named
 is not citable, and the refusal is the point.
+
+A **too-smooth atlas** also records the `detrend` it ran `too_smooth_test` under, because the
+test answers a different question under each one. Every row's method is
+`too_smooth_<detrend>` (the name the test reports itself), and the settings carry `detrend` and
+`n_perm`. `power_curve` and `publish_atlas` refuse a too-smooth atlas without them;
+`power.atlas.too_smooth_atlas` builds one with both and has no default `detrend`.
 
 ## Querying it
 
@@ -79,7 +89,8 @@ Nothing interpolates and nothing extrapolates.
 - **An effect that never reaches the target power raises.** The honest answer is that the
   method has no useful power at that sample size, not a number.
 - **An out-of-control false-positive rate raises.** The power column cannot be read while the
-  method fires on data with nothing injected into it.
+  method fires on data with nothing injected into it, nor while it fires improbably rarely,
+  which means its null does not describe the samples it was handed.
 - **A method or rung the library holds no atlas for raises**, naming what it does hold.
 - **Two atlases that differ are never merged.** Library version, seed and estimator settings
   are part of an atlas's identity; two that differ are two entries, and a query matching both
@@ -125,12 +136,42 @@ under either semantics and a gosplan card must not run it on aggregates at all. 
 `aggregation=` in a query is for — and, for this method, the rung at which the answer becomes
 "no".
 
-**The underdispersion family is weak on synthetic data.** Recorded when the atlas was built: the
-too-smooth test gives power 0.00 against variance losses of 50 per cent and 80 per cent at every
-sample size up to 1000, and detects only a 95 per cent loss; at `n = 50` it does not reach power
-0.8 even there. Its false-positive rate is 0.00 throughout, so the test is extremely
-conservative rather than broken. This is one of the two signals gosplan was counting on, which
-is exactly the kind of thing the atlas exists to surface before P4 rather than after.
+**The too-smooth result recorded when the atlas was built does not stand.** It took power 0.00
+against variance losses of 50 and 80 per cent at every sample size up to 1000, and a false-positive
+rate of 0.00 throughout, to mean the test was weak and extremely conservative. That reading is
+withdrawn. The numbers reproduce, but they measure a mismatched null rather than the method. They
+came from `too_smooth_test`'s default `detrend="diff"`, and `power_curve` draws every sample in
+random order, so each series the test saw was exchangeable: the one case where the function's own
+docstring says `"diff"` has essentially no power. A false-positive rate of zero against a nominal
+0.05 is the signature of that mismatch, not of conservatism, and it is now flagged (see the refusals
+above).
+
+Measured again with `power.atlas.too_smooth_atlas`: a population of 20,000 iid N(100, 5) values
+from `numpy.random.default_rng(1)`, `n_perm = 199`, 200 replicates, `seed = 1`. The effect size
+is the share of deviation variance `inject_smoothing` removes (`retain = 1 - effect_size`).
+Each cell lists n = 50 / 100 / 300 / 1000.
+
+| `detrend` | false-positive rate | power, 50% loss | power, 80% loss | power, 95% loss |
+|---|---|---|---|---|
+| `diff` (the default) | 0.000 at every n, flagged | 0.000 at every n | 0.000 at every n | 0.795 / 0.970 / 1.000 / 1.000 |
+| `none` | 0.030 / 0.050 / 0.045 / 0.020 | 0.585 / 0.740 / 0.990 / 1.000 | 0.995 / 0.995 / 1.000 / 1.000 | 1.000 at every n |
+| `linear` | 0.035 / 0.035 / 0.045 / 0.020 | 0.505 / 0.700 / 0.990 / 1.000 | 0.975 / 0.995 / 1.000 / 1.000 | 1.000 at every n |
+
+The `diff` row reproduces every number the old reading rested on. `none` is the exact null for
+random-order samples, and under it the same test detects a 50 per cent variance loss with
+power 0.99 at n = 300.
+
+None of these rows says how the test does on the series a card will have, so none supports calling
+it weak or strong. `none` and `linear` are right only for honest series whose levels (or residuals
+about a line) are exchangeable. Positive lag-1 autocorrelation in those values is exactly what they
+test for, so they reject an honest series that has it, and `power_curve`'s random-order samples
+never contain one, so its false-positive row cannot show that. A too-smooth number that transfers
+needs a population generated with the persistence of the real series, measured with `detrend`
+matched to it. The too-smooth test is one of the two signals gosplan was counting on, so that
+measurement is the one to make before P4.
+
+None of this covers the rest of the underdispersion family: `variance_floor_test` has not been
+measured in an atlas at all.
 
 **The common effect-size axis splits two ways.** From `forensics_core.effect`: on the common
 scale, `padding` and `bunching` measure a directionality of 1.000, while `rounding` measures
