@@ -171,10 +171,15 @@ def _digit_rule(v: np.ndarray, require_two_significant_digits: bool | None) -> s
     ``"magnitude"`` for whole-number input under the default, ``"significant"`` for the
     round-value exclusion, ``"all"`` for reading every value's padding. See
     :func:`leading_digits`.
+
+    A count is a whole number of at least 1. A positive value below 1e-9 (6.674e-11, say) is
+    within ``INTEGER_TOL`` of 0, but it is a measurement, not the count 0; reading it as a
+    count would round it to 0 and drop it.
     """
     if require_two_significant_digits is None:
-        whole = v.size > 0 and bool(np.all(np.abs(v - np.round(v)) <= INTEGER_TOL))
-        return "magnitude" if whole else "significant"
+        nearest = np.round(v)
+        whole = (np.abs(v - nearest) <= INTEGER_TOL) & (nearest >= 1.0)
+        return "magnitude" if v.size > 0 and bool(np.all(whole)) else "significant"
     return "significant" if require_two_significant_digits else "all"
 
 
@@ -193,9 +198,10 @@ def _digits_with_mask(
     usable = np.isfinite(values) & (values > 0.0)
     rule = _digit_rule(values[usable], require_two_significant_digits)
     if rule == "magnitude":
-        # counts: read the whole number the value stands for, so 299.9999999999 is 300
+        # counts: read the whole number the value stands for, so 299.9999999999 is 300.
+        # The rule is only chosen when every usable value rounds to 1 or more, so the
+        # rounding cannot turn a usable value into a non-positive one.
         values = np.round(values)
-        usable &= values > 0.0
     v = values[usable]
     digits = np.zeros(v.size, dtype=np.int64)
     keep = np.ones(v.size, dtype=bool)
@@ -238,27 +244,33 @@ def leading_digits(
         Digit position.
     require_two_significant_digits : bool or None, default None
         How to decide whether a value has a digit after its first one. It matters for
-        ``position="second"`` and ``position="first_two"``; ``"first"`` is unaffected. Three
-        rules, each named in ``DigitTable.digit_rule``:
+        ``position="second"`` and ``position="first_two"``. ``"first"`` keeps every usable
+        value under every rule and reads the same digit, with one exception: under
+        ``"magnitude"`` a value is read as the whole number it stands for, so float noise
+        such as ``999.9999999999`` gives first digit 1, not 9. Three rules, each named in
+        ``DigitTable.digit_rule``:
 
         ``None``, the default, decides from the data. When every usable value is a whole
-        number (to within 1e-9), the input is read as counts, rule ``"magnitude"``: a count
-        has a second digit when it is at least 10, and every digit it has is real. ``300``
-        contributes a second digit of 0 and a first-two pair of 30; 1 to 9 have no second
-        digit and are excluded from both positions. Any other input gets ``"significant"``.
+        number of at least 1 (to within 1e-9), the input is read as counts, rule
+        ``"magnitude"``: a count has a second digit when it is at least 10, and every digit
+        it has is real. ``300`` contributes a second digit of 0 and a first-two pair of 30; 1
+        to 9 have no second digit and are excluded from both positions. Any other input gets
+        ``"significant"``, including input with a positive value below 0.5 such as
+        ``6.674e-11``, which is close to 0 but is not the count 0.
 
         ``True`` forces ``"significant"``, the convention for measured or rounded floats.
-        For ``position="second"``, a value equal to ``d * 10**e`` (to within a relative
-        tolerance of 1e-12; the smallest relative gap between neighbouring two-digit
-        significands is about 1%, so the test is not borderline) is taken to carry a single
-        significant digit: its second digit is a placeholder zero and the value is excluded.
-        This removes digit-0 mass only, while the table is still compared with the
+        Fractional input already gets it under the default, so ``True`` changes the reading only
+        of whole-number input. For ``position="second"``, a value equal to ``d * 10**e`` (to
+        within a relative tolerance of 1e-12; the smallest relative gap between neighbouring
+        two-digit significands is about 1%, so the test is not borderline) is taken to carry a
+        single significant digit: its second digit is a placeholder zero and the value is
+        excluded. This removes digit-0 mass only, while the table is still compared with the
         unconditional second-digit law, so wherever round values are genuine it biases the
-        digit-0 cell downwards. On honest whole-number counts between 10 and 10**4 it
-        leaves about 8% of the table on digit 0 against the 12% the law expects, which the
-        chi-square rejects outright at n = 50,000; on such data it also hides real rounding
-        to one significant digit, since those are exactly the values it drops. It does not
-        change ``position="first_two"``, which reads every value's significand.
+        digit-0 cell downwards. On honest whole-number counts between 10 and 10**4 it leaves
+        about 8% of the table on digit 0 against the 12% the law expects, which the chi-square
+        rejects outright at n = 50,000; on such data it also hides real rounding to one
+        significant digit, since those are exactly the values it drops. It does not change
+        ``position="first_two"``, which reads every value's significand.
 
         ``False``, rule ``"all"``, reads the second digit of every value, padding included:
         ``7`` gives a second digit of 0 and a first-two pair of 70.

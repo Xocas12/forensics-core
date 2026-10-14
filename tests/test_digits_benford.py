@@ -364,6 +364,8 @@ def test_whole_numbers_get_their_digits_by_magnitude():
     assert leading_digits([7.0, 300.0], "first_two").tolist() == [30]
     # float noise around a whole number does not make the input non-integer
     assert leading_digits([299.9999999999, 10.0], "second").tolist() == [0, 0]
+    # ... and the count it stands for gives the first digit too: 1000, not 999.999...
+    assert leading_digits([999.9999999999, 12.0], "first").tolist() == [1, 1]
 
 
 def test_one_fractional_value_keeps_the_round_value_rule_for_the_whole_input():
@@ -371,6 +373,32 @@ def test_one_fractional_value_keeps_the_round_value_rule_for_the_whole_input():
     mixed = [7.0, 10.0, 300.0, 123.0, 12.5]
     assert leading_digits(mixed, "second").tolist() == [2, 2]
     assert digit_frequencies(mixed, "second").digit_rule == "significant"
+
+
+def test_tiny_positive_values_are_not_read_as_counts():
+    """A value below 1e-9 is within 1e-9 of 0, but it is a measurement, not the count 0.
+
+    Reading such input as counts once rounded every tiny value to 0 and then dropped it, from
+    the first digit as well (#26). The default must read it exactly as the round-value rule
+    always has.
+    """
+    x = 10 ** np.random.default_rng(26).uniform(-15, -10, 5000)
+    for position in POSITIONS:
+        assert digit_frequencies(x, position).digit_rule == "significant"
+    first = digit_frequencies(x, "first")
+    assert first.n == x.size and first.n_dropped == 0
+    # the leading character of the decimal expansion, independent of the code under test
+    assert leading_digits(x, "first").tolist() == [int(f"{v:.17e}"[0]) for v in x]
+    assert benford_test(x, "second").table.n_dropped == 0
+    # physical constants from 1e-34 to 1e23: seven below 1e-9, three whole numbers
+    constants = [6.674e-11, 2.998e8, 6.626e-34, 1.380649e-23, 6.02214076e23, 1.602176634e-19]
+    constants += [9.1093837e-31, 1.67262192e-27, 8.8541878128e-12, 299792458.0]
+    table = digit_frequencies(constants, "first")
+    assert table.digit_rule == "significant" and table.n_dropped == 0
+    assert leading_digits(constants, "first").tolist() == [6, 2, 6, 1, 6, 1, 9, 1, 8, 2]
+    # nor are counts that carry one such value
+    counts = digit_frequencies([1e-12, 12.0, 300.0, 45.0, 7000.0], "first")
+    assert counts.digit_rule == "significant" and counts.n_dropped == 0
 
 
 def test_explicit_rules_keep_their_meaning_on_whole_numbers():

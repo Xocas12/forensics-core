@@ -176,10 +176,12 @@ changed:
   `digit_frequencies` and `benford_test`. It exists because whether a value has a second
   digit is a convention, not a fact, and the right convention depends on the data. It
   selects one of three digit rules, recorded in `DigitTable.digit_rule`:
-  - `None`, the default: `"magnitude"` when every usable value is a whole number (to within
-    1e-9), otherwise `"significant"`. Under `"magnitude"` a count has a second digit when it
-    is at least 10, and every digit it has is real: `300` gives second digit 0 and first-two
-    pair 30, and 1 to 9 are excluded from `"second"` and `"first_two"`.
+  - `None`, the default: `"magnitude"` when every usable value is a whole number of at
+    least 1 (to within 1e-9), otherwise `"significant"`. Under `"magnitude"` a count has a
+    second digit when it is at least 10, and every digit it has is real: `300` gives second
+    digit 0 and first-two pair 30, and 1 to 9 are excluded from `"second"` and `"first_two"`.
+    A positive value below 0.5, such as `6.674e-11`, is within 1e-9 of 0 when it is small
+    enough but is not a count, so input that contains one gets `"significant"`.
   - `True`: `"significant"`. For `"second"`, a value equal to `d * 10**e` is taken to carry
     one significant digit and is excluded, so `300.0` does not contribute its zero. Meant
     for measured or rounded floats. `"first_two"` is unaffected and reads every value's
@@ -195,7 +197,8 @@ changed:
   rejected outright at n = 50,000; the padding put a third of the first-two mass in the d0
   cells against 12% expected for counts from 1 to 10**4. Honest `floor(10**U)` counts now
   conform at both positions under the default. Fractional input is read exactly as before,
-  and an explicit `True` or `False` keeps its old meaning.
+  so for it the round-value rule is still the default at `"second"`; for whole-number input
+  it is an opt-in through `True`. An explicit `True` or `False` keeps its old meaning.
 - `MAD_BANDS`, `MAD_LABELS` and `SIGNIFICANCE_RTOL` are module constants rather than numbers
   buried in the code, so a project can read the bands it is being judged against, and so the
   provenance warning attaches to a single object.
