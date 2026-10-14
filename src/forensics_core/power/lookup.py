@@ -42,8 +42,9 @@ For a sample size the stored atlas never measured, nothing here interpolates. Th
 the one the sample-size atlas defines, applied to the loaded frame: an atlas that does not
 cover ``n`` raises,
 an atlas whose measured effects never reach the target power raises, and an atlas whose
-false-positive rate is too far above nominal at that ``n`` raises rather than lending its power
-column to a claim it cannot support.
+false-positive rate at that ``n`` is too far above nominal, or improbably far below it
+(:data:`~forensics_core.power.atlas.FPR_LOW_TAIL`), raises rather than lending its power column
+to a claim it cannot support.
 """
 
 from __future__ import annotations
@@ -237,7 +238,8 @@ class PowerLookup:
         AtlasError
             If the lookup holds no atlas for ``(method, aggregation)``, or the atlas does not
             cover ``n``, or its measured effects never reach ``power`` there, or its
-            false-positive rate at ``n`` is too far above nominal for the power to be read.
+            false-positive rate at ``n`` is too far above nominal, or improbably far below it
+            (:data:`~forensics_core.power.atlas.FPR_LOW_TAIL`), for the power to be read.
         """
         atlas = self.select(method, aggregation=aggregation)
         return float(minimum_detectable_effect(atlas.frame, n, target_power=power))
