@@ -34,6 +34,7 @@ from numpy.typing import ArrayLike
 
 from forensics_core._types import TestResult, jsonable
 from forensics_core.digits._common import (
+    INTEGER_TOL,
     as_float_array,
     chi2_goodness_of_fit,
     kish_effective_n,
@@ -164,15 +165,37 @@ def _significand(v: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return significand, exponent
 
 
+def _digit_rule(v: np.ndarray, require_two_significant_digits: bool | None) -> str:
+    """Name the rule that decides whether a value carries a second digit.
+
+    ``"magnitude"`` for whole-number input under the default, ``"significant"`` for the
+    round-value exclusion, ``"all"`` for reading every value's padding. See
+    :func:`leading_digits`.
+    """
+    if require_two_significant_digits is None:
+        whole = v.size > 0 and bool(np.all(np.abs(v - np.round(v)) <= INTEGER_TOL))
+        return "magnitude" if whole else "significant"
+    return "significant" if require_two_significant_digits else "all"
+
+
 def _digits_with_mask(
     values: np.ndarray,
     position: str,
     *,
-    require_two_significant_digits: bool = True,
+    require_two_significant_digits: bool | None = None,
     rtol: float = SIGNIFICANCE_RTOL,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return ``(digits, mask)``; ``mask`` marks the elements of ``values`` that were used."""
+) -> tuple[np.ndarray, np.ndarray, str]:
+    """Return ``(digits, mask, rule)``.
+
+    ``mask`` marks the elements of ``values`` that were used, and ``rule`` names the digit
+    rule that was applied (see :func:`leading_digits`).
+    """
     usable = np.isfinite(values) & (values > 0.0)
+    rule = _digit_rule(values[usable], require_two_significant_digits)
+    if rule == "magnitude":
+        # counts: read the whole number the value stands for, so 299.9999999999 is 300
+        values = np.round(values)
+        usable &= values > 0.0
     v = values[usable]
     digits = np.zeros(v.size, dtype=np.int64)
     keep = np.ones(v.size, dtype=bool)
@@ -183,23 +206,25 @@ def _digits_with_mask(
         first = first_two // 10
         if position == "first":
             digits = first
-        elif position == "first_two":
-            digits = first_two
         else:
-            digits = first_two % 10
-            if require_two_significant_digits:
+            digits = first_two if position == "first_two" else first_two % 10
+            if rule == "magnitude":
+                # a count below 10 has one digit and nothing after it; every digit of a
+                # larger count is real, the zero in 10 or 300 included
+                keep = v >= 10.0
+            elif rule == "significant" and position == "second":
                 one_digit_value = first.astype(float) * np.power(10.0, exponent)
                 keep = np.abs(v - one_digit_value) > rtol * v
     mask = np.zeros(values.size, dtype=bool)
     mask[np.flatnonzero(usable)[keep]] = True
-    return digits[keep], mask
+    return digits[keep], mask, rule
 
 
 def leading_digits(
     x: ArrayLike,
     position: DigitPosition = "first",
     *,
-    require_two_significant_digits: bool = True,
+    require_two_significant_digits: bool | None = None,
 ) -> np.ndarray:
     """Extract leading digits, dropping values for which the digit is undefined.
 
@@ -211,14 +236,32 @@ def leading_digits(
         want the digits of negative numbers should pass ``numpy.abs(x)`` explicitly).
     position : {"first", "second", "first_two"}
         Digit position.
-    require_two_significant_digits : bool, default True
-        Applies to ``position="second"`` only. A value such as ``300.0`` carries a single
-        significant digit, so its second digit is a placeholder zero rather than a reported
-        digit, and it is excluded. A value is deemed to have one significant digit when it
-        equals ``d * 10**e`` to within a relative tolerance of 1e-12 (the smallest relative
-        gap between neighbouring two-digit significands is about 1%, so the test is not
-        borderline). Set to ``False`` for the looser convention that reads the second digit
-        of every value.
+    require_two_significant_digits : bool or None, default None
+        How to decide whether a value has a digit after its first one. It matters for
+        ``position="second"`` and ``position="first_two"``; ``"first"`` is unaffected. Three
+        rules, each named in ``DigitTable.digit_rule``:
+
+        ``None``, the default, decides from the data. When every usable value is a whole
+        number (to within 1e-9), the input is read as counts, rule ``"magnitude"``: a count
+        has a second digit when it is at least 10, and every digit it has is real. ``300``
+        contributes a second digit of 0 and a first-two pair of 30; 1 to 9 have no second
+        digit and are excluded from both positions. Any other input gets ``"significant"``.
+
+        ``True`` forces ``"significant"``, the convention for measured or rounded floats.
+        For ``position="second"``, a value equal to ``d * 10**e`` (to within a relative
+        tolerance of 1e-12; the smallest relative gap between neighbouring two-digit
+        significands is about 1%, so the test is not borderline) is taken to carry a single
+        significant digit: its second digit is a placeholder zero and the value is excluded.
+        This removes digit-0 mass only, while the table is still compared with the
+        unconditional second-digit law, so wherever round values are genuine it biases the
+        digit-0 cell downwards. On honest whole-number counts between 10 and 10**4 it
+        leaves about 8% of the table on digit 0 against the 12% the law expects, which the
+        chi-square rejects outright at n = 50,000; on such data it also hides real rounding
+        to one significant digit, since those are exactly the values it drops. It does not
+        change ``position="first_two"``, which reads every value's significand.
+
+        ``False``, rule ``"all"``, reads the second digit of every value, padding included:
+        ``7`` gives a second digit of 0 and a first-two pair of 70.
 
     Returns
     -------
@@ -236,10 +279,14 @@ def leading_digits(
     [1, 1, 9]
     >>> leading_digits([0.000123, 123.0, 9.99], "first_two").tolist()
     [12, 12, 99]
+    >>> leading_digits([7, 10, 300, 123], "second").tolist()
+    [0, 0, 2]
+    >>> leading_digits([7, 10, 300, 123], "first_two").tolist()
+    [10, 30, 12]
     """
     _check_position(position)
     values = as_float_array(x, "x")
-    digits, _ = _digits_with_mask(
+    digits, _, _ = _digits_with_mask(
         values, position, require_two_significant_digits=require_two_significant_digits
     )
     return digits
@@ -267,6 +314,11 @@ class DigitTable:
         Values excluded as non-finite, non-positive, or lacking the required digit.
     position : str
         Digit position the table describes.
+    digit_rule : str or None
+        The rule that decided which values carry the digit: ``"magnitude"``,
+        ``"significant"`` or ``"all"`` (see :func:`leading_digits`). The default decides it
+        from the data, so a stored table names the rule it was built under. ``None`` only
+        for a table built by hand.
     """
 
     digits: np.ndarray
@@ -278,6 +330,7 @@ class DigitTable:
     effective_n: float
     n_dropped: int = 0
     position: str = "first"
+    digit_rule: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return jsonable(asdict(self))
@@ -288,7 +341,7 @@ def digit_frequencies(
     position: DigitPosition = "first",
     weights: ArrayLike | None = None,
     *,
-    require_two_significant_digits: bool = True,
+    require_two_significant_digits: bool | None = None,
 ) -> DigitTable:
     """Tabulate observed against Benford-expected digit frequencies.
 
@@ -302,8 +355,9 @@ def digit_frequencies(
         Observation weights aligned with ``x`` (e.g. precinct size). ``observed`` then holds
         summed weights and ``effective_n`` the Kish (1965, *Survey Sampling*, Wiley, section
         8.2) effective sample size of the weights that survived exclusion.
-    require_two_significant_digits : bool, default True
-        Passed through to :func:`leading_digits`.
+    require_two_significant_digits : bool or None, default None
+        Passed through to :func:`leading_digits`; the rule it resolves to is recorded in
+        ``DigitTable.digit_rule``.
 
     Returns
     -------
@@ -317,15 +371,17 @@ def digit_frequencies(
     _check_position(position)
     values = as_float_array(x, "x")
     w = validate_weights(weights, values.size)
-    digits, mask = _digits_with_mask(
+    digits, mask, rule = _digits_with_mask(
         values, position, require_two_significant_digits=require_two_significant_digits
     )
     n = int(digits.size)
     if n == 0:
-        raise ValueError(
-            f"no usable values for the {position} digit: every element was non-finite, "
-            "non-positive, or lacked the required significant digits"
-        )
+        why = "non-finite or non-positive"
+        if position != "first":
+            why = f"non-finite, non-positive, or without a second digit under the {rule!r} rule"
+            if rule == "magnitude":
+                why += " (whole numbers below 10 have no second digit)"
+        raise ValueError(f"no usable values for the {position} digit: every element was {why}")
     support = digit_support(position)
     kept_w = None if w is None else w[mask]
     if kept_w is not None and not np.any(kept_w > 0):
@@ -343,6 +399,7 @@ def digit_frequencies(
         effective_n=float(n) if kept_w is None else kish_effective_n(kept_w),
         n_dropped=int(values.size - n),
         position=position,
+        digit_rule=rule,
     )
 
 
@@ -420,7 +477,7 @@ def benford_test(
     weights: ArrayLike | None = None,
     statistics: tuple[str, ...] = ("chi2", "mad", "kuiper"),
     *,
-    require_two_significant_digits: bool = True,
+    require_two_significant_digits: bool | None = None,
 ) -> BenfordResult:
     """Test digit frequencies against Benford's law.
 
@@ -439,15 +496,16 @@ def benford_test(
         flags this.
     statistics : tuple of str, default ``("chi2", "mad", "kuiper")``
         Any subset of ``{"chi2", "mad", "kuiper"}``.
-    require_two_significant_digits : bool, default True
-        Passed through to :func:`leading_digits`.
+    require_two_significant_digits : bool or None, default None
+        Passed through to :func:`leading_digits`. The default reads whole-number input as
+        counts, so honest integer counts conform at ``"second"`` and ``"first_two"``.
 
     Returns
     -------
     BenfordResult
         ``table`` plus one :class:`~forensics_core.TestResult` per requested statistic. The
         MAD result has ``pvalue=None`` and carries the Nigrini conformity band in
-        ``details["conformity"]``.
+        ``details["conformity"]``. ``settings["digit_rule"]`` names the digit rule applied.
 
     Raises
     ------
@@ -547,5 +605,6 @@ def benford_test(
             "statistics": list(requested),
             "weighted": weighted,
             "require_two_significant_digits": require_two_significant_digits,
+            "digit_rule": table.digit_rule,
         },
     )

@@ -336,3 +336,108 @@ def test_first_two_digit_test_has_ninety_cells():
     assert result.table.digits.size == 90
     assert result.chi2.details["df"] == 89
     assert result.chi2.pvalue > 0.01
+
+
+# --------------------------------------------------------------------------- integer counts
+#
+# The conformance tests above use continuous 10**U floats, where an exactly round value has
+# probability zero. Counts are whole numbers: 10, 20 and 300 occur, and so do 1 to 9. Both
+# positions after the first went wrong on them (#26), so these fixtures are whole numbers.
+
+
+def _synthetic_counts(seed: int, lo: float = 0.0, hi: float = 4.0, n: int = 50_000):
+    """``floor(10**U)``: honest whole-number counts, 1 to 9 included.
+
+    ``P(floor(10**U) = k) = log10(1 + 1/k)`` for every whole ``k`` in range, so the counts at
+    or above 10 follow the second-digit and first-two-digit laws exactly.
+    """
+    return np.floor(10 ** np.random.default_rng(seed).uniform(lo, hi, n))
+
+
+def test_whole_numbers_get_their_digits_by_magnitude():
+    counts = [7, 10, 20, 300, 123, 4000]
+    # 7 has no second digit; the zeros in 10, 20, 300 and 4000 are real digits
+    assert leading_digits(counts, "second").tolist() == [0, 0, 0, 2, 0]
+    assert leading_digits(counts, "first_two").tolist() == [10, 20, 30, 12, 40]
+    assert leading_digits(counts, "first").tolist() == [7, 1, 2, 3, 1, 4]
+    # the case the issue quotes: 7.0 is not padded into cell 70
+    assert leading_digits([7.0, 300.0], "first_two").tolist() == [30]
+    # float noise around a whole number does not make the input non-integer
+    assert leading_digits([299.9999999999, 10.0], "second").tolist() == [0, 0]
+
+
+def test_one_fractional_value_keeps_the_round_value_rule_for_the_whole_input():
+    # not whole numbers, so 10 and 300 are read as one significant digit and 7 is dropped
+    mixed = [7.0, 10.0, 300.0, 123.0, 12.5]
+    assert leading_digits(mixed, "second").tolist() == [2, 2]
+    assert digit_frequencies(mixed, "second").digit_rule == "significant"
+
+
+def test_explicit_rules_keep_their_meaning_on_whole_numbers():
+    counts = [7, 10, 300, 123]
+    strict = {"require_two_significant_digits": True}
+    loose = {"require_two_significant_digits": False}
+    assert leading_digits(counts, "second", **strict).tolist() == [2]
+    assert leading_digits(counts, "second", **loose).tolist() == [0, 0, 0, 2]
+    assert leading_digits(counts, "first_two", **strict).tolist() == [70, 10, 30, 12]
+    assert leading_digits(counts, "first_two", **loose).tolist() == [70, 10, 30, 12]
+
+
+def test_the_digit_rule_applied_is_recorded():
+    counts = [7, 10, 300, 123, 45]
+    assert digit_frequencies(counts, "second").digit_rule == "magnitude"
+    assert digit_frequencies([1.5, 2.25], "second").digit_rule == "significant"
+    loose = digit_frequencies(counts, "second", require_two_significant_digits=False)
+    assert loose.digit_rule == "all"
+    result = benford_test(counts, "second", statistics=("mad",))
+    assert result.settings["digit_rule"] == "magnitude"
+    assert result.settings["require_two_significant_digits"] is None
+    assert result.to_dict()["table"]["digit_rule"] == "magnitude"
+    with pytest.raises(ValueError, match="whole numbers below 10 have no second digit"):
+        digit_frequencies([1, 2, 3, 9], "second")
+
+
+def test_second_digit_test_conforms_on_honest_integer_counts():
+    x = _synthetic_counts(26)
+    result = benford_test(x, "second")
+    assert result.chi2.pvalue > 0.01
+    assert result.mad.details["conformity"] == MAD_LABELS[0]
+    assert result.table.observed_prop[0] == pytest.approx(benford_expected("second")[0], abs=0.005)
+    assert result.table.n == int(np.sum(x >= 10))  # only the single-digit counts are set aside
+    assert result.table.digit_rule == "magnitude"
+
+
+def test_first_two_digit_test_conforms_on_honest_integer_counts():
+    x = _synthetic_counts(26)
+    result = benford_test(x, "first_two")
+    assert result.chi2.pvalue > 0.01
+    assert result.mad.details["conformity"] == MAD_LABELS[0]
+    # the d0 cells (10, 20, ..., 90) carry their share, not the padded single-digit counts
+    d0_share = result.table.observed_prop.reshape(9, 10)[:, 0].sum()
+    assert d0_share == pytest.approx(benford_expected("second")[0], abs=0.005)
+    assert result.table.n == int(np.sum(x >= 10))
+    assert result.table.digit_rule == "magnitude"
+
+
+def test_round_value_rule_biases_digit_zero_on_counts():
+    """The opt-in's documented cost: on genuine counts digit 0 reads about 8% against 12%."""
+    x = _synthetic_counts(7, lo=1.0)
+    strict = benford_test(x, "second", require_two_significant_digits=True)
+    assert 0.07 < strict.table.observed_prop[0] < 0.09
+    assert strict.chi2.pvalue < 1e-10
+    assert benford_test(x, "second").chi2.pvalue > 0.01
+
+
+def test_default_sees_counts_rounded_to_one_significant_digit():
+    """Rounding counts to 300 or 4000 piles mass on digit 0; the default must see it."""
+    rng = np.random.default_rng(80)  # its own stream, so which counts get rounded is unrelated
+    x = _synthetic_counts(8, lo=2.0, n=20_000)
+    rounded = rng.choice(x.size, size=x.size // 20, replace=False)
+    scale = 10.0 ** np.floor(np.log10(x[rounded]))
+    x[rounded] = np.round(x[rounded] / scale) * scale
+    result = benford_test(x, "second")
+    assert result.table.observed_prop[0] > benford_expected("second")[0] + 0.02
+    assert result.chi2.pvalue < 1e-10
+    # the round-value rule drops exactly the values that were rounded, and so cannot see it
+    hidden = benford_test(x, "second", require_two_significant_digits=True)
+    assert hidden.table.observed_prop[0] < benford_expected("second")[0]
