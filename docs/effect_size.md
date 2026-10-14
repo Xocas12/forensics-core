@@ -25,9 +25,9 @@ cent each* — and that sentence is the form a gosplan bound eventually wants to
 
 | mechanism | native parameter | displacement | net / gross |
 |---|---|---|---|
-| `rounding` | fraction = 0.25 | 0.001154 | +0.016 |
-| `rounding` | fraction = 0.5 | 0.002308 | +0.023 |
-| `rounding` | fraction = 1.0 | 0.004598 | +0.018 |
+| `rounding` | fraction = 0.25 | 0.001152 | +0.015 |
+| `rounding` | fraction = 0.5 | 0.002298 | +0.025 |
+| `rounding` | fraction = 1.0 | 0.004590 | +0.019 |
 | `bunching` | mass = 0.3 | 0.001610 | +1.000 |
 | `bunching` | mass = 0.6 | 0.003138 | +1.000 |
 | `bunching` | mass = 0.9 | 0.004886 | +1.000 |
@@ -59,12 +59,12 @@ marginal — it is two orders of magnitude.
 |---|---|---|
 | `padding` | +1.000 | every touched year inflated; gross **is** net |
 | `bunching` | +1.000 | every mover crosses the threshold the same way |
-| `rounding` | +0.018 | units round up and down about equally |
+| `rounding` | +0.019 | units round up and down about equally |
 | `smoothing` | −0.005 | deviations shrink both ways around a preserved level |
 
-At `fraction = 1.0`, rounding moves 0.46% of the reported total in gross terms and 0.008% in
+At `fraction = 1.0`, rounding moves 0.46% of the reported total in gross terms and 0.009% in
 net terms. **A sentence quoting the first as misreported output would overstate it by a factor
-of about 55.** Smoothing is worse still: its net displacement is not merely small but
+of about 52.** Smoothing is worse still: its net displacement is not merely small but
 sign-unstable, because the mechanism preserves the level exactly and only shrinks the noise
 around it.
 
@@ -72,8 +72,9 @@ This is a real distinction between the mechanisms, not an artefact of the scale:
 
 - Padding and bunching move **quantity**. Someone reported more output than existed, or moved
   a unit across a threshold to collect a bonus. The total changed.
-- Rounding moves **digits**. A count of 1,647 becomes the count that makes the percentage come
-  out at 65 exactly. The number is falsified; the quantity barely moves.
+- Rounding moves **digits**. A count of 1,647 becomes the whole count that brings the
+  percentage closest to 65, which is 65 exactly only where 100 divides 65 times the
+  denominator. The number is falsified; the quantity barely moves.
 - Smoothing moves **variance**. The series keeps its level at every `retain`; what disappears
   is the noise a real process would have had.
 

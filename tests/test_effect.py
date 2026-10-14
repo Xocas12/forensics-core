@@ -140,7 +140,7 @@ def test_rounding_and_smoothing_do_not_move_quantity():
     smoothed = measure_effect(ser, inject_smoothing(ser, retain=0.02, seed=1)[0])
 
     assert abs(rounded.directionality) < 0.05, (
-        f"rounding directionality {rounded.directionality:.4f}; docs/effect_size.md records 0.018"
+        f"rounding directionality {rounded.directionality:.4f}; docs/effect_size.md records 0.019"
     )
     assert abs(smoothed.directionality) < 0.05
     assert not rounded.moves_quantity

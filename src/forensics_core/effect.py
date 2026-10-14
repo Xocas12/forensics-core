@@ -235,8 +235,8 @@ def as_quantity_claim(effect: CommonEffect, mechanism: str | None = None) -> str
     "About x per cent of the reported numbers were moved, by about y per cent each" is a claim
     about output. It is true for padding and bunching, where every touched unit moves the same
     way, and false for rounding and smoothing, where the movement cancels and the total stays
-    where it was. Rounding at ``fraction=1.0`` displaces 0.46% of the numbers gross and 0.008%
-    net; a sentence quoting the first as misreporting would overstate it by a factor of 55.
+    where it was. Rounding at ``fraction=1.0`` displaces 0.46% of the numbers gross and 0.009%
+    net; a sentence quoting the first as misreporting would overstate it by a factor of 52.
 
     Raises
     ------

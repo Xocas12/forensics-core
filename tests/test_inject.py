@@ -160,6 +160,68 @@ def test_rounding_mispecified_estimator_recovers_reduced_nonzero_effect():
     assert tight.excess < full.excess
 
 
+def synthetic_awkward_denominators(seed: int, n: int = 4000) -> tuple[np.ndarray, np.ndarray]:
+    """Honest counts on precinct-sized denominators that 100 does not divide.
+
+    The multiples-of-100 fixture above cannot see whether the injector writes whole
+    counts: there every integer percentage is already a whole count. Here almost none is.
+    """
+    rng = np.random.default_rng(seed)
+    d = rng.integers(101, 800, size=n)
+    d = np.where(d % 100 == 0, d + 1, d).astype(float)
+    p = rng.beta(20, 12, size=n)
+    v = rng.binomial(d.astype(np.int64), p).astype(float)
+    return v, d
+
+
+def test_32_rounding_writes_whole_counts_when_100_does_not_divide_the_denominator():
+    v, d = synthetic_awkward_denominators(41)
+    assert np.all(d % 100 != 0)
+    out, rec = inject_rounding(v, d, fraction=1.0, seed=8)
+    # a fabricator writes a count: every numerator is still a whole number ...
+    np.testing.assert_array_equal(out, np.round(out))
+    # ... the count nearest the target integer percentage, so within 50/d points of it
+    target = np.round(100.0 * v / d)
+    pct_after = 100.0 * out / d
+    assert np.all(np.abs(out - target * d / 100.0) <= 0.5 + 1e-9)
+    assert np.all(np.abs(pct_after - target) <= 50.0 / d + 1e-9)
+    # most of them cannot reach the integer exactly, and the record says where they landed
+    off = np.abs(pct_after[rec.indices] - target[rec.indices]) > 1e-9
+    assert off.mean() > 0.5
+    np.testing.assert_allclose(rec.achieved, pct_after[rec.indices])
+    np.testing.assert_array_equal(rec.indices, np.flatnonzero(out != v))
+
+
+def test_32_rounding_the_issue_example_at_137():
+    # 90/137 = 65.69% rounds to a 66% target, 90.42 units; the count written is 90, which
+    # does not move. 88/137 = 64.23% targets 64%, 87.68 units; the count written is 88.
+    out, rec = inject_rounding(np.array([90.0, 88.0]), np.array([137.0, 137.0]), fraction=1.0)
+    np.testing.assert_array_equal(out, [90.0, 88.0])
+    assert rec.indices.size == 0
+    assert rec.achieved.size == 0
+    out, rec = inject_rounding(np.array([89.0]), np.array([137.0]), fraction=1.0)
+    # 89/137 = 64.96% targets 65%, 89.05 units: still 89
+    np.testing.assert_array_equal(out, [89.0])
+    out, rec = inject_rounding(np.array([87.0]), np.array([137.0]), fraction=1.0)
+    # 87/137 = 63.50% rounds to a 64% target, 87.68 units: written as 88, which is 64.23%
+    np.testing.assert_array_equal(out, [88.0])
+    np.testing.assert_allclose(rec.achieved, [100.0 * 88.0 / 137.0])
+
+
+def test_32_exact_percentage_is_an_explicit_opt_in_for_continuous_quantities():
+    v, d = synthetic_awkward_denominators(42)
+    out, rec = inject_rounding(v, d, fraction=1.0, seed=8, exact_percentage=True)
+    pct_after = 100.0 * out / d
+    assert np.all(np.abs(pct_after - np.round(pct_after)) <= 1e-8)
+    assert np.any(out != np.round(out))
+    np.testing.assert_allclose(rec.achieved, pct_after[rec.indices])
+    # without the flag a continuous quantity is refused rather than silently made whole
+    with pytest.raises(ValueError, match="exact_percentage"):
+        inject_rounding(v + 0.25, d, fraction=0.5, seed=1)
+    with pytest.raises(ValueError, match="exact_percentage"):
+        inject_rounding(v, d + 0.5, fraction=0.5, seed=1)
+
+
 def test_rounding_reproducible_from_seed():
     v, d = clean_binomial_numerators(6)
     out_a, rec_a = inject_rounding(v, d, fraction=0.4, seed=101)
