@@ -379,39 +379,207 @@ def test_an_empty_pass_is_refused():
 # ---------------------------------------------------------------- the OCR gate
 
 
-def test_the_ocr_gate_finds_a_firing_threshold_and_closes_below_it():
-    rng = np.random.default_rng(15)
-    values = rng.integers(10000, 99999, size=2000).astype(float)
+#: The glyph confusion docs/redteam.md measures: a scanner that resolves 3, 5, 6 and 9 to 8.
+GLYPHS = {3: 8, 5: 8, 6: 8, 9: 8}
 
-    def biased_scanner_test(sample):
-        return terminal_digit_test(sample.values)
+
+def honest_five_digit_table(rng):
+    """One fresh honest table: 4000 five-digit counts, last digits uniform."""
+    return rng.integers(10000, 100000, size=4000).astype(float)
+
+
+def misread_to_measured_rate(table, rate, seed):
+    """Glyph-confuse last digits so that ``rate`` of them differ from the table, on average.
+
+    Written apart from ocr_firing_threshold's own conversion so that the check below does not
+    share its arithmetic: ocr_noise's rate is the chance that a digit is misread, and under
+    GLYPHS a misread changes only the digits that are its keys.
+    """
+    confusable = np.isin(table.astype(np.int64) % 10, list(GLYPHS)).mean()
+    injector = rate / confusable if rate else 0.0
+    return ocr_noise(table, injector, (0,), confusion=GLYPHS, seed=seed)[0]
+
+
+def test_the_ocr_threshold_under_glyph_confusion_keeps_the_digit_test_calibrated_below_it():
+    """The gate's promise, checked on tables the threshold never saw.
+
+    A uniform misread cannot make a uniformity test fire, so a threshold that simulated only
+    that mode never arrived and the gate stayed shut for good. With the glyph confusion the
+    threshold exists. It is the share of last digits that differ from the source, which is
+    what a transcription comparison reports and what ocr_gate takes. And at every rate the
+    gate admits, the terminal-digit test fires on fresh honest tables at no more than
+    alpha + tolerance = 0.08, the band the threshold was computed against. docs/redteam.md
+    records the threshold this computes, 0.003, and the firing rates behind it.
+    """
+    threshold = ocr_firing_threshold(
+        terminal_test,
+        honest_five_digit_table,
+        error_rates=(0.003, 0.006),
+        confusions=GLYPHS,
+        n_replicates=1000,
+        seed=0,
+    )
+    assert threshold is not None and threshold > 0.0, (
+        f"terminal_digit_test under glyph confusion must get a usable threshold; got {threshold}"
+    )
+    assert threshold == 0.003, (
+        f"docs/redteam.md records a threshold of 0.003 for this table shape; got {threshold}"
+    )
+
+    reps = 1000
+    for rate in (0.0, threshold / 2, threshold):
+        fired = changed = 0
+        for i in range(reps):
+            table = honest_five_digit_table(np.random.default_rng(50_000 + i))
+            read = misread_to_measured_rate(table, rate, seed=60_000 + i)
+            changed += int((read != table).sum())
+            fired += int(terminal_digit_test(read).pvalue <= 0.05)
+        measured = changed / (reps * 4000)
+        assert measured == pytest.approx(rate, rel=0.05, abs=1e-12), (
+            f"tables built at {rate} have {measured:.5f} of last digits changed; the rate "
+            "being checked is not in the unit a comparison with the source would report"
+        )
+        assert fired / reps <= 0.08, (
+            f"the gate admits a measured error rate of {rate}, and there the terminal-digit "
+            f"test fired on {fired}/{reps} honest tables, above alpha + tolerance = 0.08"
+        )
+
+    # a table compared on 20,000 digits and found with half the threshold's error rate passes;
+    # one found exactly at it does not, because the gate reads the rate's upper bound
+    assert ocr_gate(threshold, threshold / 2, n_compared=20_000) is True
+    assert ocr_gate(threshold, threshold, n_compared=20_000) is False
+
+
+def test_the_threshold_is_in_the_unit_a_comparison_with_the_source_measures():
+    """A detector that fires once more than 1.5% of digits differ from the source must get the
+    threshold 0.01 on this grid. Read in ocr_noise's unit instead, where only four glyphs in
+    ten can change, 0.02 would change 0.8% of digits and the answer would be 0.02."""
+
+    def fires_past_one_and_a_half_percent_changed(sample):
+        if sample.truth["confusion"] is None:
+            return 1.0
+        changed = len(sample.truth["changed_index"]) / len(sample)
+        return 0.0 if changed > 0.015 else 1.0
 
     threshold = ocr_firing_threshold(
-        biased_scanner_test,
-        values,
-        error_rates=(0.0, 0.05, 0.2, 0.5),
-        n_replicates=5,
-        seed=1,
+        fires_past_one_and_a_half_percent_changed,
+        honest_five_digit_table,
+        error_rates=(0.005, 0.01, 0.02, 0.04),
+        confusions=GLYPHS,
+        n_replicates=300,
     )
-    # a uniform misread does not bias the digit distribution, so this test should survive
-    assert threshold is None, (
-        f"a uniform digit misread should not make a uniformity test fire; got {threshold}"
-    )
-    assert ocr_gate(threshold, measured_error_rate=0.001) is False, (
-        "a detector that was never made to fire has not been shown safe; the gate must stay "
-        "shut and the grid must be widened"
-    )
+    assert threshold == 0.01
 
 
-def test_the_gate_opens_only_below_a_measured_firing_threshold():
-    assert ocr_gate(0.10, 0.02) is True
-    assert ocr_gate(0.10, 0.10) is False
-    assert ocr_gate(0.10, 0.30) is False
+def test_every_corruption_mode_is_run_and_the_lowest_threshold_wins():
+    """The uniform misread and every confusion given are each a way the scanner can fail, and
+    a rate is safe only if it is safe under all of them. The detector here reacts to one mode
+    only; the threshold must come from that mode whichever it is. (GLYPHS reacting is the
+    test above.)"""
+
+    def fires_under(mode):
+        def detector(sample):
+            changed = len(sample.truth["changed_index"]) / len(sample)
+            return 0.0 if sample.truth["confusion"] == mode and changed > 0.015 else 1.0
+
+        return detector
+
+    for mode in (None, {1: 7}):
+        threshold = ocr_firing_threshold(
+            fires_under(mode),
+            honest_five_digit_table,
+            error_rates=(0.005, 0.01, 0.02, 0.04),
+            confusions=[{1: 7}, GLYPHS],
+            n_replicates=300,
+        )
+        assert threshold == 0.01, (
+            f"the mode {mode} fires from 0.02 but the threshold is {threshold}"
+        )
+
+
+def test_a_rate_passes_only_if_its_firing_is_shown_within_tolerance_not_just_estimated():
+    """A detector that fires on exactly 7 tables in 100 from a rate of 0.01 has a point
+    estimate inside alpha + tolerance = 0.08, but 300 tables cannot show its true rate is: the
+    95% upper bound on 21/300 is above 0.08. The threshold must stop below 0.01."""
+    drawn = iter(range(10**6))
+
+    def numbered_table(rng):
+        table = rng.integers(10000, 100000, size=500).astype(float)
+        table[0] = 10000 + next(drawn)  # the table's own number, for the detector below
+        return table
+
+    def fires_on_seven_in_a_hundred_from_one_percent(sample):
+        # under a uniform misread ocr_noise's rate is the measured rate itself
+        reacts = sample.truth["confusion"] is None and sample.truth["error_rate"] >= 0.01
+        number = int(sample.truth["values"][0]) - 10000
+        return 0.0 if reacts and number % 100 < 7 else 1.0
+
+    threshold = ocr_firing_threshold(
+        fires_on_seven_in_a_hundred_from_one_percent,
+        numbered_table,
+        error_rates=(0.005, 0.01),
+        confusions=GLYPHS,
+        n_replicates=300,
+    )
+    assert threshold == 0.005
+
+
+def test_a_detector_that_never_answers_gets_no_threshold():
+    """A refusal is not a pass. Counted as one, a detector that never returned a p-value would
+    be calibrated at every rate and the gate would open for it."""
+
+    def refuses(sample):
+        raise ValueError("cannot test this")
+
+    for detector in (refuses, lambda s: None, lambda s: float("nan")):
+        threshold = ocr_firing_threshold(
+            detector,
+            honest_five_digit_table,
+            error_rates=(0.01,),
+            confusions=GLYPHS,
+            n_replicates=300,
+        )
+        assert threshold is None
+        assert ocr_gate(threshold, 0.0, n_compared=1_000_000) is False
+
+
+def test_the_threshold_refuses_inputs_that_would_misstate_it():
+    def never(sample):
+        return 1.0
+
+    kwargs = {"error_rates": (0.01,), "confusions": GLYPHS, "n_replicates": 300}
+    fixed = honest_five_digit_table(np.random.default_rng(0))
+    with pytest.raises(RedTeamError, match="fresh honest table"):
+        ocr_firing_threshold(never, fixed, **kwargs)
+    with pytest.raises(RedTeamError, match="confusions is empty"):
+        ocr_firing_threshold(never, honest_five_digit_table, **{**kwargs, "confusions": []})
+    with pytest.raises(RedTeamError, match="cannot resolve a tolerance"):
+        ocr_firing_threshold(never, honest_five_digit_table, **{**kwargs, "n_replicates": 200})
+    # four glyphs in ten cannot change half the last digits however often they are misread
+    with pytest.raises(RedTeamError, match="cannot be produced"):
+        ocr_firing_threshold(never, honest_five_digit_table, **{**kwargs, "error_rates": (0.5,)})
+
+
+def test_the_gate_holds_the_upper_bound_of_the_measured_rate_to_the_threshold():
+    assert ocr_gate(0.10, 0.02, n_compared=4000) is True
+    assert ocr_gate(0.10, 0.10, n_compared=4000) is False
+    assert ocr_gate(0.10, 0.30, n_compared=4000) is False
+    # the same point estimate, one error in 200 digits against 500 in 100,000
+    assert ocr_gate(0.01, 0.005, n_compared=200) is False
+    assert ocr_gate(0.01, 0.005, n_compared=100_000) is True
+
+
+def test_the_gate_stays_shut_when_no_rate_was_shown_safe():
+    assert ocr_gate(None, 0.0, n_compared=1_000_000) is False
+    # 0.0 admits only an error-free transcription, and no finite comparison proves one
+    assert ocr_gate(0.0, 0.0, n_compared=1_000_000) is False
 
 
 def test_the_gate_refuses_a_nonsense_error_rate():
     with pytest.raises(RedTeamError, match="measured_error_rate"):
-        ocr_gate(0.1, 1.5)
+        ocr_gate(0.1, 1.5, n_compared=100)
+    with pytest.raises(RedTeamError, match="n_compared"):
+        ocr_gate(0.1, 0.01, n_compared=0)
 
 
 # ---------------------------------------------------------------- the document

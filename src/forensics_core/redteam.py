@@ -47,6 +47,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike
+from scipy import stats
 
 __all__ = [
     "TRAPS",
@@ -468,7 +469,12 @@ def ocr_noise(
         Integer-valued. A transcribed table holds integers; corrupting a digit of a float
         would be a different mechanism.
     error_rate : float
-        Probability that any one eligible digit is misread.
+        Probability that any one eligible digit is misread. This is the injector's unit, not
+        the unit a transcription comparison measures: under a ``confusion`` table only the
+        digits in its keys can change, so the share of digits that differ from the source is
+        ``error_rate`` times the share of eligible digits that are keys (about 0.4 for four
+        confusable glyphs on uniform digits). :func:`ocr_firing_threshold` works in the
+        measured unit and converts.
     positions : sequence of int
         Digit positions eligible to be misread, ``0`` being the last digit.
     confusion : mapping of int to int, optional
@@ -490,29 +496,14 @@ def ocr_noise(
         )
     if not 0.0 <= error_rate <= 1.0:
         raise RedTeamError(f"error_rate must be in [0, 1]; got {error_rate}")
-    if not positions:
-        raise RedTeamError("positions is empty; no digit could be misread")
-    pos = sorted({int(p) for p in positions})
-    if any(p < 0 for p in pos):
-        raise RedTeamError("digit positions are non-negative, 0 being the last digit")
+    pos = _digit_positions(positions)
 
     rng = _rng(seed)
     ints = np.round(np.abs(original)).astype(np.int64)
     sign = np.sign(original)
     out = ints.copy()
 
-    table: dict[int, int] | None = None
-    if confusion is not None:
-        table = {int(k): int(v) for k, v in confusion.items()}
-        bad = {k: v for k, v in table.items() if not (0 <= k <= 9 and 0 <= v <= 9)}
-        if bad:
-            raise RedTeamError(f"confusion keys and values must be digits 0-9; got {bad}")
-        fixed = {k: v for k, v in table.items() if k == v}
-        if fixed:
-            raise RedTeamError(
-                f"confusion maps {sorted(fixed)} to itself, which is not a misread. Leave a "
-                "digit out of the mapping to say the scanner reads it correctly."
-            )
+    table = None if confusion is None else _confusion_table(confusion)
 
     n_corrupted = 0
     for p in pos:
@@ -556,6 +547,29 @@ def ocr_noise(
         },
         seed=seed,
     )
+
+
+def _digit_positions(positions: Sequence[int]) -> list[int]:
+    if not positions:
+        raise RedTeamError("positions is empty; no digit could be misread")
+    pos = sorted({int(p) for p in positions})
+    if any(p < 0 for p in pos):
+        raise RedTeamError("digit positions are non-negative, 0 being the last digit")
+    return pos
+
+
+def _confusion_table(confusion: Mapping[int, int]) -> dict[int, int]:
+    table = {int(k): int(v) for k, v in confusion.items()}
+    bad = {k: v for k, v in table.items() if not (0 <= k <= 9 and 0 <= v <= 9)}
+    if bad:
+        raise RedTeamError(f"confusion keys and values must be digits 0-9; got {bad}")
+    fixed = {k: v for k, v in table.items() if k == v}
+    if fixed:
+        raise RedTeamError(
+            f"confusion maps {sorted(fixed)} to itself, which is not a misread. Leave a "
+            "digit out of the mapping to say the scanner reads it correctly."
+        )
+    return table
 
 
 # ---------------------------------------------------------------- running the pass
@@ -694,68 +708,243 @@ def survivors(results: Sequence[RedTeamResult], detector: str) -> list[str]:
 
 def ocr_firing_threshold(
     detector: Callable[[TrapSample], Any],
-    values: ArrayLike,
+    honest_table: Callable[[np.random.Generator], ArrayLike],
     *,
     error_rates: Sequence[float],
+    confusions: Mapping[int, int] | Sequence[Mapping[int, int]],
     positions: Sequence[int] = (0,),
     alpha: float = 0.05,
-    n_replicates: int = 20,
-    fire_share: float = 0.5,
+    tolerance: float = 0.03,
+    n_replicates: int = 1000,
+    confidence: float = 0.95,
     seed: int | None = 0,
 ) -> float | None:
-    """The lowest tested transcription error rate at which a detector starts firing.
+    """The highest transcription error rate tested at which a detector is still calibrated.
 
     This is what makes the gosplan OCR gate enforceable rather than advisory. Trap
     ``gosplan-9`` says a digit test may not run on transcribed data until the measured
-    inter-transcription error rate is known to be below the rate at which the test starts
-    reacting to transcription. That number is this one.
+    transcription error rate is known to be below the rate at which the test starts reacting
+    to transcription. That number is this one, and :func:`ocr_gate` holds a measured rate to
+    it.
+
+    Three things decide it, and each closes a way the gate could open too early.
+
+    **Every corruption mode, minimum taken.** At each rate the detector is run under a uniform
+    misread and under every glyph confusion in ``confusions``, and a rate passes only if it
+    passes under all of them. A uniformity test cannot see a uniform misread at any rate, so
+    that mode alone would pass every rate tested; a Benford test reacts to both, and the
+    uniform mode alone can give the higher threshold of the two. The confusion mode is
+    therefore required, not optional.
+
+    **Calibration, not majority firing, with room for Monte Carlo error.** A rate passes while
+    the detector is shown to fire on at most ``alpha + tolerance`` of honest tables: the
+    one-sided Clopper-Pearson upper bound, at ``confidence``, on the share of the
+    ``n_replicates`` tables on which it fired must not exceed that. The defaults hold a test
+    at alpha 0.05 to 8%. A point estimate held to a band is not enough: walking up the grid,
+    the last rate whose estimate lands inside the band is often one whose true firing rate
+    lies outside it, admitted by the estimate's own error.
+
+    **The unit a comparison measures.** ``error_rates`` and the returned threshold are both the
+    share of digits at ``positions`` that differ from the source table, pooled over those
+    positions: the number a transcription checked against its source reports, and the number
+    :func:`ocr_gate` takes. Each rate is converted to :func:`ocr_noise`'s injector rate per
+    table and mode. For a confusion that is the rate divided by the share of eligible digits
+    whose glyph is a key, so a measured 0.02 is an injector rate of about 0.05 when four of
+    ten glyphs are confusable.
+
+    Parameters
+    ----------
+    detector : callable
+        ``f(sample) -> p-value``, unwrapped as in :func:`red_team`.
+    honest_table : callable
+        ``f(rng) -> table``, drawing one fresh honest table like the ones that will be
+        transcribed: the same size and the same range of magnitudes. Every replicate draws its
+        own. A fixed table is refused, because it is one draw: noise added to it measures how
+        that table responds, and a table that happens to sit short of the digit a scanner
+        produces absorbs more corruption before the test fires than a fresh one does.
+    error_rates : sequence of float
+        Transcription error rates to test, in the measured unit above. ``0.0``, the clean
+        table, is always tested as well: a test that already misfires on clean tables cannot
+        be rescued by an accurate transcription.
+    confusions : mapping, or sequence of mappings
+        Glyph confusion tables as in :func:`ocr_noise`, at least one. A rate that a
+        confusion cannot produce on a table, because too few of its digits are keys, is
+        refused rather than tested at a lower rate.
+    alpha : float
+        The detector fires when its p-value is at or below this.
+    tolerance : float
+        How far above ``alpha`` the firing rate on honest tables may be.
+    n_replicates : int
+        Honest tables drawn. The same tables, and the same misread draws, are reused at every
+        rate, so a higher rate corrupts a superset of the digits a lower one did. Too few to
+        resolve ``tolerance`` is refused: if a test firing at exactly ``alpha`` on them could
+        not be shown to be within it, every answer would be ``None``.
+    confidence : float
+        Of the upper bound on each firing rate.
 
     Returns
     -------
     float or None
-        The smallest rate in ``error_rates`` at which the detector fired in more than
-        ``fire_share`` of replicates, or ``None`` if it survived every rate tested. ``None``
-        means "not detected up to the highest rate tested", never "safe at any rate": pass a
-        grid that reaches beyond the error rates you expect to measure.
+        The highest rate in ``error_rates`` such that the detector passes at it and at every
+        lower rate tested, under every mode. When it is calibrated everywhere tested
+        this is the highest rate tested: :func:`ocr_gate` admits nothing above it, so the gate
+        never opens at a rate nobody measured. ``0.0`` means it misfires already at the lowest
+        positive rate tested. ``None`` means it misfires on clean honest tables, and no
+        transcription can make it usable. Rates between two tested rates are admitted only
+        below the threshold, which assumes more corruption does not make a test fire less.
+
+        A replicate on which the detector raises or returns no usable p-value counts as a
+        firing. Under a calibration rule, counting it as a non-firing would let a detector
+        that never answers through the gate.
     """
+    if not callable(honest_table):
+        raise RedTeamError(
+            "honest_table must be a function rng -> table that draws a fresh honest table. A "
+            "fixed table is one draw: noise added to it measures how that one table responds, "
+            "not how often the test fires on honest tables, which is what the gate needs."
+        )
     if not error_rates:
         raise RedTeamError("error_rates is empty")
-    if not 0.0 < fire_share < 1.0:
-        raise RedTeamError(f"fire_share must be in (0, 1); got {fire_share}")
+    rates = sorted({float(r) for r in error_rates} | {0.0})
+    if any(not 0.0 <= r <= 1.0 for r in rates):
+        raise RedTeamError(f"error_rates must lie in [0, 1]; got {sorted(error_rates)}")
+    if not 0.0 < alpha < 1.0:
+        raise RedTeamError(f"alpha must be in (0, 1); got {alpha}")
+    if not 0.0 < tolerance < 1.0 - alpha:
+        raise RedTeamError(f"tolerance must be in (0, {1.0 - alpha}); got {tolerance}")
+    if not 0.0 < confidence < 1.0:
+        raise RedTeamError(f"confidence must be in (0, 1); got {confidence}")
     if n_replicates < 1:
         raise RedTeamError("n_replicates must be at least 1")
+    ceiling = alpha + tolerance
+    floor = _upper_bound(alpha, n_replicates, confidence)
+    if floor > ceiling:
+        raise RedTeamError(
+            f"{n_replicates} replicates cannot resolve a tolerance of {tolerance}: a test firing "
+            f"at exactly alpha = {alpha} on them has an upper bound of {floor:.4f}, above "
+            f"{ceiling:.4f}, so no rate could pass. Draw more replicates."
+        )
+    pos = _digit_positions(positions)
+
+    listed = [confusions] if isinstance(confusions, Mapping) else list(confusions)
+    if not listed:
+        raise RedTeamError(
+            "confusions is empty. The glyph-confusion mode is the realistic OCR failure and "
+            "the one a uniformity test can see; a threshold without it is not a threshold."
+        )
+    modes: list[dict[int, int] | None] = [None]
+    for confusion in listed:
+        table = _confusion_table(confusion)
+        if not table:
+            raise RedTeamError("a confusion table with no entries misreads nothing")
+        modes.append(table)
 
     base = np.random.default_rng(seed)
-    for rate in sorted(float(r) for r in error_rates):
+    table_seeds = base.integers(0, 2**31 - 1, size=n_replicates)
+    noise_seeds = base.integers(0, 2**31 - 1, size=n_replicates)
+    tables = [_honest_draw(honest_table, int(s)) for s in table_seeds]
+    changeable = [[_changeable_share(t, pos, mode) for t in tables] for mode in modes]
+
+    def fired_on(rate: float, m: int) -> int:
         fired = 0
-        for _ in range(n_replicates):
-            child = int(base.integers(0, 2**31 - 1))
-            _, sample = ocr_noise(values, rate, positions, seed=child)
+        for i, table in enumerate(tables):
+            injector = 0.0
+            if rate > 0.0:
+                share = changeable[m][i]
+                if share <= 0.0 or rate > share * (1.0 + 1e-12):
+                    raise RedTeamError(
+                        f"a transcription error rate of {rate} cannot be produced by confusion "
+                        f"{modes[m]} on honest table {i}: at most {share:.4g} of its digits at "
+                        f"positions {pos} are keys. Drop the rate from error_rates."
+                    )
+                injector = min(rate / share, 1.0)
+            _, sample = ocr_noise(
+                table, injector, pos, confusion=modes[m], seed=int(noise_seeds[i])
+            )
             try:
                 pvalue = _pvalue_of(detector(sample))
             except Exception:
-                continue
-            if pvalue is not None and np.isfinite(pvalue) and pvalue <= alpha:
+                pvalue = None
+            if pvalue is None or not np.isfinite(pvalue) or pvalue <= alpha:
                 fired += 1
-        if fired / n_replicates > fire_share:
-            return rate
-    return None
+        return fired
+
+    passed: float | None = None
+    for rate in rates:
+        for m in range(len(modes) if rate > 0.0 else 1):
+            firing = fired_on(rate, m) / n_replicates
+            if _upper_bound(firing, n_replicates, confidence) > ceiling:
+                return passed
+        passed = rate
+    return passed
 
 
-def ocr_gate(firing_threshold: float | None, measured_error_rate: float) -> bool:
+def _honest_draw(honest_table: Callable[[np.random.Generator], ArrayLike], seed: int) -> np.ndarray:
+    table = _as_float_1d(honest_table(np.random.default_rng(seed)), "honest table")
+    if not np.allclose(table, np.round(table), atol=1e-9):
+        raise RedTeamError("honest_table must return integer-valued tables, as ocr_noise needs")
+    return table
+
+
+def _changeable_share(
+    table: np.ndarray, positions: list[int], confusion: dict[int, int] | None
+) -> float:
+    """The share of existing digits at ``positions`` that a misread in this mode can change."""
+    ints = np.round(np.abs(table)).astype(np.int64)
+    keys = None if confusion is None else np.array(sorted(confusion), dtype=np.int64)
+    eligible = changeable = 0
+    for p in positions:
+        power = 10**p
+        digits = (ints[ints >= power] // power) % 10
+        eligible += digits.size
+        changeable += digits.size if keys is None else int(np.isin(digits, keys).sum())
+    if eligible == 0:
+        raise RedTeamError(f"no value in an honest table has a digit at positions {positions}")
+    return changeable / eligible
+
+
+def ocr_gate(
+    firing_threshold: float | None,
+    measured_error_rate: float,
+    *,
+    n_compared: int,
+    confidence: float = 0.95,
+) -> bool:
     """Whether a digit test may be run on a table with this measured error rate.
 
-    ``firing_threshold`` is :func:`ocr_firing_threshold`'s answer. ``None`` — the detector
-    survived every rate tested — does **not** open the gate: a detector that was never made to
-    fire has not been shown to be safe at an unmeasured rate, and the honest response is to
-    widen the grid. Refusing here is what stops "we could not make it fire" from becoming
-    "it does not fire".
+    ``firing_threshold`` is :func:`ocr_firing_threshold`'s answer, and ``measured_error_rate``
+    is in its unit: the share of the ``n_compared`` digits at the tested positions that differ
+    from the source. The gate opens only when the one-sided Clopper-Pearson upper bound of
+    that rate, at ``confidence``, is at or below the threshold. A point estimate would admit
+    a table checked on 50 digits with one error as readily as one checked on 5,000 with 100.
+
+    Comparing two transcriptions with each other rather than one with the source gives a
+    disagreement rate of roughly twice either one's error rate while errors are rare, which
+    overstates the error and keeps the gate on the safe side. That holds only if the two
+    transcriptions are independent: two passes of the same OCR engine make the same
+    confusions, agree on them, and understate it.
+
+    ``None`` does not open the gate: the detector misfires on clean honest tables.
     """
     if not 0.0 <= measured_error_rate <= 1.0:
         raise RedTeamError(f"measured_error_rate must be in [0, 1]; got {measured_error_rate}")
+    if isinstance(n_compared, bool) or int(n_compared) != n_compared or n_compared < 1:
+        raise RedTeamError(f"n_compared must be a positive number of digits; got {n_compared}")
+    if not 0.0 < confidence < 1.0:
+        raise RedTeamError(f"confidence must be in (0, 1); got {confidence}")
     if firing_threshold is None:
         return False
-    return measured_error_rate < firing_threshold
+    if not 0.0 <= firing_threshold <= 1.0:
+        raise RedTeamError(f"firing_threshold must be in [0, 1]; got {firing_threshold}")
+    return _upper_bound(measured_error_rate, int(n_compared), confidence) <= firing_threshold
+
+
+def _upper_bound(share: float, n: int, confidence: float) -> float:
+    """One-sided Clopper-Pearson upper bound on a proportion observed as ``share`` of ``n``."""
+    k = share * n
+    if k >= n:
+        return 1.0
+    return float(stats.beta.ppf(confidence, k + 1.0, n - k))
 
 
 # ---------------------------------------------------------------- reporting
