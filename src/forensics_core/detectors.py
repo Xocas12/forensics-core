@@ -34,8 +34,9 @@ is visible at the call site:
 
 * a chi-square or an integer-excess statistic is already higher-is-worse;
 * a p-value is lower-is-worse;
-* :func:`~forensics_core.dispersion.underdispersion.dispersion_index` is suspicious when
-  **low**, because too little noise is the signal.
+* :func:`~forensics_core.dispersion.underdispersion.dispersion_index` (and the coefficient
+  of variation the ``underdispersion`` detector offers for non-count series) is suspicious
+  when **low**, because too little noise is the signal.
 """
 
 from __future__ import annotations
@@ -292,25 +293,88 @@ def notch_bunching_detector(
 # -------------------------------------------------------------------------------- dispersion
 
 
+#: The statistics ``underdispersion_detector`` can score with.
+UNDERDISPERSION_STATISTICS = ("dispersion_index", "cv")
+
+
+def _require_counts(a: np.ndarray) -> np.ndarray:
+    """Refuse a unit that is not non-negative integer counts, saying what to use instead."""
+    if np.any(a < 0) or np.any(a != np.round(a)):
+        raise ValueError(
+            "the dispersion index var/mean is only comparable across units for non-negative "
+            "counts, and this unit holds negative or non-integer values. On a non-count series "
+            "var/mean grows with the level, so it ranks units by size rather than by "
+            "smoothness. Pass statistic='cv' for a scale-free score"
+        )
+    return a
+
+
+def _coefficient_of_variation(a: np.ndarray, *, ddof: int = 1) -> float:
+    """``s / mean`` for a positive-mean sample: unchanged when the unit is rescaled."""
+    if a.size <= ddof:
+        raise ValueError(f"the coefficient of variation needs more than ddof={ddof} values")
+    mean = float(np.mean(a))
+    if mean <= 0.0:
+        raise ValueError(
+            "the coefficient of variation needs a positive mean; a series centred on or "
+            "below zero has no level to scale its noise by"
+        )
+    return float(np.std(a, ddof=ddof) / mean)
+
+
 @register_detector("underdispersion")
 def underdispersion_detector(
-    *, column: str = VALUES_COLUMN, min_len: int = 5, **kw: Any
+    *,
+    column: str = VALUES_COLUMN,
+    min_len: int = 5,
+    statistic: str = "dispersion_index",
+    **kw: Any,
 ) -> FunctionDetector:
-    """Dispersion index per unit, oriented so that too little noise scores high. Idiom B.
+    """Per-unit underdispersion, oriented so that too little noise scores high. Idiom B.
 
     The one detector whose natural direction is inverted: fabricated series contain too little
-    variance, so a LOW dispersion index is the signal. ``higher_is_suspicious=False`` makes
-    that visible here rather than hiding a minus sign inside the function.
+    variance, so a LOW statistic is the signal. ``higher_is_suspicious=False`` makes that
+    visible here rather than hiding a minus sign inside the function.
+
+    ``statistic`` chooses what is compared across units, and the right choice depends on how
+    honest noise grows with the level:
+
+    * ``"dispersion_index"`` (default): ``var / mean``. For counts, honest (Poisson) noise
+      has variance equal to the mean, so the index sits near 1 at every level and units of
+      different size are comparable. It is defined only for counts, so a unit holding a
+      negative or non-integer value is **refused** rather than scored. On a non-count series
+      whose noise grows with its level, ``var / mean = CV^2 * mean`` ranks units by size: a
+      unit re-expressed in thousands moves to the top of the ranking. The check cannot see
+      units: integer-valued data that are not counts (whole currency units, say) pass it and
+      carry the same problem, so choose ``"cv"`` for those.
+    * ``"cv"``: the coefficient of variation ``s / mean``, unchanged by rescaling a unit.
+      Use it for non-count series whose noise is proportional to the level. A unit whose mean
+      is not positive is refused. For Poisson counts the CV is ``1 / sqrt(mean)``, so on count
+      data it ranks by size in the other direction; keep the default there.
+
+    ``ddof`` is passed through to either statistic. Neither is a test against a physical
+    floor: for that, call
+    :func:`~forensics_core.dispersion.underdispersion.variance_floor_test` with a per-unit
+    floor and wrap its p-value with ``FunctionDetector``.
     """
+    if statistic == "dispersion_index":
+
+        def per_unit(a: np.ndarray) -> float:
+            return dispersion_index(_require_counts(a), **kw)
+
+    elif statistic == "cv":
+
+        def per_unit(a: np.ndarray) -> float:
+            return _coefficient_of_variation(a, **kw)
+
+    else:
+        raise ValueError(
+            f"underdispersion: unknown statistic {statistic!r}; "
+            f"choose one of {UNDERDISPERSION_STATISTICS}"
+        )
 
     def score(X: pd.DataFrame) -> np.ndarray:
-        return _scored(
-            X,
-            "underdispersion",
-            lambda a: dispersion_index(a, **kw),
-            column=column,
-            min_len=min_len,
-        )
+        return _scored(X, "underdispersion", per_unit, column=column, min_len=min_len)
 
     return FunctionDetector(score, name="underdispersion", higher_is_suspicious=False)
 
