@@ -22,19 +22,29 @@ The two aggregation semantics are not the same question
 
 Both are supported because reporting both turned up something the original plan got
 backwards. That plan said averaging "destroys the integer-percentage signal by construction",
-implying that summing counts is the safe choice. Measured on unequal denominators, with every
-unit snapped onto an exact integer percentage (share of units still within 0.05 of an integer;
-the background rate is 0.10):
+implying that summing counts is the safe choice. Measured with
+:func:`forensics_core.digits.integer_pct.integer_excess` run on the aggregates (``z`` of the
+near-integer count against its binomial null; "rejects" at alpha 0.05), on 4800 units with
+unequal denominators, every unit snapped onto an exact integer percentage, contiguous groups
+of ``k``:
 
-==========  ===============  ==============
-group size  sum_then_ratio   mean_of_ratios
-==========  ===============  ==============
-1           1.000            1.000
-2           0.256            0.489
-3           0.141            0.334
-4           0.089            0.235
-8           0.100            0.150
-==========  ===============  ==============
+==========  ================  =======  ================  =======
+group size  sum_then_ratio z  rejects  mean_of_ratios z  rejects
+==========  ================  =======  ================  =======
+1           198.02            yes      198.02            yes
+2           25.46             yes      61.01             yes
+3           5.04              yes      33.25             yes
+4           -1.13             no       16.25             yes
+6           -0.04             no       6.56              yes
+8           0.19              no       3.92              yes
+12          -2.06             no       -1.13             no
+16          -0.59             no       -3.62             no
+==========  ================  =======  ================  =======
+
+The same panel without snapping is rejected at no group size under either semantics. One
+panel is one draw; over 30 panels the rejection counts are, for ``sum_then_ratio``, 30 of 30
+at ``k`` = 2 and 3, 9 at 4, and 2, 1, 0 and 1 at 6, 8, 12 and 16 (the nominal rate); for
+``mean_of_ratios``, 30 of 30 at every ``k`` up to 6, 20 at 8, and 1 and 0 at 12 and 16.
 
 **Averaging retains more**, not less. The mean of ``k`` integers is a multiple of ``1/k`` and
 lands on an integer often; summing counts across unequal denominators produces a weighted
@@ -42,10 +52,19 @@ average with arbitrary weights, which has no reason to be an integer at all. Wit
 denominators the two coincide exactly, so this is a fact about unequal precinct sizes rather
 than about averaging as such.
 
-The finding that constrains a card is neither of those. **Both collapse to the background rate
-by a group size of four to eight**, so the integer-percentage test does not survive
-aggregation under either semantics, and a gosplan card must not run it on aggregates at all.
-That is a stronger and more useful statement than a preference between the two.
+Snapping only part of the units costs more. Over the same 30 panels, with a share of units
+snapped, ``sum_then_ratio`` is detected at ``k`` = 2 (23 of 30 at 0.3) and at 3 only when
+most units are snapped (25 of 30 at 0.8); from ``k`` = 4 it rejects 0 to 4 of 30 at every
+share up to 0.8, which is what honest panels do. ``mean_of_ratios`` keeps power at ``k`` = 4
+against heavy snapping (30 of 30 at 0.8, 9 at 0.5), about half at 6 and 0.8, and at 8 is back
+at the honest rate. docs/power_atlas.md has the table.
+
+What constrains a card is therefore a rule per semantics and group size, not a ban. On counts
+summed over four or more units the test has no power against partial snapping, so a
+non-rejection there is not evidence that nothing was rounded; sector-year totals summed over
+many enterprises are in that regime. Below four units, and on averaged percentages up to
+about six units (eight when every unit is snapped), the test still has power against heavy
+snapping.
 
 What this measures and what it does not
 ---------------------------------------

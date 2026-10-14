@@ -105,25 +105,62 @@ Everything below is a characteristic of a method **on synthetic data**, recorded
 or in the commit that produced it. None of it is a finding about any real dataset, and none of
 it is extrapolated beyond the grid that was measured.
 
-**Aggregation destroys the integer-percentage signal.** Measured on unequal denominators with
-every unit snapped onto an exact integer percentage (share of units still within 0.05 of an
-integer; the background rate is 0.10), from the `forensics_core.power.aggregation` module
-docstring:
+**Whether the integer-percentage signal survives aggregation depends on the semantics and the
+group size.** Measured with `integer_excess` run on the aggregates (its defaults: tolerance
+0.05, `n_mc=200`, `seed=0`), on 4800 synthetic units with denominators uniform on 600-1399 and
+an honest share of 0.55, every unit snapped onto an exact integer percentage, contiguous
+groups of `k`. `z` is the near-integer count against its binomial null; "rejects" is at
+α = 0.05. The settings are those of `full_snap_results` in `tests/test_power_aggregation.py`,
+which recomputes this table and fails if it drifts:
 
-| group size | `sum_then_ratio` | `mean_of_ratios` |
-|---|---|---|
-| 1 | 1.000 | 1.000 |
-| 2 | 0.256 | 0.489 |
-| 3 | 0.141 | 0.334 |
-| 4 | 0.089 | 0.235 |
-| 8 | 0.100 | 0.150 |
+| group size | `sum_then_ratio` z | rejects | `mean_of_ratios` z | rejects |
+|---|---|---|---|---|
+| 1 | 198.02 | yes | 198.02 | yes |
+| 2 | 25.46 | yes | 61.01 | yes |
+| 3 | 5.04 | yes | 33.25 | yes |
+| 4 | -1.13 | no | 16.25 | yes |
+| 6 | -0.04 | no | 6.56 | yes |
+| 8 | 0.19 | no | 3.92 | yes |
+| 12 | -2.06 | no | -1.13 | no |
+| 16 | -0.59 | no | -3.62 | no |
 
-Averaging retains *more* than summing counts, the opposite of what the plan expected.
-The finding that constrains a card is neither direction: **both collapse to the background rate
-by a group size of four to eight**, so the integer-percentage test does not survive aggregation
-under either semantics and a gosplan card must not run it on aggregates at all. That is what
-`aggregation=` in a query is for — and, for this method, the rung at which the answer becomes
-"no".
+The same panel without snapping is rejected at no group size under either semantics. One
+panel is one draw, so the same test over panel seeds 0-29 (`integer_excess` seeded with the
+panel seed), counting rejections out of 30:
+
+| group size | 2 | 3 | 4 | 6 | 8 | 12 | 16 |
+|---|---|---|---|---|---|---|---|
+| `sum_then_ratio`, every unit snapped | 30 | 30 | 9 | 2 | 1 | 0 | 1 |
+| `mean_of_ratios`, every unit snapped | 30 | 30 | 30 | 30 | 20 | 1 | 0 |
+| either semantics, honest | 2 | 1 | 1-2 | 0-2 | 2-3 | 0-1 | 3 |
+
+And with only a share of the units snapped (the test fixture's `round_injector`, units chosen
+by `default_rng(1000 + seed)`), rejections out of the same 30 panels:
+
+| group size | semantics | share 0 | 0.3 | 0.5 | 0.8 |
+|---|---|---|---|---|---|
+| 2 | `sum_then_ratio` | 2 | 23 | 30 | 30 |
+| 2 | `mean_of_ratios` | 2 | 30 | 30 | 30 |
+| 3 | `sum_then_ratio` | 1 | 2 | 8 | 25 |
+| 3 | `mean_of_ratios` | 1 | 7 | 29 | 30 |
+| 4 | `sum_then_ratio` | 1 | 3 | 1 | 0 |
+| 4 | `mean_of_ratios` | 2 | 2 | 9 | 30 |
+| 6 | `sum_then_ratio` | 2 | 1 | 3 | 2 |
+| 6 | `mean_of_ratios` | 1 | 0 | 2 | 14 |
+| 8 | `sum_then_ratio` | 3 | 2 | 4 | 0 |
+| 8 | `mean_of_ratios` | 2 | 3 | 3 | 4 |
+
+Averaging retains *more* than summing counts, the opposite of what the plan expected: the mean
+of `k` integer percentages sits on a `1/k` lattice that contains every integer, while a sum of
+counts over unequal denominators has no lattice at all.
+
+What constrains a card is a rule per semantics and group size, not a ban. On counts summed over
+four or more units the test rejects 0 to 4 panels in 30 at every share up to 80 per cent of
+units snapped, which is what it does on honest panels. A non-rejection there is not evidence
+that nothing was rounded, and sector-year totals summed over many enterprises are in that
+regime. Below four units, and on
+averaged percentages up to about six units (eight when every unit is snapped), the test still
+has power against heavy snapping. That is what `aggregation=` in a query is for.
 
 **The underdispersion family is weak on synthetic data.** Recorded when the atlas was built: the
 too-smooth test gives power 0.00 against variance losses of 50 per cent and 80 per cent at every
