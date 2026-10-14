@@ -32,6 +32,7 @@ def panel(n_units: int = 12, per_unit: int = 400, seed: int = 0) -> Dataset:
     den = [rng.integers(400, 3000, size=per_unit).astype(float) for _ in range(n_units)]
     vals = [rng.normal(100.0, 12.0, size=per_unit) for _ in range(n_units)]
     pct = [100.0 * rng.binomial(d.astype(int), 0.55) / d for d in den]
+    counts = [rng.poisson(100.0, size=per_unit).astype(float) for _ in range(n_units)]
     X = pd.DataFrame(
         {
             "values": pd.Series(vals, dtype=object),
@@ -40,6 +41,9 @@ def panel(n_units: int = 12, per_unit: int = 400, seed: int = 0) -> Dataset:
     )
     # integer_excess needs percentages; give it its own frame slot by overwriting for that test
     X["pct"] = pd.Series(pct, dtype=object)
+    # the dispersion index is defined on counts only; the default underdispersion detector
+    # refuses the normal values above
+    X["counts"] = pd.Series(counts, dtype=object)
     return Dataset(
         unit_id=pd.Series([f"u{i}" for i in range(n_units)]),
         X=X,
@@ -68,6 +72,8 @@ def test_each_detector_returns_one_finite_score_per_row(name):
     kw = _kwargs(name)
     if name == "integer_excess":
         kw["column"] = "pct"
+    if name == "underdispersion":
+        kw["column"] = "counts"
     det = make_detector(name, **kw).fit(ds)
     scores = np.asarray(det.score(ds), dtype=float)
     assert scores.shape == (len(ds.unit_id),)
@@ -111,10 +117,14 @@ def test_terminal_digit_scores_an_invented_unit_above_a_clean_one():
 
 
 def test_underdispersion_scores_a_TOO_SMOOTH_unit_higher_not_lower():
-    """The inverted one. A low dispersion index is the signal, so the detector must flip it."""
+    """The inverted one. A low dispersion index is the signal, so the detector must flip it.
+
+    Counts, because the default statistic refuses anything else: Poisson units against units
+    that never stray more than one from 100.
+    """
     rng = np.random.default_rng(3)
-    noisy = [rng.normal(100.0, 20.0, size=200) for _ in range(6)]
-    smooth = [rng.normal(100.0, 0.5, size=200) for _ in range(6)]
+    noisy = [rng.poisson(100.0, size=200).astype(float) for _ in range(6)]
+    smooth = [(100 + rng.integers(-1, 2, size=200)).astype(float) for _ in range(6)]
     ds = Dataset(
         unit_id=pd.Series([f"u{i}" for i in range(12)]),
         X=pd.DataFrame({"values": pd.Series(noisy + smooth, dtype=object)}),
@@ -124,6 +134,107 @@ def test_underdispersion_scores_a_TOO_SMOOTH_unit_higher_not_lower():
     assert s[6:].mean() > s[:6].mean(), (
         "the low-variance units must score HIGHER; the sign flip is missing"
     )
+
+
+def _equal_cv_panel(seed: int = 0, n_units: int = 300, periods: int = 30, cv: float = 0.10):
+    """Non-count series with the same CV and levels log-uniform from 10 to 10^4.
+
+    Noise proportional to the level, as for sector output or revenue: no unit is smoother than
+    another, so an honest smoothness score must not depend on the level. 15% of units have half
+    their variance removed.
+    """
+    rng = np.random.default_rng(seed)
+    level = 10 ** rng.uniform(1, 4, size=n_units)
+    fabricated = rng.random(n_units) < 0.15
+    vals = []
+    for lv, fab in zip(level, fabricated, strict=True):
+        a = rng.normal(lv, cv * lv, size=periods)
+        if fab:
+            a = lv + (a - lv) * np.sqrt(0.5)
+        vals.append(a)
+    ds = Dataset(
+        unit_id=pd.Series([f"u{i}" for i in range(n_units)]),
+        X=pd.DataFrame({"values": pd.Series(vals, dtype=object)}),
+        y=pd.Series(fabricated.astype(int)),
+    )
+    return ds, level
+
+
+def test_underdispersion_refuses_non_count_series_by_default():
+    """var/mean on a non-count series is CV^2 * mean, which ranks units by size. Units with
+    equal CV at levels 10 to 10^4 scored that way correlate with log level at about -0.98, so
+    the default statistic must refuse them rather than return that ranking."""
+    ds, _ = _equal_cv_panel()
+    with pytest.raises(ValueError, match="statistic='cv'"):
+        make_detector("underdispersion").score(ds)
+
+
+def test_underdispersion_refuses_negative_or_fractional_values():
+    rng = np.random.default_rng(5)
+    for bad in (np.array([3.0, 4.0, -1.0, 5.0, 2.0, 4.0]), rng.poisson(50, 40) + 0.5):
+        ds = Dataset(
+            unit_id=pd.Series(["bad", "good"]),
+            X=pd.DataFrame(
+                {"values": pd.Series([bad, rng.poisson(50, 40).astype(float)], dtype=object)}
+            ),
+            y=pd.Series([np.nan, np.nan]),
+        )
+        with pytest.raises(ValueError, match="could not score 1 of 2 units"):
+            make_detector("underdispersion").score(ds)
+
+
+def test_underdispersion_cv_scores_do_not_follow_the_level():
+    """Equal CV, levels spanning three orders of magnitude: the scale-free statistic must be
+    essentially uncorrelated with log level, and still separate the fabricated units."""
+    from scipy.stats import spearmanr
+
+    from forensics_core.eval.metrics import roc_auc
+
+    ds, level = _equal_cv_panel()
+    s = np.asarray(make_detector("underdispersion", statistic="cv").score(ds), dtype=float)
+    rho = spearmanr(s, np.log(level)).statistic
+    assert abs(rho) < 0.2, f"cv scores follow the level (Spearman {rho:.2f} with log level)"
+    assert roc_auc(ds.y.to_numpy(), s) > 0.85
+
+
+def test_underdispersion_cv_rank_is_unchanged_when_a_unit_is_rescaled():
+    """Re-expressing one honest unit in thousands must not move it in the ranking; under
+    var/mean the same rescale moved a mid-ranked unit to rank 1 of 300."""
+    ds, _ = _equal_cv_panel()
+    det = make_detector("underdispersion", statistic="cv")
+    before = np.asarray(det.score(ds), dtype=float)
+    i = int(np.flatnonzero(ds.y.to_numpy() == 0)[0])
+    vals = list(ds.X["values"])
+    vals[i] = vals[i] / 1000.0
+    rescaled = Dataset(
+        unit_id=ds.unit_id,
+        X=pd.DataFrame({"values": pd.Series(vals, dtype=object)}),
+        y=ds.y,
+    )
+    after = np.asarray(det.score(rescaled), dtype=float)
+    np.testing.assert_allclose(after, before, rtol=1e-12)
+
+
+def test_underdispersion_index_on_poisson_counts_does_not_follow_the_level():
+    """The control: on counts the default statistic is the scale-free one."""
+    from scipy.stats import spearmanr
+
+    rng = np.random.default_rng(7)
+    level = 10 ** rng.uniform(1, 4, size=300)
+    counts = [rng.poisson(lv, size=30).astype(float) for lv in level]
+    ds = Dataset(
+        unit_id=pd.Series([f"u{i}" for i in range(300)]),
+        X=pd.DataFrame({"values": pd.Series(counts, dtype=object)}),
+        y=pd.Series([np.nan] * 300),
+    )
+    s = np.asarray(make_detector("underdispersion").score(ds), dtype=float)
+    rho = spearmanr(s, np.log(level)).statistic
+    assert abs(rho) < 0.2, f"Spearman {rho:.2f} with log level on Poisson counts"
+
+
+def test_underdispersion_rejects_an_unknown_statistic():
+    with pytest.raises(ValueError, match="unknown statistic"):
+        make_detector("underdispersion", statistic="variance")
 
 
 def test_too_smooth_scores_a_smooth_series_higher_not_lower():
@@ -192,7 +303,10 @@ def test_a_unit_with_too_few_values_makes_the_detector_refuse():
         X=pd.DataFrame(
             {
                 "values": pd.Series(
-                    [np.array([1.0, 2.0]), np.random.default_rng(0).normal(100, 20, 200)],
+                    [
+                        np.array([1.0, 2.0]),
+                        np.random.default_rng(0).poisson(100, 200).astype(float),
+                    ],
                     dtype=object,
                 )
             }
@@ -209,7 +323,10 @@ def test_the_refusal_says_how_to_proceed():
         X=pd.DataFrame(
             {
                 "values": pd.Series(
-                    [np.array([np.nan] * 50), np.random.default_rng(1).normal(100, 20, 200)],
+                    [
+                        np.array([np.nan] * 50),
+                        np.random.default_rng(1).poisson(100, 200).astype(float),
+                    ],
                     dtype=object,
                 )
             }
