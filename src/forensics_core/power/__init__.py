@@ -8,6 +8,7 @@ calibration projects.
 from forensics_core.power.atlas import (
     ATLAS_COLUMNS,
     DEFAULT_SAMPLE_SIZES,
+    AtlasCalibrationWarning,
     AtlasError,
     PowerSpec,
     detectable,
@@ -15,11 +16,13 @@ from forensics_core.power.atlas import (
     minimum_detectable_effect,
     power_curve,
     save_atlas,
+    too_smooth_atlas,
 )
 
 __all__ = [
     "ATLAS_COLUMNS",
     "DEFAULT_SAMPLE_SIZES",
+    "AtlasCalibrationWarning",
     "AtlasError",
     "PowerSpec",
     "detectable",
@@ -27,4 +30,5 @@ __all__ = [
     "minimum_detectable_effect",
     "power_curve",
     "save_atlas",
+    "too_smooth_atlas",
 ]

@@ -41,7 +41,7 @@ is visible at the call site:
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, get_args
 
 import numpy as np
 
@@ -49,7 +49,7 @@ from forensics_core.bunching.density import bunching_estimator
 from forensics_core.digits.benford import benford_test
 from forensics_core.digits.integer_pct import integer_excess
 from forensics_core.digits.terminal import terminal_digit_test
-from forensics_core.dispersion.underdispersion import dispersion_index, too_smooth_test
+from forensics_core.dispersion.underdispersion import Detrend, dispersion_index, too_smooth_test
 from forensics_core.eval.harness import FunctionDetector, register_detector
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -318,6 +318,7 @@ def underdispersion_detector(
 @register_detector("too_smooth")
 def too_smooth_detector(
     *,
+    detrend: Detrend,
     column: str = VALUES_COLUMN,
     min_len: int = 8,
     n_perm: int = 199,
@@ -329,15 +330,27 @@ def too_smooth_detector(
     A low p-value means the series is implausibly smooth, so this is the second inverted
     detector: ``higher_is_suspicious=False``.
 
+    ``detrend`` is required, and passed straight to
+    :func:`~forensics_core.dispersion.underdispersion.too_smooth_test`. The test's own default,
+    ``"diff"``, is the exact null only for random-walk-like series; on stationary or iid units
+    it gives honest units a p-value near 1, so it is blind to anything short of extreme
+    smoothing (power 0 against a 50 or 80 per cent variance loss on exchangeable samples at
+    each of n = 50, 100, 300 and 1000, see docs/power_atlas.md). Which null fits depends on
+    how the project's series behave, which this module cannot know, so the caller states it:
+    ``"diff"`` for random-walk-like series, ``"linear"`` for trend-stationary ones, ``"none"``
+    for series that are supposed to be stationary.
+
     ``n_perm`` defaults below the estimator's own default because this runs a permutation test
     per unit; raise it when the ranking near the top matters more than the runtime.
     """
+    if detrend not in get_args(Detrend):
+        raise ValueError(f"detrend must be one of {get_args(Detrend)}; got {detrend!r}")
 
     def score(X: pd.DataFrame) -> np.ndarray:
         return _scored(
             X,
             "too_smooth",
-            lambda a: too_smooth_test(a, n_perm=n_perm, seed=seed, **kw).pvalue,
+            lambda a: too_smooth_test(a, detrend=detrend, n_perm=n_perm, seed=seed, **kw).pvalue,
             column=column,
             min_len=min_len,
         )

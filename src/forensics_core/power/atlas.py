@@ -14,8 +14,16 @@ power.
 
 The row at effect size zero is the **false-positive rate**, and it is not optional. A power
 number without it cannot be read: a method that rejects everything has power 1.0 and is
-useless. :func:`power_curve` always measures it, and :func:`power_lookup` refuses to answer
-from an atlas whose false-positive rate is far from nominal.
+useless. :func:`power_curve` always measures it and warns when it is far from nominal, and
+:func:`minimum_detectable_effect` refuses to answer at a sample size where it is.
+
+Far from nominal runs both ways. A rate far *above* nominal means rejections are partly the
+method firing on nothing. A rate improbably far *below* it means either that the null the test
+assumes does not match how the samples were drawn, or that the test is far more conservative
+than its nominal level (a test that errors on most samples lands here too, because an error is
+recorded as no rejection). Either way the power column is not the method's power at ``alpha``.
+:func:`too_smooth_atlas` exists because of a case of the first kind: ``too_smooth_test``'s
+default ``detrend="diff"`` run on the exchangeable samples :func:`power_curve` draws.
 
 What this is not
 ----------------
@@ -27,7 +35,8 @@ which is a different question answered by the labelled projects through
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+import warnings
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -36,6 +45,8 @@ import numpy as np
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import pandas as pd
+
+    from forensics_core.dispersion.underdispersion import Detrend
 
 #: The sample sizes the programme actually needs to span: from a Soviet sector-year panel at
 #: the low end to a Russian precinct file at the high end.
@@ -57,9 +68,89 @@ ATLAS_COLUMNS = [
 #: rejections are then partly the method firing on nothing.
 FPR_TOLERANCE = 2.0
 
+#: A false-positive rate this improbably far *below* nominal makes the power column unreadable
+#: too. Under a calibrated test the rejections among ``n_replicates`` null draws are
+#: Binomial(``n_replicates``, ``alpha``); a count whose lower-tail probability under that law is
+#: below this level is flagged. A tail probability rather than a ratio, because "below half of
+#: nominal" would flag a calibrated test 12 per cent of the time at 100 replicates, while this
+#: flags one at most 1 time in 100 at any replicate count. The price is that it needs enough
+#: replicates to say anything: below 90 replicates at ``alpha = 0.05`` not even zero rejections
+#: is flagged.
+FPR_LOW_TAIL = 0.01
+
+#: The method name a too-smooth atlas starts with. The full name is ``too_smooth_<detrend>``,
+#: the name :func:`~forensics_core.dispersion.underdispersion.too_smooth_test` reports itself.
+TOO_SMOOTH_METHOD = "too_smooth"
+
 
 class AtlasError(ValueError):
     """An atlas was asked for something it does not cover, or was built inconsistently."""
+
+
+class AtlasCalibrationWarning(UserWarning):
+    """A measured atlas has a zero-effect row whose false-positive rate is far from nominal.
+
+    :func:`power_curve` warns at build time about exactly the sample sizes
+    :func:`minimum_detectable_effect` will refuse, so the problem is visible to whoever reads
+    the table and not only to whoever queries it.
+    """
+
+
+def _calibration_problem(n: int, fpr: float, alpha: float, n_replicates: float) -> str | None:
+    """Why the zero-effect row at ``n`` makes the power column unreadable, or ``None``."""
+    if not np.isfinite(fpr):
+        return None
+    if fpr > FPR_TOLERANCE * alpha:
+        return (
+            f"at n={n} the false-positive rate is {fpr:.3f} against a nominal {alpha:.3f}. "
+            "The power column cannot be read while the method rejects this often on data "
+            "with no injected effect."
+        )
+    if np.isfinite(n_replicates) and n_replicates > 0:
+        from scipy import stats
+
+        replicates = int(n_replicates)
+        rejected = round(fpr * replicates)
+        tail = float(stats.binom.cdf(rejected, replicates, alpha))
+        if tail < FPR_LOW_TAIL:
+            return (
+                f"at n={n} the false-positive rate is {fpr:.3f} ({rejected} of {replicates} "
+                f"null replicates rejected) against a nominal {alpha:.3f}, and a calibrated test "
+                f"lands that low with probability {tail:.2g}. A rate this far below nominal means "
+                "either that the null the test assumes does not match how the samples were "
+                "drawn, or that the test is far more conservative than its nominal level; "
+                f"either way the power column is not the method's power at alpha {alpha:.3f}."
+            )
+    return None
+
+
+def _require_too_smooth_record(method: str, settings: Mapping[str, Any]) -> None:
+    """Refuse a too-smooth atlas that does not say which ``detrend`` produced it.
+
+    ``too_smooth_test`` answers a different question under each ``detrend``, and its default
+    ``"diff"`` has essentially no power on the exchangeable samples :func:`power_curve` draws.
+    A too-smooth number without its detrend beside it cannot be read, so every row carries it
+    in the method name and the settings record it together with ``n_perm``.
+    """
+    if not method.startswith(TOO_SMOOTH_METHOD):
+        return
+    from typing import get_args
+
+    from forensics_core.dispersion.underdispersion import Detrend
+
+    detrend = settings.get("detrend")
+    if (
+        detrend not in get_args(Detrend)
+        or method != f"{TOO_SMOOTH_METHOD}_{detrend}"
+        or "n_perm" not in settings
+    ):
+        raise AtlasError(
+            f"method {method!r} is a too-smooth atlas, which must record the detrend it ran "
+            "with: name the method too_smooth_<detrend> and put 'detrend' and 'n_perm' in "
+            f"settings (got settings={dict(settings)!r}). too_smooth_test answers a different "
+            "question under each detrend, and its default 'diff' has essentially no power on "
+            "the random-order samples power_curve draws. too_smooth_atlas records both."
+        )
 
 
 @dataclass(frozen=True)
@@ -126,10 +217,20 @@ def power_curve(
     Raises
     ------
     AtlasError
-        If the population is too small for the largest sample, or the injector is not a no-op
-        at effect size zero.
+        If the population is too small for the largest sample, the injector is not a no-op
+        at effect size zero, or ``method`` names a too-smooth atlas (``too_smooth...``) without
+        recording its ``detrend`` and ``n_perm`` (see :func:`too_smooth_atlas`).
+
+    Warns
+    -----
+    AtlasCalibrationWarning
+        For every sample size whose zero-effect row is far above nominal, or improbably far
+        below it (:data:`FPR_LOW_TAIL`). These are the sample sizes
+        :func:`minimum_detectable_effect` will refuse.
     """
     import pandas as pd
+
+    _require_too_smooth_record(method, settings or {})
 
     pop = np.asarray(population, dtype=float)
     pop = pop[np.isfinite(pop)]
@@ -194,7 +295,122 @@ def power_curve(
         seed=seed,
         settings=dict(settings or {}),
     )
+    problems = [
+        problem
+        for n in sizes
+        if (problem := _calibration_problem(n, fpr_by_n[n], alpha, n_replicates)) is not None
+    ]
+    if problems:
+        warnings.warn(
+            f"the {method!r} atlas has a zero-effect row out of calibration, and "
+            "minimum_detectable_effect will refuse these sample sizes:\n  " + "\n  ".join(problems),
+            AtlasCalibrationWarning,
+            stacklevel=2,
+        )
     return frame
+
+
+def too_smooth_atlas(
+    population: np.ndarray,
+    *,
+    detrend: Detrend,
+    effect_sizes: Sequence[float],
+    sample_sizes: Sequence[int] = DEFAULT_SAMPLE_SIZES,
+    n_perm: int = 199,
+    n_replicates: int = 200,
+    alpha: float = 0.05,
+    seed: int | None = 0,
+    settings: dict[str, Any] | None = None,
+) -> pd.DataFrame:
+    """Power of :func:`~forensics_core.dispersion.underdispersion.too_smooth_test` against
+    smoothing, with the ``detrend`` it ran under recorded on every row.
+
+    ``effect_size`` is the share of deviation variance removed: each sample goes through
+    :func:`forensics_core.inject.inject_smoothing` with ``retain = 1 - effect_size``.
+
+    ``detrend`` has no default, on purpose. :func:`power_curve` draws each sample without
+    replacement and in random order, so every series the test sees here is exchangeable.
+    ``"none"`` is the exact null for such a series. ``"diff"``, the test's own default, has
+    essentially no power on it and a false-positive rate pinned near zero, and an atlas built
+    that way reads as a weak, conservative test when the null simply does not match the
+    samples. Choosing ``"none"`` does not make a result transfer to real series either: an
+    honest series with positive lag-1 autocorrelation is not exchangeable in its levels, and
+    that autocorrelation is what ``"none"`` tests for, so it rejects such a series; random-order
+    samples cannot show that. Match ``detrend`` to how the population was
+    generated, and quote it with every number.
+
+    Every row's ``method`` is ``too_smooth_<detrend>``, the name the test reports itself, and
+    the spec's settings record ``detrend``, ``n_perm`` and the injector beside the numbers.
+
+    Parameters
+    ----------
+    population, effect_sizes, sample_sizes, n_replicates, alpha, seed
+        As for :func:`power_curve`. ``effect_sizes`` must lie in ``[0, 1]``. ``seed`` also
+        fixes the permutation seeds, so the atlas is reproducible from it.
+    detrend : {"none", "linear", "diff"}
+        Passed to ``too_smooth_test``. Required.
+    n_perm : int, default 199
+        Permutations per test. The smallest attainable p-value is ``1 / (n_perm + 1)``.
+    settings : dict, optional
+        Further settings to record, such as how the population was generated. They may not
+        contradict ``detrend`` or ``n_perm``.
+
+    Raises
+    ------
+    AtlasError
+        On an unknown ``detrend``, an effect size outside ``[0, 1]``, or ``settings`` that
+        contradict the measurement, before anything is measured.
+    """
+    from typing import get_args
+
+    from forensics_core.dispersion.underdispersion import Detrend, too_smooth_test
+    from forensics_core.inject import inject_smoothing
+
+    if detrend not in get_args(Detrend):
+        raise AtlasError(f"detrend must be one of {get_args(Detrend)}; got {detrend!r}")
+    bad = [e for e in effect_sizes if not 0.0 <= float(e) <= 1.0]
+    if bad:
+        raise AtlasError(
+            f"effect sizes {bad} are outside [0, 1]: a too-smooth effect size is the share of "
+            "deviation variance removed, retain = 1 - effect_size"
+        )
+    record: dict[str, Any] = {
+        "detrend": detrend,
+        "n_perm": int(n_perm),
+        "injector": "inject_smoothing(retain=1 - effect_size)",
+    }
+    extra = dict(settings or {})
+    clash = {k: extra[k] for k in record if k in extra and extra[k] != record[k]}
+    if clash:
+        raise AtlasError(
+            f"settings {clash} contradict the measurement, which records {record}; the record "
+            "has to describe what was actually run"
+        )
+
+    # the permutation seeds come from their own stream, spawned from the same seed, so the atlas
+    # is reproducible from ``seed`` without the permutations reusing the sampling draws
+    perm_rng = np.random.default_rng(np.random.SeedSequence(seed).spawn(1)[0])
+
+    def test(sample: np.ndarray) -> float:
+        return too_smooth_test(
+            sample, detrend=detrend, n_perm=n_perm, seed=int(perm_rng.integers(2**63))
+        ).pvalue
+
+    def injector(sample: np.ndarray, effect: float, rng: np.random.Generator) -> np.ndarray:
+        return inject_smoothing(sample, retain=1.0 - effect)[0]
+
+    return power_curve(
+        population,
+        test,
+        injector,
+        method=f"{TOO_SMOOTH_METHOD}_{detrend}",
+        effect_sizes=effect_sizes,
+        sample_sizes=sample_sizes,
+        n_replicates=n_replicates,
+        alpha=alpha,
+        seed=seed,
+        settings={**extra, **record},
+    )
 
 
 def minimum_detectable_effect(
@@ -219,7 +435,8 @@ def minimum_detectable_effect(
     ------
     AtlasError
         If ``n`` is not in the atlas, no measured effect reaches the target, or the
-        false-positive rate at that ``n`` is too far above nominal for the power to be read.
+        false-positive rate at that ``n`` is too far above nominal, or improbably far below it
+        (:data:`FPR_LOW_TAIL`), for the power to be read.
     """
     frame = atlas if method is None else atlas[atlas["method"] == method]
     if frame.empty:
@@ -234,14 +451,16 @@ def minimum_detectable_effect(
         )
 
     if check_calibration:
-        fpr = float(at_n["false_positive_rate"].iloc[0])
-        alpha = float(at_n["alpha"].iloc[0])
-        if np.isfinite(fpr) and fpr > FPR_TOLERANCE * alpha:
+        problem = _calibration_problem(
+            int(n),
+            float(at_n["false_positive_rate"].iloc[0]),
+            float(at_n["alpha"].iloc[0]),
+            float(at_n["n_replicates"].iloc[0]),
+        )
+        if problem is not None:
             raise AtlasError(
-                f"at n={n} the false-positive rate is {fpr:.3f} against a nominal {alpha:.3f}. "
-                "The power column cannot be read while the method rejects this often on data "
-                "with no injected effect. Pass check_calibration=False to override, and say "
-                "so wherever the number is reported."
+                f"{problem} Pass check_calibration=False to override, and say so wherever the "
+                "number is reported."
             )
 
     reaching = at_n[(at_n["effect_size"] > 0) & (at_n["power"] >= target_power)]
