@@ -26,9 +26,10 @@ number without it cannot be read: a method that rejects everything has power 1.0
 useless. `power_curve` always measures it, and every lookup refuses to answer from an atlas
 whose false-positive rate at that sample size is more than twice nominal, or so far below
 nominal that a calibrated test would land that low less than 1 time in 100 (`FPR_LOW_TAIL`).
-`power_curve` warns about the same rows when it builds them. A rate far below nominal is not
-caution: it means the null the test assumes does not match how the samples were drawn, and a
-power column measured against that null says nothing about the method.
+`power_curve` warns about the same rows when it builds them. A rate that far below nominal
+means either that the null the test assumes does not match how the samples were drawn, or that
+the test is far more conservative than its nominal level. Either way the power column is not the
+method's power at `alpha`. The too-smooth result below is a case of the first kind.
 
 ## The frozen format
 
@@ -90,7 +91,8 @@ Nothing interpolates and nothing extrapolates.
   method has no useful power at that sample size, not a number.
 - **An out-of-control false-positive rate raises.** The power column cannot be read while the
   method fires on data with nothing injected into it, nor while it fires improbably rarely,
-  which means its null does not describe the samples it was handed.
+  which means either its null does not describe the samples it was handed or it is far more
+  conservative than its nominal level.
 - **A method or rung the library holds no atlas for raises**, naming what it does hold.
 - **Two atlases that differ are never merged.** Library version, seed and estimator settings
   are part of an atlas's identity; two that differ are two entries, and a query matching both
@@ -143,7 +145,7 @@ withdrawn. The numbers reproduce, but they measure a mismatched null rather than
 came from `too_smooth_test`'s default `detrend="diff"`, and `power_curve` draws every sample in
 random order, so each series the test saw was exchangeable: the one case where the function's own
 docstring says `"diff"` has essentially no power. A false-positive rate of zero against a nominal
-0.05 is the signature of that mismatch, not of conservatism, and it is now flagged (see the refusals
+0.05 is what that mismatch produced here, and a row like it is now flagged (see the refusals
 above).
 
 Measured again with `power.atlas.too_smooth_atlas`: a population of 20,000 iid N(100, 5) values

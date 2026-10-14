@@ -18,10 +18,12 @@ useless. :func:`power_curve` always measures it and warns when it is far from no
 :func:`minimum_detectable_effect` refuses to answer at a sample size where it is.
 
 Far from nominal runs both ways. A rate far *above* nominal means rejections are partly the
-method firing on nothing. A rate improbably far *below* it is not a careful test: it means the
-null the test assumes does not match how the samples were drawn, and the power column measured
-against that null says nothing about what the method can see. :func:`too_smooth_atlas` exists
-because of the second case.
+method firing on nothing. A rate improbably far *below* it means either that the null the test
+assumes does not match how the samples were drawn, or that the test is far more conservative
+than its nominal level (a test that errors on most samples lands here too, because an error is
+recorded as no rejection). Either way the power column is not the method's power at ``alpha``.
+:func:`too_smooth_atlas` exists because of a case of the first kind: ``too_smooth_test``'s
+default ``detrend="diff"`` run on the exchangeable samples :func:`power_curve` draws.
 
 What this is not
 ----------------
@@ -114,10 +116,10 @@ def _calibration_problem(n: int, fpr: float, alpha: float, n_replicates: float) 
             return (
                 f"at n={n} the false-positive rate is {fpr:.3f} ({rejected} of {replicates} "
                 f"null replicates rejected) against a nominal {alpha:.3f}, and a calibrated test "
-                f"lands that low with probability {tail:.2g}. A rate this far below nominal is "
-                "the signature of a null that does not match how the samples were drawn, not "
-                "of a conservative test, and the power column measured against that null says "
-                "nothing about what the method can see."
+                f"lands that low with probability {tail:.2g}. A rate this far below nominal means "
+                "either that the null the test assumes does not match how the samples were "
+                "drawn, or that the test is far more conservative than its nominal level; "
+                f"either way the power column is not the method's power at alpha {alpha:.3f}."
             )
     return None
 

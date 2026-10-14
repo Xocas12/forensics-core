@@ -249,8 +249,9 @@ def blind_at_zero_test(sample: np.ndarray) -> float:
 
 def test_a_zero_effect_row_far_below_nominal_is_flagged_when_the_atlas_is_built():
     """Zero rejections in 100 null replicates against a nominal 0.05 happens to a calibrated
-    test with probability 0.006. That is a null that does not match the samples, not a careful
-    test, and whoever reads the table has to be told."""
+    test with probability 0.006. Whether the null does not match the samples or the test is far
+    more conservative than its level, the power column is not the method's power at alpha, and
+    whoever reads the table has to be told."""
     with pytest.warns(UserWarning, match="far below nominal") as caught:
         atlas = power_curve(
             population(),
