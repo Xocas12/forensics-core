@@ -134,8 +134,13 @@ is exactly the kind of thing the atlas exists to surface before P4 rather than a
 
 **The common effect-size axis splits two ways.** From `forensics_core.effect`: on the common
 scale, `padding` and `bunching` measure a directionality of 1.000, while `rounding` measures
-about 0.02 and `smoothing` about −0.005. All four are comparable as an axis for detection power;
-only padding and bunching may be read as a statement about how much output was misreported.
+about 0.02 and `smoothing` about −0.005. Only padding and bunching may be read as a statement
+about how much output was misreported. As an axis for detection power it holds within one
+mechanism on one fixture, but not across families without qualification: for smoothing,
+bunching and rounding the displacement depends on the level of the series (smoothing at
+`retain = 0.2` reads 0.1910 at level 20 and 0.002013 at level 1000 with an unchanged von
+Neumann ratio), while the detectors do not, so a cross-family ranking is conditional on the
+fixture levels. See `docs/effect_size.md`.
 
 ## What this is not
 

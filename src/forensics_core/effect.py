@@ -45,14 +45,45 @@ displaces variance. Both leave the total essentially where it was.
 This is not a defect in the scale, and forcing the four into one substantive reading would be
 worse than saying so. The consequence is a split in what the number may be used for:
 
-- **As a comparison axis for detection power** — all four, without qualification. That is the
-  question the power atlas asks, and it only needs the mechanisms ordered on one axis.
+- **As a comparison axis for detection power** — within one mechanism, on one fixture. Across
+  mechanisms it is conditional on the fixtures' levels, for the reason in the next section, and
+  is not by itself a ranking of method families.
 - **As a substantive claim about how much output was misreported** — padding and bunching
   only. :func:`as_quantity_claim` refuses the other two rather than letting the sentence be
   written.
 
 The gosplan bound the programme is eventually aiming at ("distortion is at least X in sector S
 over years Y") is a padding claim, so it falls in the half where the reading holds.
+
+It also depends on the level of the series
+-------------------------------------------
+``|after - before| / |before|`` is relative to how far each value sits from zero. The scale does
+not change with units (multiplying both series by 10 leaves it alone), but it does change with
+the origin, and for three of the four injectors the movement does not grow with the level:
+
+- **smoothing** shrinks deviations whose size does not depend on the level;
+- **bunching** moves units a fixed ``window`` past the threshold;
+- **rounding** moves a count by at most half a percentage point of its denominator, so the
+  relative move depends on the share level.
+
+So their displacement falls as about 1/level while the detectors do not move at all: the von
+Neumann ratio behind ``too_smooth_test`` is shift-invariant, and ``bunching_estimator`` bins
+relative to the threshold. Measured (``tests/test_effect.py``): smoothing at ``retain=0.2`` on
+the same N(0, 8) draw shifted to levels 20 / 100 / 1000 / 10000 gives displacement 0.1910 /
+0.02047 / 0.002013 / 0.000201 with the von Neumann ratio 0.665355 at every level; bunching at
+``mass=0.6, window=4`` with the threshold at the level gives 0.003138 / 0.000307 / 0.0000307
+at levels 100 / 1000 / 10000, the same 311 units moving each time; rounding at
+``fraction=0.5`` gives 0.00231 at vote share 0.55 and 0.01159 at share 0.11 on the same
+denominators. Padding is multiplicative and does not change with level (0.026667 at 100 and
+at 1000).
+
+Consequence: on this axis a ratio of "power per unit of distortion" between two families is
+set partly by where each fixture happens to sit, and the ranking can flip if the fixture levels
+are changed. Within one mechanism on one fixture the axis is sound (it is monotone in every
+native parameter). A cross-family comparison must state each fixture's level and is conditional
+on it; this module does not certify one. No code ranks families on this axis today:
+:func:`forensics_core.power.atlas.power_curve` and the atlas use each injector's native effect
+size.
 
 Never a replacement for native units
 ------------------------------------
@@ -247,8 +278,8 @@ def as_quantity_claim(effect: CommonEffect, mechanism: str | None = None) -> str
     if mechanism is not None and mechanism in SHAPE_MECHANISMS:
         raise EffectError(
             f"{mechanism!r} moves the shape of the numbers, not their quantity (see "
-            "docs/effect_size.md). Its displacement is a valid comparison axis for detection "
-            "power and is not a statement about how much output was misreported."
+            "docs/effect_size.md). Its displacement is a comparison axis for detection power "
+            "within this mechanism, and is not a statement about how much output was misreported."
         )
     if not effect.moves_quantity:
         raise EffectError(
