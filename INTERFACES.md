@@ -240,7 +240,7 @@ class IntegerExcessResult:
 
 def integer_excess_by_group(pct, denominators, groups, **kw) -> pandas.DataFrame
     # columns: group, n, observed, expected_mean, expected_sd, excess, excess_per_unit,
-    #          z, pvalue, mc_pvalue, n_excluded_small
+    #          z, pvalue, mc_pvalue, n_excluded_small, n_dropped
 ```
 
 Null: for each unit, re-draw the numerator as `Binomial(den, num/den)` (binomial noise
@@ -263,8 +263,14 @@ model, KSP 2016 section 2) `n_mc` times and recount, giving the null mean and sd
   which sit on an integer in the data and in every null draw alike and so cannot create a
   spurious excess; and `observed_per_integer` / `expected_per_integer`, the two vectors whose
   difference is `per_integer`.
-- `integer_excess_by_group` does not raise when one group has no usable unit: that row is
-  reported with `n = 0` and null statistics, so one empty region does not sink the table.
+- `integer_excess_by_group` does not raise when one group has no usable unit (no finite
+  unit with `den >= min_denominator`): that row is reported with `n = 0` and null
+  statistics, so one empty region does not sink the table. Any other `ValueError` from a
+  group (a percentage outside `[0, 100]`, a non-integer denominator, all-zero weights) is
+  raised with the group label in the message, and invalid settings in `**kw` raise once,
+  before any group runs; reporting either as an empty group blamed the small-denominator
+  exclusion for a data error. `n_excluded_small` counts only finite units below
+  `min_denominator`; the added `n_dropped` column counts non-finite units.
   It also documents the meaning of `per_integer` as a difference, since a caller reading only
   the field name might expect the raw observed counts.)
 

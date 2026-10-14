@@ -17,6 +17,7 @@ All functions here are pure: no I/O, no globals, no plotting. Randomness flows t
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -37,6 +38,9 @@ _KSP_CITATION = (
     "Kobak, D., Shpilkin, S. and Pshenichnikov, M. I. (2016), 'Integer percentages as "
     "electoral falsification fingerprints', Annals of Applied Statistics 10(1): 54-73."
 )
+
+# The integer_excess settings that integer_excess_by_group forwards through **kw.
+_SETTING_NAMES = ("tolerance", "min_denominator", "neighbour_bins", "n_mc")
 
 
 def _as_generator(seed: int | np.random.Generator | np.random.SeedSequence | None):
@@ -208,6 +212,20 @@ def _neighbour_estimate(
     return float(np.mean(totals)), len(totals)
 
 
+def _check_settings(
+    tolerance: float, min_denominator: float, neighbour_bins: int, n_mc: int
+) -> None:
+    """Raise ``ValueError`` on an invalid :func:`integer_excess` setting."""
+    if not np.isfinite(tolerance) or not 0.0 < tolerance < 0.5:
+        raise ValueError(f"tolerance must lie strictly between 0 and 0.5; got {tolerance}")
+    if int(n_mc) < 1:
+        raise ValueError(f"n_mc must be at least 1; got {n_mc}")
+    if int(neighbour_bins) < 0:
+        raise ValueError(f"neighbour_bins must be non-negative; got {neighbour_bins}")
+    if not np.isfinite(min_denominator) or min_denominator < 1:
+        raise ValueError(f"min_denominator must be at least 1; got {min_denominator}")
+
+
 def integer_excess(
     pct: ArrayLike,
     denominators: ArrayLike,
@@ -289,16 +307,9 @@ def integer_excess(
             f"pct and denominators must have the same length; got {values.size} and {den.size}"
         )
     w = validate_weights(weights, values.size)
-    if not np.isfinite(tolerance) or not 0.0 < tolerance < 0.5:
-        raise ValueError(f"tolerance must lie strictly between 0 and 0.5; got {tolerance}")
-    if int(n_mc) < 1:
-        raise ValueError(f"n_mc must be at least 1; got {n_mc}")
+    _check_settings(tolerance, min_denominator, neighbour_bins, n_mc)
     n_mc = int(n_mc)
-    if int(neighbour_bins) < 0:
-        raise ValueError(f"neighbour_bins must be non-negative; got {neighbour_bins}")
     neighbour_bins = int(neighbour_bins)
-    if not np.isfinite(min_denominator) or min_denominator < 1:
-        raise ValueError(f"min_denominator must be at least 1; got {min_denominator}")
 
     finite = np.isfinite(values) & np.isfinite(den)
     n_dropped = int(values.size - finite.sum())
@@ -434,14 +445,24 @@ def integer_excess_by_group(
     pandas.DataFrame
         One row per group, in order of first appearance, with columns ``group``, ``n``,
         ``observed``, ``expected_mean``, ``expected_sd``, ``excess``, ``excess_per_unit``,
-        ``z``, ``pvalue``, ``mc_pvalue`` and ``n_excluded_small``. Groups in which no unit
-        survives exclusion are reported with ``n = 0`` and null statistics rather than
-        raising, so one empty region does not sink the table.
+        ``z``, ``pvalue``, ``mc_pvalue``, ``n_excluded_small`` and ``n_dropped``.
+        ``n_excluded_small`` counts the group's finite units whose denominator is below
+        ``min_denominator``; ``n_dropped`` counts its units with a non-finite percentage or
+        denominator. A group in which no unit survives exclusion (no finite unit with a
+        denominator of at least ``min_denominator``) is reported with ``n = 0`` and null
+        statistics rather than raising, so one empty region does not sink the table.
 
     Raises
     ------
     ValueError
-        If the three inputs have different lengths.
+        If the three inputs have different lengths, if a setting passed through ``**kw``
+        is invalid (checked once, before any group is run), or if :func:`integer_excess`
+        rejects a group's data for any other reason than an empty group: a percentage
+        outside ``[0, 100]``, a denominator that is not integer-valued, or zero weight on
+        every included unit. The message names the group. These are data errors, and
+        reporting them as an empty group would blame the small-denominator exclusion.
+    TypeError
+        If ``**kw`` holds an argument :func:`integer_excess` does not take.
     """
     values = as_float_array(pct, "pct")
     den = as_float_array(denominators, "denominators")
@@ -454,6 +475,13 @@ def integer_excess_by_group(
     weights = kw.pop("weights", None)
     w = validate_weights(weights, values.size)
     seed = kw.pop("seed", None)
+    unknown = sorted(set(kw) - set(_SETTING_NAMES))
+    if unknown:
+        raise TypeError(f"integer_excess_by_group got unexpected keyword arguments {unknown}")
+    params = inspect.signature(integer_excess).parameters
+    settings = {name: kw.get(name, params[name].default) for name in _SETTING_NAMES}
+    _check_settings(**settings)
+    min_denominator = settings["min_denominator"]
     keep = labels.notna().to_numpy()
     unique_labels = pd.unique(labels[keep])
     parent = _as_generator(seed)
@@ -462,15 +490,10 @@ def integer_excess_by_group(
     rows: list[dict[str, Any]] = []
     for label, child in zip(unique_labels, children, strict=True):
         mask = keep & (labels == label).to_numpy()
-        try:
-            res = integer_excess(
-                values[mask],
-                den[mask],
-                seed=child,
-                weights=None if w is None else w[mask],
-                **kw,
-            )
-        except ValueError:
+        finite = np.isfinite(values[mask]) & np.isfinite(den[mask])
+        n_dropped = int(finite.size - finite.sum())
+        n_small = int(np.sum(finite & (den[mask] < min_denominator)))
+        if not np.any(finite & (den[mask] >= min_denominator)):
             rows.append(
                 {
                     "group": label,
@@ -483,10 +506,21 @@ def integer_excess_by_group(
                     "z": np.nan,
                     "pvalue": np.nan,
                     "mc_pvalue": np.nan,
-                    "n_excluded_small": int(np.sum(mask)),
+                    "n_excluded_small": n_small,
+                    "n_dropped": n_dropped,
                 }
             )
             continue
+        try:
+            res = integer_excess(
+                values[mask],
+                den[mask],
+                seed=child,
+                weights=None if w is None else w[mask],
+                **kw,
+            )
+        except ValueError as err:
+            raise ValueError(f"group {label!r}: {err}") from err
         rows.append(
             {
                 "group": label,
@@ -500,6 +534,7 @@ def integer_excess_by_group(
                 "pvalue": res.test.pvalue,
                 "mc_pvalue": res.test.details["mc_pvalue"],
                 "n_excluded_small": res.n_excluded_small,
+                "n_dropped": res.test.details["n_dropped"],
             }
         )
     return pd.DataFrame(rows)
