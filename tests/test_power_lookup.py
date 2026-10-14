@@ -282,6 +282,13 @@ def integer_share_test(num, den, pct) -> float:
     return float(stats.norm.sf((observed - mu) / sd))
 
 
+def null_at_055(num, den, rng):
+    """A fresh clean panel from the null share_test tests against. The ladder's default redraw
+    centres on the panel's own observed share, which is not exactly 0.55, and share_test would
+    then reject that offset in every replicate."""
+    return rng.binomial(np.asarray(den, dtype=np.int64), 0.55).astype(float)
+
+
 def unit_and_group_ladder(**kw) -> pd.DataFrame:
     num, den = panel(2400)
     return aggregation_ladder(
@@ -294,6 +301,7 @@ def unit_and_group_ladder(**kw) -> pd.DataFrame:
         n_replicates=60,
         semantics=("sum_then_ratio",),
         seed=3,
+        resample=null_at_055,
         **kw,
     )
 
@@ -345,7 +353,7 @@ def test_a_rung_carrying_two_disagreeing_semantics_is_refused_without_a_choice(t
         [("precinct", None), ("groups_8", nested_keys(num.size, 8))],
         integer_share_test,
         round_injector,
-        effect_sizes=(0.3,),
+        effect_sizes=(1.0,),
         n_replicates=20,
         seed=5,
     )

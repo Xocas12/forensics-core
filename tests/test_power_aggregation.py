@@ -9,6 +9,8 @@ card must not run this test on aggregates whichever way it aggregates them.
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -18,6 +20,7 @@ from forensics_core.power.aggregation import (
     AggregationError,
     aggregate,
     aggregation_ladder,
+    binomial_redraw,
     coarsest_level_with_power,
 )
 
@@ -141,10 +144,18 @@ def test_power_falls_monotonically_as_the_group_size_grows():
     )
     at_effect = ladder[ladder["effect_size"] == 0.3].sort_values("mean_group_size")
     powers = list(at_effect["power"])
-    assert powers == sorted(powers, reverse=True), (
-        f"power must not rise with aggregation: {list(zip(at_effect['level'], powers, strict=True))}"
-    )
-    assert powers[0] > powers[-1], "aggregation must cost something on this fixture"
+    n = int(at_effect["n_replicates"].iloc[0])
+    # Each replicate redraws the panel, so a power is an estimate with Monte Carlo noise. Once
+    # two rungs have both fallen to the background rate they can swap order by a draw or two;
+    # what must not happen is a rise larger than three standard errors of the difference.
+    for finer, coarser in itertools.pairwise(powers):
+        mid = (finer + coarser) / 2.0
+        tolerance = 3.0 * np.sqrt(2.0 * mid * (1.0 - mid) / n)
+        assert coarser <= finer + tolerance, (
+            f"power must not rise with aggregation: "
+            f"{list(zip(at_effect['level'], powers, strict=True))}"
+        )
+    assert powers[0] > max(powers[1:]), "aggregation must cost something on this fixture"
 
 
 def test_the_ladder_has_the_documented_columns_and_one_row_per_cell():
@@ -334,6 +345,124 @@ def test_an_unmeasured_effect_size_is_refused_rather_than_interpolated():
     )
     with pytest.raises(AggregationError, match="will not interpolate"):
         coarsest_level_with_power(ladder, 0.25)
+
+
+# ---------------------------------------------------------------- every replicate is a new panel
+
+
+def recording_test(seen):
+    """A test that is deterministic given its input and remembers every dataset it was given."""
+
+    def test(num, den, pct):
+        seen.append(np.asarray(num, dtype=float).tobytes())
+        return 0.0 if int(num[0]) % 2 == 0 else 1.0
+
+    return test
+
+
+def test_every_replicate_at_effect_zero_sees_a_fresh_clean_panel():
+    """Re-testing one fixed panel n_replicates times is one test, not a false-positive rate."""
+    num, den = panel(400)
+    n_replicates = 20
+    for effect in (0.0, 1.0):
+        seen: list[bytes] = []
+        aggregation_ladder(
+            num,
+            den,
+            [("precinct", None)],
+            recording_test(seen),
+            round_injector,
+            effect_sizes=(effect,),
+            n_replicates=n_replicates,
+            semantics=("sum_then_ratio",),
+            seed=4,
+        )
+        at_effect = seen[-n_replicates:]
+        assert len(set(at_effect)) == n_replicates, (
+            f"effect {effect}: {len(set(at_effect))} distinct datasets in {n_replicates} replicates"
+        )
+
+
+def test_the_zero_row_of_a_deterministic_test_is_a_rate_rather_than_one_outcome():
+    """The recording test rejects when the first unit's numerator is even, so over clean redraws
+    its rate is near one half. On a fixed panel it could only have been 0.0 or 1.0."""
+    num, den = panel(400)
+    ladder = aggregation_ladder(
+        num,
+        den,
+        [("precinct", None), ("group_4", nested_keys(num.size, 4))],
+        recording_test([]),
+        round_injector,
+        effect_sizes=(0.5,),
+        n_replicates=40,
+        semantics=("sum_then_ratio",),
+        seed=5,
+    )
+    zero = ladder[ladder["effect_size"] == 0.0]
+    rates = dict(zip(zero["level"], zero["false_positive_rate"], strict=True))
+    assert all(0.0 < r < 1.0 for r in rates.values()), rates
+    assert (zero["power_se"] > 0.0).all()
+
+
+def test_the_default_redraw_keeps_denominators_and_rates_and_varies_the_counts():
+    num, den = panel(2000)
+    drawn = binomial_redraw(num, den, np.random.default_rng(0))
+    assert drawn.shape == num.shape
+    assert np.all(drawn == np.round(drawn)) and np.all((drawn >= 0) & (drawn <= den))
+    assert not np.array_equal(drawn, num)
+    assert drawn.sum() / den.sum() == pytest.approx(num.sum() / den.sum(), abs=0.005)
+
+
+def test_data_that_are_not_counts_need_their_own_resample():
+    num, den = panel(100)
+    fractional = num + 0.5
+    with pytest.raises(AggregationError, match="resample="):
+        aggregation_ladder(
+            fractional,
+            den,
+            [("precinct", None)],
+            integer_share_test,
+            round_injector,
+            effect_sizes=(0.5,),
+            n_replicates=2,
+        )
+
+    calls: list[int] = []
+
+    def jitter(n, d, rng):
+        calls.append(1)
+        return np.asarray(n, dtype=float) + rng.normal(0.0, 1.0, size=np.size(n))
+
+    seen: list[bytes] = []
+    aggregation_ladder(
+        fractional,
+        den,
+        [("precinct", None)],
+        recording_test(seen),
+        round_injector,
+        effect_sizes=(0.5,),
+        n_replicates=5,
+        semantics=("sum_then_ratio",),
+        resample=jitter,
+    )
+    # one probe draw, then one per replicate at each of the two effect sizes
+    assert len(calls) == 1 + 2 * 5
+    assert len(set(seen)) == 10
+
+
+def test_a_resample_that_changes_the_panel_shape_is_refused():
+    num, den = panel(100)
+    with pytest.raises(AggregationError, match="resample returned shape"):
+        aggregation_ladder(
+            num,
+            den,
+            [("precinct", None)],
+            integer_share_test,
+            round_injector,
+            effect_sizes=(0.5,),
+            n_replicates=2,
+            resample=lambda n, d, rng: n[:-1],
+        )
 
 
 # ---------------------------------------------------------------- refusals
