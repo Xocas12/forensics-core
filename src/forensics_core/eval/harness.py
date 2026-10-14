@@ -17,6 +17,8 @@ Design notes and sources
   :class:`sklearn.model_selection.GroupKFold` so that a whole firm / province / year sits on
   one side of the split. ``"anchor_holdout"`` holds out an *anchor event* -- a period or set
   of units where the ground truth is known from outside the data -- and trains on the rest.
+  Its metrics rank the anchor's labeled rows against each other; where the anchor stands
+  among the other rows is a separate number, :attr:`EvalReport.anchor_rank`.
   ``"none"`` fits and scores the same labeled rows; its metrics are in-sample and the report
   says so (:attr:`EvalReport.in_sample`).
 - Positive-unlabeled labels. Enforcement data marks some positives and nothing else; a 0 in
@@ -541,18 +543,31 @@ class EvalSpec:
         ``split="group_kfold"``: number of folds; at least 2.
     anchor_mask : pandas.Series or None
         ``split="anchor_holdout"``: boolean, True for the rows that *are* the anchor. Those
-        rows are the test set; training uses everything else.
+        rows are the test set and training uses everything else, so every number in
+        :attr:`EvalReport.metrics` is computed among the anchor's own labeled rows. It says
+        how well the detector separates the anchor's positives from the anchor's negatives
+        (within-anchor discrimination), which needs labeled negatives inside the mask, and
+        it says nothing about whether the anchor ranks above the other rows. That is
+        :attr:`EvalReport.anchor_rank`.
     ks : tuple
         Cut-offs for the ``@k`` metrics. Ints are counts, floats in (0, 1) are fractions of
-        the test set.
+        the labeled test rows; under ``"anchor_holdout"`` that is the anchor's labeled rows,
+        not the whole panel.
     metrics : tuple
         Any of ``"roc_auc"``, ``"average_precision"``, ``"ndcg_at_k"``,
         ``"precision_at_k"``, ``"recall_at_k"``.
+    comparison_mask : pandas.Series or None
+        ``split="anchor_holdout"`` only: boolean, True for non-anchor rows to hold out of
+        fitting and to compare the anchor with in :attr:`EvalReport.anchor_rank`. With the
+        default ``None`` the anchor is compared with every non-anchor row, and those are the
+        rows the detector was fitted on: exact for a detector whose ``fit`` ignores its rows
+        (:class:`FunctionDetector`), in-sample for any detector that learns from them.
 
     Raises
     ------
     ValueError
-        On an unknown split or metric name, ``n_splits < 2``, an empty or invalid ``ks``.
+        On an unknown split or metric name, ``n_splits < 2``, an empty or invalid ``ks``, or
+        a ``comparison_mask`` with a split other than ``"anchor_holdout"``.
     """
 
     split: SplitKind = "temporal"
@@ -561,12 +576,18 @@ class EvalSpec:
     anchor_mask: pd.Series | None = None
     ks: tuple[int | float, ...] = (0.01, 0.05, 0.10)
     metrics: tuple[str, ...] = ("roc_auc", "average_precision", "ndcg_at_k", "precision_at_k")
+    comparison_mask: pd.Series | None = None
 
     def __post_init__(self) -> None:
         if self.split not in ("temporal", "group_kfold", "anchor_holdout", "none"):
             raise ValueError(
                 "split must be 'temporal', 'group_kfold', 'anchor_holdout' or 'none'; "
                 f"got {self.split!r}"
+            )
+        if self.comparison_mask is not None and self.split != "anchor_holdout":
+            raise ValueError(
+                "comparison_mask applies only to split='anchor_holdout', where it holds rows "
+                f"out of fitting to compare the anchor with; got split={self.split!r}"
             )
         if not isinstance(self.n_splits, int | np.integer) or int(self.n_splits) < 2:
             raise ValueError(f"n_splits must be an int >= 2; got {self.n_splits!r}")
@@ -589,11 +610,17 @@ class EvalSpec:
             raise ValueError(f"unknown metric(s) {unknown}; known: {sorted(known)}")
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-friendly view; ``anchor_mask`` is summarised by its size, not copied."""
+        """JSON-friendly view; the masks are summarised by their size, not copied."""
         mask = None
         if self.anchor_mask is not None:
             values = _as_bool_mask(self.anchor_mask, len(self.anchor_mask), "anchor_mask")
             mask = {"n_rows": int(values.size), "n_anchor": int(values.sum())}
+        comparison = None
+        if self.comparison_mask is not None:
+            values = _as_bool_mask(
+                self.comparison_mask, len(self.comparison_mask), "comparison_mask"
+            )
+            comparison = {"n_rows": int(values.size), "n_comparison": int(values.sum())}
         return {
             "split": self.split,
             "train_end": _plain(self.train_end),
@@ -601,6 +628,7 @@ class EvalSpec:
             "anchor_mask": mask,
             "ks": [_plain(k) for k in self.ks],
             "metrics": list(self.metrics),
+            "comparison_mask": comparison,
         }
 
 
@@ -627,7 +655,26 @@ class EvalReport:
         True when ``spec.split == "none"``: the same rows were used to fit and to score, so
         every number here is optimistic.
     notes : tuple of str
-        Warnings worth carrying with the numbers (skipped folds, in-sample scoring).
+        Warnings worth carrying with the numbers (skipped folds, in-sample scoring, what an
+        ``anchor_holdout`` metric does and does not compare).
+    anchor_rank : dict or None
+        ``split="anchor_holdout"`` only, ``None`` otherwise. Where the anchor stands among
+        the comparison rows, which :attr:`metrics` cannot say because it never scores a
+        non-anchor row. The detector fitted for the fold scores the anchor rows and the
+        comparison rows together in one call, and each anchor row gets a percentile: the
+        share of comparison rows it outscores, ties counting half. Every anchor row and
+        every comparison row counts, labeled or not. Keys:
+
+        - ``n_anchor``, ``n_comparison``: rows on each side.
+        - ``comparison``: ``"training_rows"`` (every non-anchor row, which the detector was
+          fitted on) or ``"held_out"`` (the rows in :attr:`EvalSpec.comparison_mask`).
+        - ``auc_anchor_vs_comparison``: the mean percentile, i.e. the probability that an
+          anchor row outscores a comparison row. 0.5 is no lift; 1.0 is the whole anchor
+          above every comparison row.
+        - ``median_percentile``: the median of the same percentiles.
+        - ``n_anchor_positive``, ``auc_positives_vs_comparison``: the same mean over the
+          anchor rows with ``y == 1``; ``None`` when there are none.
+        - ``unit_ids``, ``percentiles``: one entry per anchor row, in dataset order.
     """
 
     detector: str
@@ -640,6 +687,7 @@ class EvalReport:
     n_pos_test: int
     in_sample: bool = False
     notes: tuple[str, ...] = ()
+    anchor_rank: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return jsonable(
@@ -654,6 +702,7 @@ class EvalReport:
                 "n_pos_test": self.n_pos_test,
                 "in_sample": self.in_sample,
                 "notes": list(self.notes),
+                "anchor_rank": self.anchor_rank,
             }
         )
 
@@ -809,17 +858,81 @@ def _group_folds(ds: Dataset, spec: EvalSpec) -> list[tuple[np.ndarray, np.ndarr
     ]
 
 
-def _anchor_folds(ds: Dataset, spec: EvalSpec) -> list[tuple[np.ndarray, np.ndarray]]:
+def _anchor_sides(ds: Dataset, spec: EvalSpec) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """``(train, anchor, comparison)`` positions for ``split="anchor_holdout"``.
+
+    Without a ``comparison_mask`` the comparison rows are the training rows.
+    """
     if spec.anchor_mask is None:
         raise ValueError("split='anchor_holdout' needs EvalSpec.anchor_mask")
     mask = _as_bool_mask(spec.anchor_mask, len(ds), "anchor_mask")
     test = np.flatnonzero(mask)
-    train = np.flatnonzero(~mask)
     if test.size == 0:
         raise ValueError("anchor_mask selects no rows; there is no anchor to hold out")
-    if train.size == 0:
+    if bool(mask.all()):
         raise ValueError("anchor_mask selects every row; nothing is left to train on")
+    if spec.comparison_mask is None:
+        train = np.flatnonzero(~mask)
+        return train, test, train
+    held = _as_bool_mask(spec.comparison_mask, len(ds), "comparison_mask")
+    overlap = int(np.count_nonzero(held & mask))
+    if overlap:
+        raise ValueError(
+            f"comparison_mask and anchor_mask share {overlap} row(s); a row cannot be both "
+            "the anchor and what the anchor is compared with"
+        )
+    comparison = np.flatnonzero(held)
+    if comparison.size == 0:
+        raise ValueError("comparison_mask selects no rows; there is nothing to compare with")
+    train = np.flatnonzero(~mask & ~held)
+    if train.size == 0:
+        raise ValueError(
+            "anchor_mask and comparison_mask together select every row; nothing is left to train on"
+        )
+    return train, test, comparison
+
+
+def _anchor_folds(ds: Dataset, spec: EvalSpec) -> list[tuple[np.ndarray, np.ndarray]]:
+    train, test, _ = _anchor_sides(ds, spec)
     return [(train, test)]
+
+
+def _anchor_rank(
+    detector: Detector,
+    ds: Dataset,
+    anchor_idx: np.ndarray,
+    comparison_idx: np.ndarray,
+    *,
+    held_out: bool,
+) -> dict[str, Any]:
+    """Where the anchor rows stand among the comparison rows; see :attr:`EvalReport.anchor_rank`.
+
+    Both sides are scored in one call, in dataset order, so a detector whose score depends on
+    the batch it is handed puts the two sides on the same scale.
+    """
+    rows = np.union1d(anchor_idx, comparison_idx)
+    rows_ds = ds.take(rows)
+    scores = _check_scores(detector.score(rows_ds), rows_ds, getattr(detector, "name", ""))
+    is_anchor = np.isin(rows, anchor_idx)
+    anchor_scores = scores[is_anchor]
+    comparison_sorted = np.sort(scores[~is_anchor])
+    below = np.searchsorted(comparison_sorted, anchor_scores, side="left")
+    tied = np.searchsorted(comparison_sorted, anchor_scores, side="right") - below
+    percentiles = (below + 0.5 * tied) / comparison_sorted.size
+    positive = ds.y_values()[rows[is_anchor]] == 1.0
+    return {
+        "n_anchor": int(anchor_scores.size),
+        "n_comparison": int(comparison_sorted.size),
+        "comparison": "held_out" if held_out else "training_rows",
+        "auc_anchor_vs_comparison": float(percentiles.mean()),
+        "median_percentile": float(np.median(percentiles)),
+        "n_anchor_positive": int(np.count_nonzero(positive)),
+        "auc_positives_vs_comparison": (
+            float(percentiles[positive].mean()) if positive.any() else None
+        ),
+        "unit_ids": ds.unit_id.iloc[rows[is_anchor]].tolist(),
+        "percentiles": [float(p) for p in percentiles],
+    }
 
 
 def _make_folds(ds: Dataset, spec: EvalSpec) -> list[tuple[np.ndarray, np.ndarray]]:
@@ -892,6 +1005,13 @@ def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport:
     rows do not contain both a positive and a negative is skipped, recorded in ``per_fold``
     with a reason, and left out of the averages.
 
+    Under ``split="anchor_holdout"`` the test rows are the anchor, so ``metrics`` measure
+    discrimination *within* the anchor and never look at a non-anchor row. The same fitted
+    copy then scores the anchor together with the comparison rows (every non-anchor row, or
+    ``spec.comparison_mask``, whose rows are also kept out of the fit), and
+    :attr:`EvalReport.anchor_rank` reports where the anchor stands among them. That is the
+    number a claim of the form "the detector ranks the anchor above the rest" rests on.
+
     Parameters
     ----------
     detector : Detector
@@ -906,14 +1026,14 @@ def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport:
         ``metrics`` are unweighted means over the usable folds; ``n_train``/``n_test``/
         ``n_pos_test`` are sums over folds (so for ``group_kfold`` ``n_test`` is the whole
         labeled sample, and ``n_train`` counts each row several times, once per fold that
-        trained on it).
+        trained on it). ``anchor_rank`` is filled under ``"anchor_holdout"`` only.
 
     Raises
     ------
     ValueError
         If the detector does not satisfy the protocol, the dataset has no labels, the split
-        cannot be built (missing ``time``/``groups``/``anchor_mask``, empty side), or no
-        fold was usable.
+        cannot be built (missing ``time``/``groups``/``anchor_mask``, empty side, a
+        ``comparison_mask`` that overlaps the anchor), or no fold was usable.
     """
     if not isinstance(ds, Dataset):
         raise ValueError(f"ds must be a Dataset; got {type(ds).__name__}")
@@ -929,6 +1049,10 @@ def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport:
 
     y_all = ds.y_values()
     folds = _make_folds(ds, spec)
+    comparison_idx: np.ndarray | None = None
+    if spec.split == "anchor_holdout":
+        _, _, comparison_idx = _anchor_sides(ds, spec)
+    held_out = comparison_idx is not None and spec.comparison_mask is not None
     notes: list[str] = []
     in_sample = spec.split == "none"
     if in_sample:
@@ -936,13 +1060,35 @@ def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport:
             "split='none': the detector was fit and scored on the same labeled rows, so "
             "these metrics are IN-SAMPLE and optimistic; they are not evidence of transfer."
         )
+    if comparison_idx is not None:
+        notes.append(
+            "split='anchor_holdout': metrics rank the anchor's labeled rows against each other "
+            "(within-anchor discrimination; a float k is a fraction of those rows). They do "
+            "not compare the anchor with the rest of the data; anchor_rank does."
+        )
+        if not held_out:
+            notes.append(
+                "anchor_rank compares the anchor with the rows the detector was fitted on. "
+                "That is exact for a detector whose fit ignores its rows (FunctionDetector); "
+                "for one that learns from them, those scores are in-sample. Set "
+                "EvalSpec.comparison_mask to hold a comparison set out of fitting."
+            )
 
     per_fold: list[dict] = []
+    anchor_rank: dict[str, Any] | None = None
     for i, (train_idx, test_idx) in enumerate(folds):
         fold_detector = copy.deepcopy(detector)
-        fold_detector.fit(ds.take(fit_indices(fold_detector, ds, train_idx)))
+        fit_idx = fit_indices(fold_detector, ds, train_idx)
+        if held_out:
+            # Held out means held out of the unlabeled pool a PU detector is handed, too.
+            fit_idx = np.setdiff1d(fit_idx, comparison_idx)
+        fold_detector.fit(ds.take(fit_idx))
         test_ds = ds.take(test_idx)
         scores = _check_scores(fold_detector.score(test_ds), test_ds, getattr(detector, "name", ""))
+        if comparison_idx is not None:
+            anchor_rank = _anchor_rank(
+                fold_detector, ds, test_idx, comparison_idx, held_out=held_out
+            )
         y_test = y_all[test_idx]
         labeled = ~np.isnan(y_test)
         y_lab = y_test[labeled]
@@ -997,6 +1143,7 @@ def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport:
         n_pos_test=int(sum(entry["n_pos_test"] for entry in per_fold)),
         in_sample=in_sample,
         notes=tuple(notes),
+        anchor_rank=anchor_rank,
     )
 
 
