@@ -847,21 +847,31 @@ def _compute_metrics(y: np.ndarray, scores: np.ndarray, spec: EvalSpec) -> dict[
     return out
 
 
-def fit_indices(detector: Detector, ds: Dataset, train_idx: np.ndarray) -> np.ndarray:
-    """The rows a detector should be fitted on, given a fold's training indices.
+def fit_indices(
+    detector: Detector,
+    ds: Dataset,
+    train_idx: np.ndarray,
+    test_idx: np.ndarray,
+) -> np.ndarray:
+    """The rows a detector should be fitted on, given a fold's training and test indices.
 
-    A detector that wants the unlabeled pool gets every unlabeled row added to its training
-    set, on top of the fold's own training rows.
+    A detector that wants the unlabeled pool gets the unlabeled rows added to its training
+    set, on top of the fold's own training rows, except those in the fold's test index.
 
-    This cannot leak. Test folds are built from labeled rows only, so an unlabeled row is never
-    in a test set, and adding all of them to every training fold tells the detector nothing
-    about the rows it will be scored on. What it does do is give a positive-unlabeled estimator
-    the pool its label-frequency estimate is computed against, without which it is a different
-    method wearing the same name.
+    The exclusion is what keeps the split honest. Only ``split="none"`` builds its test fold
+    from labeled rows; ``"temporal"``, ``"group_kfold"`` and ``"anchor_holdout"`` build theirs
+    over every row, so the test side carries unlabeled rows too: the periods after
+    ``train_end``, the held-out groups, the anchor's unlabeled members. Fitting on those would
+    hand the detector the covariates of exactly the rows the split exists to keep away from
+    it. Under ``split="none"`` no unlabeled row is a test row, so the detector still gets
+    every unlabeled row, as :func:`fit_set` gives it in :func:`transfer`. The pool matters
+    because a positive-unlabeled estimator computes its label-frequency estimate against it;
+    without one it is a different method wearing the same name.
     """
     if not getattr(detector, "wants_unlabeled", False):
         return train_idx
     unlabeled = np.flatnonzero(np.isnan(ds.y_values()))
+    unlabeled = np.setdiff1d(unlabeled, np.asarray(test_idx))
     return np.union1d(np.asarray(train_idx), unlabeled)
 
 
@@ -887,9 +897,10 @@ def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport:
     """Fit and score ``detector`` on ``ds`` under ``spec``, and report rank metrics.
 
     The detector is deep-copied per fold, fitted on the training rows (*all* of them,
-    labeled or not, so PU detectors keep their unlabeled pool) and asked to score the test
-    rows. Metrics are then computed on the labeled test rows only. A fold whose labeled test
-    rows do not contain both a positive and a negative is skipped, recorded in ``per_fold``
+    labeled or not; a detector with ``wants_unlabeled`` also gets the unlabeled rows outside
+    the fold's test index, see :func:`fit_indices`) and asked to score the test rows.
+    Metrics are then computed on the labeled test rows only. A fold whose labeled test rows do
+    not contain both a positive and a negative is skipped, recorded in ``per_fold``
     with a reason, and left out of the averages.
 
     Parameters
@@ -940,7 +951,7 @@ def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport:
     per_fold: list[dict] = []
     for i, (train_idx, test_idx) in enumerate(folds):
         fold_detector = copy.deepcopy(detector)
-        fold_detector.fit(ds.take(fit_indices(fold_detector, ds, train_idx)))
+        fold_detector.fit(ds.take(fit_indices(fold_detector, ds, train_idx, test_idx)))
         test_ds = ds.take(test_idx)
         scores = _check_scores(fold_detector.score(test_ds), test_ds, getattr(detector, "name", ""))
         y_test = y_all[test_idx]

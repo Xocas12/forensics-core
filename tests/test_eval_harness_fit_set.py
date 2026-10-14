@@ -202,3 +202,117 @@ def test_fit_on_can_still_be_forced_and_rejects_nonsense():
     transfer(det, ds, target, fit_on="labeled")
     with pytest.raises(ValueError, match="fit_on must be"):
         transfer(det, ds, target, fit_on="whatever")
+
+
+# ---------------------------------------------------------------- the held-out side stays out
+
+
+class RowRecorder:
+    """A PU-style detector that records which units it was fitted on and which it scored.
+
+    `evaluate` fits a fold's copy and then scores that fold's test rows before moving on, so
+    the n-th fit and the n-th score belong to the same fold. As with `Recorder`, the record
+    lives on the class because each fold works on a deep copy.
+    """
+
+    name = "row_recorder"
+    wants_unlabeled = True
+    FOLDS: list[dict[str, set]] = []
+
+    def fit(self, ds: Dataset) -> RowRecorder:
+        RowRecorder.FOLDS.append({"fit": set(ds.unit_id), "test": set()})
+        return self
+
+    def score(self, ds: Dataset) -> np.ndarray:
+        RowRecorder.FOLDS[-1]["test"] = set(ds.unit_id)
+        return ds.X["x"].to_numpy(dtype=float)
+
+
+@pytest.fixture(autouse=True)
+def _clear_row_recorder():
+    RowRecorder.FOLDS.clear()
+    yield
+    RowRecorder.FOLDS.clear()
+
+
+def pu_panel(n_units: int = 60, n_years: int = 10, *, seed: int = 0) -> Dataset:
+    """`pu_dataset` laid out as a unit-by-year panel, so every split can be built on it.
+
+    Each unit is a group; its rows span years 0..n_years-1. Labels are 1, 0 and NaN on both
+    sides of any split, which is the case where the held-out side carries unlabeled rows.
+    """
+    base = pu_dataset(n=n_units * n_years, labelled_fraction=0.3, seed=seed)
+    unit = np.repeat(np.arange(n_units), n_years)
+    year = np.tile(np.arange(n_years), n_units)
+    return Dataset(
+        unit_id=base.unit_id,
+        X=base.X,
+        y=base.y,
+        groups=pd.Series(unit),
+        time=pd.Series(year),
+        meta={"name": "pu_panel"},
+    )
+
+
+def _assert_no_test_row_in_any_fit(ds: Dataset, n_folds: int) -> None:
+    folds = RowRecorder.FOLDS
+    assert len(folds) == n_folds, f"expected {n_folds} folds, recorded {len(folds)}"
+    unlabelled_ids = set(ds.unit_id[np.isnan(ds.y_values())])
+    for i, fold in enumerate(folds):
+        assert fold["test"], f"fold {i} scored nothing"
+        assert fold["test"] & unlabelled_ids, (
+            f"fold {i} has no unlabelled test rows, so this check could not fail"
+        )
+        leaked = fold["fit"] & fold["test"]
+        assert not leaked, (
+            f"fold {i}: {len(leaked)} of its {len(fold['test'])} test rows were in the fit set"
+        )
+        # The PU pool is still there: unlabelled rows from the training side are added.
+        assert fold["fit"] & (unlabelled_ids - fold["test"]), (
+            f"fold {i} was fitted without the training side's unlabelled pool"
+        )
+
+
+def test_temporal_split_never_fits_on_a_row_after_train_end():
+    """#35 temporal: the PU pool used to include every unlabelled row after train_end."""
+    ds = pu_panel()
+    evaluate(RowRecorder(), ds, EvalSpec(split="temporal", train_end=4, metrics=("roc_auc",)))
+    _assert_no_test_row_in_any_fit(ds, n_folds=1)
+    after = set(ds.unit_id[(ds.time > 4).to_numpy()])
+    assert not RowRecorder.FOLDS[0]["fit"] & after
+
+
+def test_group_kfold_never_fits_on_a_held_out_groups_rows():
+    """#35 group_kfold: the PU pool used to include the held-out groups' unlabelled rows."""
+    ds = pu_panel()
+    evaluate(RowRecorder(), ds, EvalSpec(split="group_kfold", n_splits=5, metrics=("roc_auc",)))
+    _assert_no_test_row_in_any_fit(ds, n_folds=5)
+    groups = dict(zip(ds.unit_id, ds.groups, strict=True))
+    for fold in RowRecorder.FOLDS:
+        held_out = {groups[u] for u in fold["test"]}
+        assert not {groups[u] for u in fold["fit"]} & held_out
+
+
+def test_anchor_holdout_never_fits_on_an_anchor_row():
+    """#35 anchor_holdout: the PU pool used to include the anchor's unlabelled members."""
+    ds = pu_panel()
+    y = ds.y_values()
+    # Units 0-9 are the anchor; the mask has 1s, 0s and NaNs inside it.
+    anchor = (ds.groups < 10).to_numpy()
+    assert np.isnan(y[anchor]).any() and (y[anchor] == 1).any() and (y[anchor] == 0).any()
+    evaluate(
+        RowRecorder(),
+        ds,
+        EvalSpec(split="anchor_holdout", anchor_mask=anchor, metrics=("roc_auc",)),
+    )
+    _assert_no_test_row_in_any_fit(ds, n_folds=1)
+    assert not RowRecorder.FOLDS[0]["fit"] & set(ds.unit_id[anchor])
+
+
+def test_split_none_still_gives_a_pu_detector_every_row():
+    """The intersection must not cost split='none' its pool: there the test rows are the
+    labelled rows, the fit already contains them, and every unlabelled row is outside the test
+    set, so the fit set is the whole dataset, matching `transfer`."""
+    ds = pu_panel()
+    evaluate(RowRecorder(), ds, EvalSpec(split="none", metrics=("roc_auc",)))
+    assert RowRecorder.FOLDS[0]["fit"] == set(ds.unit_id)

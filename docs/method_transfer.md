@@ -218,8 +218,14 @@ precincts or firm-years were.
 The mechanics, which matter for reading any number it returns:
 
 - The detector is **deep-copied per fold**, so the instance you pass in is never fitted.
-- Each fold's copy is fitted on **all** training rows, labeled or not, so a `PUDetector`
-  keeps its unlabeled pool.
+- Each fold's copy is fitted on **all** of the fold's training rows, labeled or not. A
+  detector that declares `wants_unlabeled` (a `PUDetector`) also gets every unlabeled row
+  that is not in the fold's test set, so it keeps its unlabeled pool. Rows on the test side
+  never enter the fit, labeled or not: under `"temporal"`, `"group_kfold"` and
+  `"anchor_holdout"` the test side has unlabeled rows of its own (the later periods, the
+  held-out groups, the anchor), and fitting on their features would leak exactly what the
+  split exists to hold back. Under `"none"` no unlabeled row is a test row, so the PU fit set
+  is the whole dataset, the same rows `transfer` fits on.
 - It scores the test rows, and metrics are computed on the **labeled test rows only**.
 - A fold whose labeled test rows lack either a positive or a negative is skipped, recorded
   in `per_fold` with a reason, added to `notes`, and left out of the averages. Rank metrics
