@@ -23,7 +23,12 @@ BUNCH_KW = {
 
 
 def _kwargs(name: str) -> dict:
-    return dict(BUNCH_KW) if name == "notch_bunching" else {}
+    if name == "notch_bunching":
+        return dict(BUNCH_KW)
+    if name == "too_smooth":
+        # the detector has no default detrend; "diff" is what it used to inherit silently
+        return {"detrend": "diff"}
+    return {}
 
 
 def panel(n_units: int = 12, per_unit: int = 400, seed: int = 0) -> Dataset:
@@ -146,8 +151,45 @@ def test_too_smooth_scores_a_smooth_series_higher_not_lower():
         X=pd.DataFrame({"values": pd.Series(noisy + smooth, dtype=object)}),
         y=pd.Series([0] * 6 + [1] * 6),
     )
-    s = np.asarray(make_detector("too_smooth").score(ds), dtype=float)
+    s = np.asarray(make_detector("too_smooth", detrend="diff").score(ds), dtype=float)
     assert s[6:].mean() > s[:6].mean(), "smooth series must score higher"
+
+
+def test_too_smooth_has_no_default_detrend():
+    """The test's own default, "diff", gives honest stationary units p near 1, so a detector
+    that inherited it silently would rank stationary units on nothing. The caller has to say
+    which null fits the series."""
+    with pytest.raises(TypeError, match="detrend"):
+        make_detector("too_smooth")
+    with pytest.raises(ValueError, match="detrend must be one of"):
+        make_detector("too_smooth", detrend="quadratic")
+
+
+def test_too_smooth_scores_with_the_detrend_it_was_given():
+    """Honest iid units: under "diff" the p-values are pinned near 1, under "none" (the exact
+    null for such units) they spread over (0, 1]. The score is the test's p-value under the
+    detrend the detector was built with, negated by the harness because a low p-value is the
+    suspicious end."""
+    from forensics_core.dispersion.underdispersion import too_smooth_test
+
+    rng = np.random.default_rng(25)
+    units = [rng.normal(100.0, 5.0, size=60) for _ in range(12)]
+    ds = Dataset(
+        unit_id=pd.Series([f"u{i}" for i in range(12)]),
+        X=pd.DataFrame({"values": pd.Series(units, dtype=object)}),
+        y=pd.Series([np.nan] * 12),
+    )
+
+    def pvalues(detrend: str) -> np.ndarray:
+        det = make_detector("too_smooth", detrend=detrend)
+        return -np.asarray(det.score(ds), dtype=float)
+
+    for detrend in ("none", "linear", "diff"):
+        expected = [too_smooth_test(u, detrend=detrend, n_perm=199, seed=0).pvalue for u in units]
+        assert np.allclose(pvalues(detrend), expected), detrend
+    diff, none = pvalues("diff"), pvalues("none")
+    assert diff.mean() > 0.9, f"honest iid units under 'diff' should sit near p = 1: {diff}"
+    assert none.mean() < 0.7, f"under 'none' honest iid units should not be pinned: {none}"
 
 
 def test_notch_bunching_scores_a_bunched_unit_above_a_clean_one():
