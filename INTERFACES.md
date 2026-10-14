@@ -105,12 +105,13 @@ def benford_expected(position: DigitPosition = "first") -> np.ndarray
 def digit_support(position: DigitPosition = "first") -> np.ndarray   # (changed: default added)
 
 def leading_digits(x: ArrayLike, position: DigitPosition = "first", *,
-                   require_two_significant_digits: bool = True) -> np.ndarray
+                   require_two_significant_digits: bool | None = None) -> np.ndarray
     # returns int array; nonpositive / non-finite -> excluded (caller sees fewer values);
-    # "second" requires at least two significant digits, else excluded.
+    # "second" and "first_two" exclude values that lack a second digit, under the digit
+    # rule below (changed: default None, see the notes)
 
 def digit_frequencies(x, position="first", weights=None, *,
-                      require_two_significant_digits: bool = True) -> DigitTable
+                      require_two_significant_digits: bool | None = None) -> DigitTable
 
 @dataclass(frozen=True)
 class DigitTable:
@@ -123,11 +124,12 @@ class DigitTable:
     effective_n: float
     n_dropped: int = 0          # (changed: added)
     position: str = "first"     # (changed: added)
+    digit_rule: str | None = None   # (changed: added)
     def to_dict(self) -> dict[str, Any]
 
 def benford_test(x, position="first", weights=None,
                  statistics=("chi2", "mad", "kuiper"), *,
-                 require_two_significant_digits: bool = True) -> BenfordResult
+                 require_two_significant_digits: bool | None = None) -> BenfordResult
 
 @dataclass(frozen=True)
 class BenfordResult:
@@ -156,23 +158,47 @@ series for its tail; `details` carries `d_plus`, `d_minus` and the citation, whi
 that the series assumes a continuous null and is therefore conservative on a discrete digit
 support.
 
-(changed during implementation, additive fields and one new keyword:
+(changed during implementation, additive fields and one new keyword, whose default later
+changed:
 
 - `DigitTable` gained `n_dropped` (values excluded as non-finite, non-positive, or lacking
-  the required significant digit) and `position`. Without them a table cannot say how much of
-  the input it discarded, which the library-wide non-finite convention requires, and a table
-  passed around on its own could not say which digit position it describes.
+  the required significant digit), `position` and `digit_rule` (below). Without them a table
+  cannot say how much of the input it discarded, which the library-wide non-finite
+  convention requires, and a table passed around on its own could not say which digit
+  position it describes or which rule decided its exclusions.
 - `BenfordResult` gained `settings` and its three statistic fields became optional. Passing
   `statistics=("mad",)` must produce a result whose `chi2` and `kuiper` are absent rather
   than fabricated, so the fields default to `None`; `settings` records the position, the
-  statistics actually requested, whether weights were used, and the value of
-  `require_two_significant_digits`, so a stored result is self-describing.
+  statistics actually requested, whether weights were used, the value of
+  `require_two_significant_digits` and the `digit_rule` it resolved to, so a stored result
+  is self-describing.
 - `require_two_significant_digits` is a keyword-only argument on `leading_digits`,
-  `digit_frequencies` and `benford_test`, defaulting to `True`, which is the behaviour the
-  contract fixed for `position="second"`. It exists because the exclusion rule is a
-  convention, not a fact: a value such as `300.0` has a placeholder zero in the second place
-  rather than a reported digit, and a caller working with data where every value is written
-  to two digits may want the looser reading. The default keeps the contracted behaviour.
+  `digit_frequencies` and `benford_test`. It exists because whether a value has a second
+  digit is a convention, not a fact, and the right convention depends on the data. It
+  selects one of three digit rules, recorded in `DigitTable.digit_rule`:
+  - `None`, the default: `"magnitude"` when every usable value is a whole number of at
+    least 1 (to within 1e-9), otherwise `"significant"`. Under `"magnitude"` a count has a
+    second digit when it is at least 10, and every digit it has is real: `300` gives second
+    digit 0 and first-two pair 30, and 1 to 9 are excluded from `"second"` and `"first_two"`.
+    A positive value below 0.5, such as `6.674e-11`, is within 1e-9 of 0 when it is small
+    enough but is not a count, so input that contains one gets `"significant"`.
+  - `True`: `"significant"`. For `"second"`, a value equal to `d * 10**e` is taken to carry
+    one significant digit and is excluded, so `300.0` does not contribute its zero. Meant
+    for measured or rounded floats. `"first_two"` is unaffected and reads every value's
+    significand.
+  - `False`: `"all"`, the second digit of every value, padding included (`7` gives second
+    digit 0 and first-two pair 70).
+
+  The default used to be `True`, i.e. `"significant"` for every input, and `"first_two"`
+  padded single-digit values into the d0 cells (`7` read as 70). On whole-number counts both
+  were wrong, in opposite directions. The round-value rule drops only digit-0 mass while the
+  table is still compared with the unconditional second-digit law, so honest counts between
+  10 and 10**4 leave about 8% of the table on digit 0 against the 12% expected and are
+  rejected outright at n = 50,000; the padding put a third of the first-two mass in the d0
+  cells against 12% expected for counts from 1 to 10**4. Honest `floor(10**U)` counts now
+  conform at both positions under the default. Fractional input is read exactly as before,
+  so for it the round-value rule is still the default at `"second"`; for whole-number input
+  it is an opt-in through `True`. An explicit `True` or `False` keeps its old meaning.
 - `MAD_BANDS`, `MAD_LABELS` and `SIGNIFICANCE_RTOL` are module constants rather than numbers
   buried in the code, so a project can read the bands it is being judged against, and so the
   provenance warning attaches to a single object.

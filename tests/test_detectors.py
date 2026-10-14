@@ -91,6 +91,25 @@ def test_benford_scores_a_distorted_unit_above_a_clean_one():
     assert s[6:].mean() > s[:6].mean(), "the non-Benford units must score higher"
 
 
+def test_benford_does_not_rank_honest_small_counts_as_suspicious():
+    """Honest whole-number counts must not be scored by their size.
+
+    Every unit here is honest Benford counts; half are drawn from 1 to 10**3, half from 10 to
+    10**4. Reading 1 to 9 as first-two pairs 10 to 90 once made the small-count units score
+    several times higher than the large-count ones (#26).
+    """
+    rng = np.random.default_rng(26)
+    small = [np.floor(10 ** rng.uniform(0, 3, size=300)) for _ in range(20)]
+    large = [np.floor(10 ** rng.uniform(1, 4, size=300)) for _ in range(20)]
+    ds = Dataset(
+        unit_id=pd.Series([f"u{i}" for i in range(40)]),
+        X=pd.DataFrame({"values": pd.Series(small + large, dtype=object)}),
+        y=pd.Series([np.nan] * 40),
+    )
+    s = np.asarray(make_detector("benford_first_two").score(ds), dtype=float)
+    assert s[:20].mean() < 1.5 * s[20:].mean(), "honest small counts must not score higher"
+
+
 def test_terminal_digit_scores_an_invented_unit_above_a_clean_one():
     rng = np.random.default_rng(2)
     clean = [rng.integers(1000, 9999, size=600).astype(float) for _ in range(6)]
