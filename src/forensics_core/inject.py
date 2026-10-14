@@ -30,7 +30,7 @@ Discipline:
 
 Effect sizes
 ------------
-``fraction``   rounding: share of units snapped onto an integer percentage.
+``fraction``   rounding: share of units moved to the count nearest an integer percentage.
 ``mass``       bunching: share of the dominated-side window units moved just past the
                threshold; see the comparability note in :func:`inject_bunching`.
 ``magnitude``  padding: inflation applied to a contiguous block of periods.
@@ -126,12 +126,19 @@ class InjectionRecord:
     seed : int | None
         The seed the injection ran with; ``None`` is recorded as ``None``, and a
         deterministic mechanism records whatever it was given even though it uses nothing.
+    achieved : numpy.ndarray | None
+        Rounding only: the percentage ``100 * value / denominator`` each unit in ``indices``
+        actually ended up at, in the same order. With whole counts that is the nearest
+        percentage a count can reach, which is not always the integer aimed at. ``None`` for
+        the other mechanisms. Like ``seed`` it is provenance and stays out of equality: it
+        follows from the input and the indices.
     """
 
     mechanism: str
     effect_size: float
     indices: np.ndarray
     seed: int | None
+    achieved: np.ndarray | None = None
 
     def __eq__(self, other: object) -> bool:
         """Value equality, comparing ``indices`` elementwise.
@@ -166,23 +173,34 @@ class InjectionRecord:
 
 
 def inject_rounding(
-    values: ArrayLike, denominators: ArrayLike, *, fraction: float, seed: int | None = None
+    values: ArrayLike,
+    denominators: ArrayLike,
+    *,
+    fraction: float,
+    seed: int | None = None,
+    exact_percentage: bool = False,
 ) -> tuple[np.ndarray, InjectionRecord]:
-    """Snap ``fraction`` of the units onto an exactly integer percentage.
+    """Move ``fraction`` of the units to the whole count nearest an integer percentage.
 
     The mechanism behind the sawtooth fingerprint that
     :mod:`forensics_core.digits.integer_pct` tests for (Kobak, Shpilkin and Pshenichnikov
     2016): a result manufactured to hit a target ("give him 65%") carries the numerator the
-    target implies rather than the numerator a count produces. Each selected unit gets the
-    nearest value whose percentage ``100 * value / denominator`` is exactly an integer: the
-    percentage is rounded to the nearest integer (ties to even, numpy's rule) and the value
-    recomputed from it. The percentage therefore moves by at most half a percentage point,
-    which is what the mechanism costs; nothing constrains the total of ``values`` and no
-    total is claimed.
+    target implies rather than the numerator a count produces. Each selected unit's
+    percentage ``100 * value / denominator`` is rounded to the nearest integer (ties to
+    even, numpy's rule), and the unit is given the whole count nearest that target,
+    ``round(target * denominator / 100)``, because a person writing a count writes a whole
+    number. Choosing the target moves the percentage by at most half a point; the whole
+    count then lands within ``50 / denominator`` percentage points of the target integer.
+    It sits exactly on the integer only where 100 divides ``target * denominator``; at a
+    denominator of 137 the closest count to 64% is 88, which is 64.23%. Below denominators
+    of about 1,000 the achieved percentage can therefore fall outside the band an
+    integer-percentage test accepts, which is what the mechanism really costs a fabricator
+    and not something the injector hides. The percentage each moved unit reached is
+    recorded in ``rec.achieved``. Nothing constrains the total of ``values`` and no total is
+    claimed.
 
-    The injector knows nothing about any estimator: no tolerance enters, so the percentages
-    it produces are exactly on the integers rather than merely inside whatever band a test
-    happens to use.
+    The injector knows nothing about any estimator: no tolerance enters, and the count is
+    chosen by the mechanism alone rather than by whatever band a test happens to use.
 
     Parameters
     ----------
@@ -196,17 +214,28 @@ def inject_rounding(
         for it and it is not listed in the record.
     seed : int, optional
         Seeds :func:`numpy.random.default_rng`, which selects the units.
+    exact_percentage : bool, default False
+        Write the fractional value ``target * denominator / 100`` that puts the percentage
+        exactly on the integer, instead of a whole count. Only for continuous quantities,
+        where a fractional numerator is something a person could report. Such an injection
+        is not a test bed for :func:`forensics_core.digits.integer_pct.integer_excess`:
+        that test reads whole counts and its null draws whole counts, so a fractional
+        numerator exactly on an integer is a hit no count, honest or fabricated, could
+        produce, and the power it reports is overstated.
 
     Returns
     -------
     (values, InjectionRecord)
-        A fresh array and its record. ``rec.indices`` lists the units whose value moved.
+        A fresh array and its record. ``rec.indices`` lists the units whose value moved and
+        ``rec.achieved`` the percentage each of them reached.
 
     Raises
     ------
     ValueError
         If the inputs are mis-shaped, non-finite or non-positive in ``denominators``, or
-        ``fraction`` is outside ``[0, 1]``.
+        ``fraction`` is outside ``[0, 1]``; or, without ``exact_percentage``, if ``values``
+        or ``denominators`` are not whole numbers, since there is no whole count to write
+        for a continuous quantity.
     """
     v = _as_float_1d(values, "values")
     d = _as_float_1d(denominators, "denominators")
@@ -219,6 +248,11 @@ def inject_rounding(
     if np.any(d <= 0):
         raise ValueError("denominators must be positive: a percentage is undefined otherwise")
     frac = _check_share("fraction", fraction)
+    if not exact_percentage and (np.any(v != np.round(v)) or np.any(d != np.round(d))):
+        raise ValueError(
+            "values and denominators must be whole numbers for whole-count rounding; "
+            "pass exact_percentage=True for a continuous quantity"
+        )
 
     out = v.copy()
     n_selected = round(frac * v.size)
@@ -227,9 +261,11 @@ def inject_rounding(
         rng = np.random.default_rng(seed)
         chosen = rng.choice(v.size, size=n_selected, replace=False)
         pct = 100.0 * v[chosen] / d[chosen]
-        out[chosen] = np.round(pct) * d[chosen] / 100.0
+        target = np.round(pct) * d[chosen] / 100.0
+        out[chosen] = target if exact_percentage else np.round(target)
         indices = _changed(out, v, chosen)
-    return out, InjectionRecord("rounding", frac, indices, seed)
+    achieved = 100.0 * out[indices] / d[indices]
+    return out, InjectionRecord("rounding", frac, indices, seed, achieved)
 
 
 # ------------------------------------------------------------------------------ bunching
