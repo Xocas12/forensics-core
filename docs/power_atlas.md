@@ -62,6 +62,13 @@ lookup.describe()  # what is loaded, with release + seed
 aggregation ladder, `n` is the number of *aggregate* units at that rung, and the recorded
 `mean_group_size` says how many units each one covers.
 
+A ladder's rows are conditional on the panel it was run on. Each replicate redraws a clean
+panel (by default each unit's numerator binomially at its own denominator and observed share,
+or through `aggregation_ladder(..., resample=)`) and injects into that draw, so the zero row is
+a rejection rate over clean redraws rather than one test of one panel repeated. The redraw
+keeps the panel's denominators, hierarchy and unit rates, so a test that compares the data with
+a fixed reference value still sees the panel's own departure from it in every replicate.
+
 `detectable(method, n, effect, *, aggregation="unit")` answers yes/no. It is `False`, not an
 exception, when the atlas does not cover `n`: an atlas that has not shown the effect detectable
 has not shown it. A method or rung the lookup holds no atlas for at all is a different failure —

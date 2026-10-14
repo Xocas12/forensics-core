@@ -72,6 +72,7 @@ __all__ = [
     "AggregationError",
     "aggregate",
     "aggregation_ladder",
+    "binomial_redraw",
     "coarsest_level_with_power",
 ]
 
@@ -170,6 +171,35 @@ def aggregate(
     return num_out, den_out, pct_out
 
 
+def binomial_redraw(
+    numerators: np.ndarray, denominators: np.ndarray, rng: np.random.Generator
+) -> np.ndarray:
+    """A fresh clean panel: each unit's numerator redrawn binomially at its own denominator.
+
+    The success probability of each unit is its observed share, so the redraw keeps the
+    panel's denominators, its hierarchy and its spread of rates, and replaces only the
+    sampling noise. This is the default null for :func:`aggregation_ladder`.
+
+    It needs counts: whole, non-negative numerators no larger than whole, positive
+    denominators. Anything else raises :class:`AggregationError`, because a binomial draw on
+    fractional counts would silently be a draw on a different panel.
+    """
+    num = np.asarray(numerators, dtype=float)
+    den = np.asarray(denominators, dtype=float)
+    if not (np.all(np.isfinite(num)) and np.all(np.isfinite(den))):
+        raise AggregationError("binomial_redraw needs finite counts")
+    if np.any(num != np.round(num)) or np.any(den != np.round(den)):
+        raise AggregationError(
+            "binomial_redraw needs whole-number counts. For data that are not counts, pass "
+            "aggregation_ladder a resample= callable that draws a fresh clean panel."
+        )
+    if np.any(den <= 0) or np.any(num < 0) or np.any(num > den):
+        raise AggregationError(
+            "binomial_redraw needs 0 <= numerator <= denominator and a positive denominator"
+        )
+    return rng.binomial(den.astype(np.int64), num / den).astype(float)
+
+
 def aggregation_ladder(
     numerators: ArrayLike,
     denominators: ArrayLike,
@@ -182,12 +212,25 @@ def aggregation_ladder(
     semantics: Sequence[str] = SEMANTICS,
     alpha: float = 0.05,
     seed: int | None = 0,
+    resample: Callable[[np.ndarray, np.ndarray, np.random.Generator], np.ndarray] | None = None,
 ) -> pd.DataFrame:
     """Measure detection power at each rung of an aggregation hierarchy.
 
     The distortion is injected at the **unit** level, before aggregation, because that is where
     it happens. Aggregating first and injecting into the aggregate would measure a different
     and much easier problem.
+
+    Every replicate, at every effect size including zero, starts from a fresh clean panel drawn
+    by ``resample``; the injector then distorts that draw. Without the redraw the zero row would
+    re-test one fixed panel ``n_replicates`` times, and with a test that is deterministic given
+    its input its "false-positive rate" could only be 0.0 or 1.0.
+
+    The rates are conditional on the panel: the redraw keeps its denominators, its hierarchy and
+    (under :func:`binomial_redraw`) each unit's observed share, and varies only the sampling
+    noise around them. A test that compares the data with a fixed reference value, rather than
+    with the data's own rates, sees the panel's own departure from that value in every
+    replicate, so its zero row is the false-positive rate *for this panel*, not averaged over
+    panels. Pass a ``resample`` that draws from the null you mean when that matters.
 
     Parameters
     ----------
@@ -202,6 +245,9 @@ def aggregation_ladder(
         zero row would not be the false-positive rate.
     effect_sizes : sequence of float
         Zero is added if absent.
+    resample : callable, optional
+        ``resample(numerators, denominators, rng) -> numerators``: one fresh clean panel at the
+        unit level. Defaults to :func:`binomial_redraw`, which needs whole-number counts.
 
     Returns
     -------
@@ -211,8 +257,8 @@ def aggregation_ladder(
     Raises
     ------
     AggregationError
-        If the levels are empty, the first level is not the identity, or the injector is not a
-        no-op at effect size zero.
+        If the levels are empty, the first level is not the identity, the injector is not a
+        no-op at effect size zero, or the default redraw is given data that are not counts.
     """
     import pandas as pd
 
@@ -240,6 +286,14 @@ def aggregation_ladder(
             "measure the false-positive rate"
         )
 
+    draw = binomial_redraw if resample is None else resample
+    # fail on the panel, before any replicate runs, if the redraw cannot take it
+    probe_draw = np.asarray(draw(num0, den0, np.random.default_rng(0)), dtype=float)
+    if probe_draw.shape != num0.shape:
+        raise AggregationError(
+            f"resample returned shape {probe_draw.shape} for a panel of shape {num0.shape}"
+        )
+
     effects = sorted({float(e) for e in effect_sizes} | {0.0})
     rng = np.random.default_rng(seed)
 
@@ -251,10 +305,11 @@ def aggregation_ladder(
                 reject = 0
                 n_units_seen = 0
                 for _ in range(n_replicates):
+                    clean = np.asarray(draw(num0, den0, rng), dtype=float)
                     num = (
-                        num0
+                        clean
                         if effect == 0.0
-                        else np.asarray(injector(num0, den0, effect, rng), dtype=float)
+                        else np.asarray(injector(clean, den0, effect, rng), dtype=float)
                     )
                     a_num, a_den, a_pct = aggregate(num, den0, keys, semantics=sem)
                     n_units_seen = a_num.size
