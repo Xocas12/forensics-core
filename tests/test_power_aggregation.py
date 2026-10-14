@@ -1,17 +1,27 @@
 """Power falls as groups grow, the identity rung reproduces the ungrouped curve exactly, and
-the integer-percentage signal does not survive aggregation under either semantics.
+whether the integer-percentage signal survives aggregation depends on the semantics and the
+group size.
 
-The third of those is the one worth having, and it came out the opposite way to the card's
-expectation. A power loss is a trade-off a card can reason about; a signal that is at the
-background rate by a group size of four is a different kind of fact, and it says a gosplan
-card must not run this test on aggregates whichever way it aggregates them.
+The third is measured with ``integer_excess`` on the aggregates, a significance test against a
+binomial null, not by comparing the share of near-integer aggregates with the background rate
+by eye. Read that way, with every unit snapped: ``sum_then_ratio`` is still detected at group
+sizes 2 and 3, sometimes at 4, and is at the nominal rate from 6; ``mean_of_ratios`` is still
+detected through group size 8, because the mean of k integer percentages sits on a 1/k
+lattice, and reaches the nominal rate somewhere between 8 and 12. The 30-panel rejection
+counts behind "sometimes" are in docs/power_atlas.md.
 """
 
 from __future__ import annotations
 
+import functools
+import re
+from pathlib import Path
+
 import numpy as np
 import pytest
 
+from forensics_core.digits.integer_pct import integer_excess
+from forensics_core.power import aggregation as aggregation_module
 from forensics_core.power.aggregation import (
     LADDER_COLUMNS,
     SEMANTICS,
@@ -20,6 +30,8 @@ from forensics_core.power.aggregation import (
     aggregation_ladder,
     coarsest_level_with_power,
 )
+
+ATLAS_DOC = Path(__file__).resolve().parents[1] / "docs" / "power_atlas.md"
 
 
 def panel(n: int = 2400, seed: int = 0):
@@ -205,13 +217,13 @@ def test_mean_group_size_is_recorded_so_a_reader_can_see_the_cost():
     assert sizes["group_10"] == pytest.approx(10.0)
 
 
-# ---------------------------------------------------------------- averaging erases the signal
+# ---------------------------------------------------------------- what survives aggregation
 
 
-def test_averaging_leaves_the_signal_near_the_background_rate_by_group_size_eight():
-    """A manufactured precinct reports exactly 65.0%; the mean of eight such percentages is
-    rarely an integer. The measured residue is 0.150 against a 0.10 background — weakened
-    nearly to nothing, though see the next test for the fact that summing does worse."""
+def test_averaging_puts_the_aggregates_on_a_one_over_k_lattice():
+    """Why averaging keeps the signal. A manufactured precinct reports exactly 65.0%; the mean
+    of eight such percentages is a multiple of 1/8. It is not erased by construction: it sits
+    on a lattice that contains every integer, and lands on one about 1/8 of the time."""
     num, den = panel(1600)
     rng = np.random.default_rng(7)
     # snap every unit onto an integer percentage: the strongest possible signal
@@ -224,59 +236,125 @@ def test_averaging_leaves_the_signal_near_the_background_rate_by_group_size_eigh
 
     groups = nested_keys(num.size, 8)
     _, _, averaged = aggregate(snapped, den, groups, semantics="mean_of_ratios")
-    on_integer_after = np.mean(np.abs(averaged - np.round(averaged)) <= 0.05)
-    assert on_integer_after < 0.15, (
-        f"averaging left {on_integer_after:.3f} of groups on an integer; the signal was "
-        "supposed to be erased by construction"
+    assert np.allclose(8.0 * averaged, np.round(8.0 * averaged)), (
+        "the mean of eight integer percentages must be a multiple of 1/8"
+    )
+    _, _, summed = aggregate(snapped, den, groups, semantics="sum_then_ratio")
+    assert not np.allclose(8.0 * summed, np.round(8.0 * summed)), (
+        "summing counts over unequal denominators has no lattice; if it has one, the fixture "
+        "has equal denominators and demonstrates nothing"
     )
 
 
-def test_neither_semantics_keeps_the_integer_signal_past_group_size_four():
-    """Measured, and it contradicts the plan.
+FULL_SNAP_N = 4800
+FULL_SNAP_GROUP_SIZES = (1, 2, 3, 4, 6, 8, 12, 16)
 
-    The original implementation note said averaging percentages "destroys the integer-percentage
-    signal by construction", implying that summing counts is the safe choice. Measured on
-    unequal denominators with every unit snapped onto an exact integer percentage, the
-    ordering is the other way round:
 
-        group size   sum_then_ratio   mean_of_ratios
-                 1            1.000            1.000
-                 2            0.256            0.489
-                 3            0.141            0.334
-                 4            0.089            0.235
-                 8            0.100            0.150
+@functools.cache
+def full_snap_results() -> dict[tuple[str, int], tuple[float, float, float, float]]:
+    """``integer_excess`` on the aggregates of one honest panel and of the same panel with
+    every unit snapped onto an integer percentage, per semantics and group size.
 
-    Averaging retains MORE integer mass, because the mean of k integers is a multiple of 1/k
-    and lands on an integer often; summing counts with unequal denominators produces a
-    weighted average with arbitrary weights, which has no reason to be an integer at all.
-
-    The finding that matters is not which is better. It is that **both collapse to the 0.10
-    background rate by group size 4 or 8**, so the integer-percentage test does not survive
-    aggregation under either semantics. A gosplan card must not run it on aggregates.
+    Returns ``{(semantics, k): (z_snapped, p_snapped, z_honest, p_honest)}``. The settings are
+    the ones docs/power_atlas.md records: ``panel(4800, seed=0)``, contiguous groups of ``k``,
+    and ``integer_excess(pct, den, seed=0)`` with its defaults (tolerance 0.05, n_mc 200).
     """
-    num, den = panel(4800)
-    pct = 100.0 * num / den
-    snapped = np.round(pct) * den / 100.0
+    num, den = panel(FULL_SNAP_N)
+    snapped = np.round(100.0 * num / den) * den / 100.0
+    out = {}
+    for k in FULL_SNAP_GROUP_SIZES:
+        keys = nested_keys(num.size, k)
+        for semantics in SEMANTICS:
+            row: list[float] = []
+            for counts in (snapped, num):
+                _, a_den, a_pct = aggregate(counts, den, keys, semantics=semantics)
+                result = integer_excess(a_pct, a_den, seed=0).test
+                row += [float(result.statistic), float(result.pvalue)]
+            out[(semantics, k)] = tuple(row)
+    return out
 
-    def near(p):
-        return float(np.mean(np.abs(p - np.round(p)) <= 0.05))
 
-    _, _, at_one = aggregate(snapped, den, np.arange(num.size), semantics="sum_then_ratio")
-    assert near(at_one) > 0.99, "the fixture must start with the signal at full strength"
+def test_whether_the_integer_signal_survives_depends_on_semantics_and_group_size():
+    """Measured with ``integer_excess`` on the aggregates, at alpha 0.05.
 
-    _, _, sum_2 = aggregate(snapped, den, nested_keys(num.size, 2), semantics="sum_then_ratio")
-    _, _, mean_2 = aggregate(snapped, den, nested_keys(num.size, 2), semantics="mean_of_ratios")
-    assert near(mean_2) > near(sum_2), (
-        f"averaging kept {near(mean_2):.3f} and summing {near(sum_2):.3f}; the recorded "
-        "direction is that averaging keeps more, contrary to the card's note"
+    This replaces an older test that compared the share of aggregates within 0.05 of an integer
+    with the 0.10 background, asserted only that it was below 0.25 at group size 8, and
+    concluded that the signal does not survive aggregation under either semantics. The share
+    under ``mean_of_ratios`` there is 0.150 over 600 aggregates, which the significance test
+    rejects with z = 3.92: not the background.
+
+    With every unit snapped, on one panel (the table is in docs/power_atlas.md):
+
+    - ``sum_then_ratio`` is detected at group sizes 2 and 3 and not from 4 on.
+    - ``mean_of_ratios`` is detected at every group size up to 8, and not at 12 or 16.
+    - Honest data is not rejected at any group size under either semantics.
+    - At group size 2 averaging keeps more than summing (the larger z), contrary to the
+      plan's note that averaging destroys the signal by construction.
+    """
+    results = full_snap_results()
+    alpha = 0.05
+
+    def rejects(semantics, k):
+        return results[(semantics, k)][1] <= alpha
+
+    for semantics in SEMANTICS:
+        for k in FULL_SNAP_GROUP_SIZES:
+            p_honest = results[(semantics, k)][3]
+            assert p_honest > alpha, (
+                f"honest data under {semantics} at group size {k} gave p = {p_honest:.3g}; "
+                "the comparison below means nothing if the null rejects on its own"
+            )
+
+    for k in (1, 2, 3):
+        for semantics in SEMANTICS:
+            assert rejects(semantics, k), f"{semantics} at group size {k} should be detected"
+    for k in (4, 6, 8, 12, 16):
+        assert not rejects("sum_then_ratio", k), (
+            f"sum_then_ratio at group size {k} was detected (p = "
+            f"{results[('sum_then_ratio', k)][1]:.3g}); the recorded result is that it is not"
+        )
+    for k in (4, 6, 8):
+        assert rejects("mean_of_ratios", k), (
+            f"mean_of_ratios at group size {k} gave p = {results[('mean_of_ratios', k)][1]:.3g};"
+            " the recorded result is that averaged percentages are still detected there"
+        )
+    for k in (12, 16):
+        assert not rejects("mean_of_ratios", k)
+
+    z_mean_2 = results[("mean_of_ratios", 2)][0]
+    z_sum_2 = results[("sum_then_ratio", 2)][0]
+    assert z_mean_2 > z_sum_2, (
+        f"averaging gave z = {z_mean_2:.2f} and summing z = {z_sum_2:.2f} at group size 2; "
+        "the recorded direction is that averaging keeps more, contrary to the card's note"
     )
 
-    # and the finding that actually constrains a card: both are gone by group size 8
-    for semantics in SEMANTICS:
-        _, _, at_eight = aggregate(snapped, den, nested_keys(num.size, 8), semantics=semantics)
-        assert near(at_eight) < 0.25, (
-            f"{semantics} retained {near(at_eight):.3f} of the signal at group size 8; the "
-            "background rate for a 0.05 tolerance is 0.10"
+
+def test_the_documented_aggregation_table_is_the_measured_one():
+    """docs/power_atlas.md and the module docstring both carry the ``integer_excess`` z and
+    verdict per semantics and group size. If this fails, re-measure and update both texts;
+    do not loosen the comparison."""
+    results = full_snap_results()
+    texts = {
+        "docs/power_atlas.md": ATLAS_DOC.read_text(encoding="utf-8"),
+        "the aggregation module docstring": aggregation_module.__doc__ or "",
+    }
+    for where, text in texts.items():
+        for k in FULL_SNAP_GROUP_SIZES:
+            z_sum, p_sum = results[("sum_then_ratio", k)][:2]
+            z_mean, p_mean = results[("mean_of_ratios", k)][:2]
+            cells = [
+                str(k),
+                f"{z_sum:.2f}",
+                "yes" if p_sum <= 0.05 else "no",
+                f"{z_mean:.2f}",
+                "yes" if p_mean <= 0.05 else "no",
+            ]
+            row = r"^[|\s]*" + r"[|\s]+".join(re.escape(c) for c in cells) + r"[|\s]*$"
+            assert re.search(row, text, re.MULTILINE), (
+                f"{where} has no row for group size {k} reading {cells}"
+            )
+        assert "does not survive aggregation under either semantics" not in text, (
+            f"{where} still states the near-integer-share conclusion the measurement refutes"
         )
 
 
