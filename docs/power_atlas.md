@@ -26,6 +26,27 @@ number without it cannot be read: a method that rejects everything has power 1.0
 useless. `power_curve` always measures it, and every lookup refuses to answer from an atlas
 whose false-positive rate at that sample size is more than twice nominal.
 
+### Order-dependent tests need `sampling="contiguous"`
+
+The default sampler, `sampling="units"`, draws units at random and returns them **in random
+order, which destroys the population's time order**. For a test whose answer depends on order
+— `too_smooth_test`, or any test of serial correlation — the false-positive row is then the
+test's behaviour on exchangeable data, whatever population was supplied, and the refusal above
+does not trigger. On an honest AR(0.7) population of 20,000, `too_smooth_test(detrend="none")`
+gave a false-positive row of 0.04 / 0.04 / 0.02 at n = 50 / 100 / 300 under `"units"`, and the
+lookup answered with a minimum detectable effect, while 66 of 66 contiguous windows of 300 from
+that series were rejected (measurement in `docs/redteam.md`, trap `core-1`).
+
+`sampling="contiguous"` takes each sample as a window of `n` consecutive values, so the
+population must be one finite series in time order. On the same population the false-positive
+row is 1.00 at every n and the lookup refuses. For an order-dependent test, use it with a clean
+population built from a process as persistent as the honest series the test will meet; an iid
+population would hide the same failure the shuffle hides. The sampler is recorded in the
+atlas's settings (`settings["sampling"]`), so two atlases measured with different samplers are
+two atlases, and `publish_atlas` refuses settings that name a sampler other than the one the
+curve was measured with. Windows can overlap, so their replicates are not independent and `power_se`
+understates the uncertainty unless the population is many times longer than `n`.
+
 ## The frozen format
 
 One parquet file per atlas, with the columns of `ATLAS_COLUMNS` —

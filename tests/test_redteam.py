@@ -18,6 +18,7 @@ import pytest
 
 from forensics_core.digits.integer_pct import integer_excess
 from forensics_core.digits.terminal import terminal_digit_test
+from forensics_core.dispersion.underdispersion import too_smooth_test
 from forensics_core.redteam import (
     TRAPS,
     RedTeamError,
@@ -29,6 +30,7 @@ from forensics_core.redteam import (
     ocr_firing_threshold,
     ocr_gate,
     ocr_noise,
+    persistent_series,
     red_team,
     reweighting,
     small_units,
@@ -36,6 +38,7 @@ from forensics_core.redteam import (
 )
 
 DOC = Path(__file__).resolve().parents[1] / "docs" / "redteam.md"
+CORE_TRAPS = Path(__file__).resolve().parents[1] / "docs" / "known_traps.md"
 
 
 # ---------------------------------------------------------------- nothing is injected
@@ -176,6 +179,50 @@ def test_a_zero_error_rate_is_a_no_op():
     out, sample = ocr_noise(values, error_rate=0.0, seed=7)
     assert np.array_equal(out, values)
     assert sample.truth["n_digit_misreads"] == 0
+
+
+@pytest.mark.parametrize("kind", ["levels", "growth"])
+def test_a_persistent_series_is_the_ar1_recursion_on_its_shocks_and_nothing_else(kind):
+    """The honesty claim as arithmetic: run the recursion on the recorded shocks and the
+    values come back, so no smoothing, rounding or targeting step sits between them."""
+    values, sample = persistent_series(400, 0.7, kind=kind, mean=0.02, sd=0.5, seed=21)
+    shocks = sample.truth["shocks"]
+    rho = sample.truth["rho"]
+
+    rebuilt = np.empty_like(shocks)
+    rebuilt[0] = shocks[0] / np.sqrt(1.0 - rho**2)
+    for t in range(1, shocks.size):
+        rebuilt[t] = rho * rebuilt[t - 1] + shocks[t]
+    expected = 0.02 + rebuilt if kind == "levels" else np.cumsum(0.02 + rebuilt)
+    assert np.allclose(values, expected, rtol=0, atol=1e-12)
+    assert np.array_equal(sample.truth["deviations"], rebuilt)
+
+    # the shocks are independent: whatever persistence there is comes from rho alone
+    lag1 = np.corrcoef(shocks[:-1], shocks[1:])[0, 1]
+    assert abs(lag1) < 4 / np.sqrt(shocks.size), f"shocks are serially correlated: {lag1:.3f}"
+
+
+def test_persistent_series_refuses_a_non_stationary_or_empty_process():
+    with pytest.raises(RedTeamError, match="stationary"):
+        persistent_series(50, 1.0)
+    with pytest.raises(RedTeamError, match="at least 2"):
+        persistent_series(1, 0.5)
+    with pytest.raises(RedTeamError, match="kind"):
+        persistent_series(50, 0.5, kind="trend")
+    with pytest.raises(RedTeamError, match="sd"):
+        persistent_series(50, 0.5, sd=0.0)
+
+
+def test_the_persistence_trap_is_a_section_of_this_librarys_known_traps():
+    """core-1 is not one of the four project documents; it must still point at a real one."""
+    spec = persistent_series(10, 0.5, seed=0)[1].spec
+    assert spec.trap_id == "core-1"
+    assert spec.project == "core"
+    assert CORE_TRAPS.is_file(), f"{CORE_TRAPS} is missing; trap core-1 points at it"
+    text = CORE_TRAPS.read_text(encoding="utf-8")
+    assert f"## {spec.document_section}" in text, (
+        f"docs/known_traps.md has no section {spec.document_section!r}"
+    )
 
 
 # ---------------------------------------------------------------- traps are documented
@@ -333,6 +380,65 @@ def test_the_small_precinct_trap_does_not_make_the_integer_test_fire():
         f"small-precinct samples (rate {rate:.3f}). docs/redteam.md records this trap as "
         "survived; if that has changed, the document must change with it."
     )
+
+
+def too_smooth(detrend: str):
+    """too_smooth_test as the red-team pass runs it, named as docs/redteam.md names it."""
+    return (
+        f'too_smooth_test(detrend="{detrend}")',
+        lambda s: too_smooth_test(s.values, detrend=detrend, n_perm=199, seed=0),
+    )
+
+
+TOO_SMOOTH = dict(too_smooth(d) for d in ("none", "linear", "diff"))
+
+
+def firing_counts(samples):
+    counts = dict.fromkeys(TOO_SMOOTH, 0)
+    for r in red_team(TOO_SMOOTH, samples):
+        assert r.pvalue is not None, f"{r.detector} declined to answer: {r.detail}"
+        counts[r.detector] += int(r.fired)
+    return counts
+
+
+def test_honest_persistence_makes_too_smooth_test_fire_under_none_and_linear():
+    """Trap core-1. Stationary is not exchangeable: an honest AR(0.7) level is rejected
+    under detrend="none" and "linear". docs/redteam.md records 99/100 for each at n = 50 and
+    0/100 under "diff", which has no power there. The rho = 0 rows are the control that says
+    the firing is the persistence: docs/redteam.md records 5/100, 1/100 and 0/100."""
+    persistent = firing_counts([persistent_series(50, 0.7, seed=s)[1] for s in range(20)])
+    assert persistent['too_smooth_test(detrend="none")'] >= 18, persistent
+    assert persistent['too_smooth_test(detrend="linear")'] >= 18, persistent
+    assert persistent['too_smooth_test(detrend="diff")'] <= 2, persistent
+
+    iid = firing_counts([persistent_series(50, 0.0, seed=s)[1] for s in range(20)])
+    assert all(count <= 3 for count in iid.values()), iid
+
+
+def test_a_persistent_growth_rate_makes_too_smooth_test_fire_under_diff():
+    """diff is no safe harbour: on a log level whose growth rate is AR(0.7) it fires too.
+    docs/redteam.md records 99/100 at n = 50."""
+    samples = [
+        persistent_series(50, 0.7, kind="growth", mean=0.02, sd=0.01, seed=s)[1] for s in range(20)
+    ]
+    assert firing_counts(samples)['too_smooth_test(detrend="diff")'] >= 18
+
+
+def test_the_persistence_firings_are_in_the_document():
+    """The same enforcement as for the glyph confusion: a trap that fires is a result."""
+    samples = [
+        persistent_series(50, 0.7, seed=0)[1],
+        persistent_series(50, 0.7, kind="growth", mean=0.02, sd=0.01, seed=0)[1],
+    ]
+    fired = casualties(red_team(TOO_SMOOTH, samples))
+    assert {r.detector for r in fired} == set(TOO_SMOOTH), (
+        "the fixture must make each detrend option fire on one of the two shapes"
+    )
+    text = DOC.read_text(encoding="utf-8")
+    for r in fired:
+        assert r.detector in text, f"{r.detector} fires and is not named in docs/redteam.md"
+        assert r.trap_id in text, f"trap {r.trap_id} fires and is not named in docs/redteam.md"
+    assert "FIRES" in text
 
 
 def test_every_pair_appears_in_the_output_with_no_way_to_filter():

@@ -12,6 +12,8 @@ import numpy as np
 import pytest
 from scipy import stats
 
+from forensics_core.dispersion.underdispersion import too_smooth_test
+from forensics_core.inject import inject_smoothing
 from forensics_core.power import (
     ATLAS_COLUMNS,
     AtlasError,
@@ -21,6 +23,9 @@ from forensics_core.power import (
     power_curve,
     save_atlas,
 )
+from forensics_core.power.atlas import FPR_TOLERANCE
+from forensics_core.power.lookup import power_lookup, publish_atlas
+from forensics_core.redteam import persistent_series
 
 SIZES = (100, 400, 1600)
 EFFECTS = (0.0, 0.3, 0.9)
@@ -215,6 +220,208 @@ def test_lookup_refuses_an_atlas_whose_false_positive_rate_is_out_of_control():
 def test_detectable_is_false_rather_than_raising_when_the_atlas_cannot_answer():
     atlas = small_atlas()
     assert detectable(atlas, 250, 0.9) is False
+
+
+# ---------------------------------------------------------------- order-dependent tests
+
+
+def honest_persistent_population() -> np.ndarray:
+    """An honest AR(0.7) series of 20,000 in time order (trap core-1, docs/known_traps.md).
+
+    The same population docs/redteam.md measures: persistent_series(20000, 0.7, seed=2028).
+    """
+    return persistent_series(20000, 0.7, seed=2028)[0]
+
+
+def too_smooth_levels(sample: np.ndarray) -> float:
+    """too_smooth_test on the levels: the setting whose docstring once advised it for a
+    stationary series, and which depends on the order of the sample."""
+    return too_smooth_test(sample, detrend="none", n_perm=99, seed=0).pvalue
+
+
+def smoothing_injector(sample: np.ndarray, effect: float, rng: np.random.Generator) -> np.ndarray:
+    """Remove ``effect`` of the deviation variance around a local trend; a no-op at zero."""
+    return inject_smoothing(sample, retain=1.0 - effect)[0]
+
+
+def persistent_atlas(sampling: str):
+    return power_curve(
+        honest_persistent_population(),
+        too_smooth_levels,
+        smoothing_injector,
+        method="too_smooth_none",
+        effect_sizes=(0.5,),
+        sample_sizes=(100, 300),
+        n_replicates=40,
+        seed=0,
+        sampling=sampling,
+    )
+
+
+def test_an_honest_persistent_population_gives_a_zero_effect_row_the_lookup_refuses(tmp_path):
+    """With contiguous windows the false-positive row sees the persistence, and a published
+    atlas built from it is refused rather than lending its power column to a claim.
+
+    docs/redteam.md records a false-positive row of 1.00 at n = 50, 100 and 300 on this
+    population (100 replicates), and 66 of 66 contiguous windows of 300 rejected. This test
+    runs 40 replicates at n = 100 and 300.
+    """
+    atlas = persistent_atlas("contiguous")
+    zero = atlas[atlas["effect_size"] == 0.0]
+    assert (zero["power"] >= 0.9).all(), (
+        f"too_smooth_test(detrend='none') on contiguous windows of an honest AR(0.7) series "
+        f"rejected at {list(zero['power'])}; docs/redteam.md records 1.00 at every n"
+    )
+
+    publish_atlas(atlas, tmp_path / "too_smooth_none.parquet")
+    lookup = power_lookup(tmp_path / "too_smooth_none.parquet")
+    assert lookup.select("too_smooth_none").settings["sampling"] == "contiguous"
+    for n in (100, 300):
+        with pytest.raises(AtlasError, match="false-positive rate"):
+            lookup.minimum_detectable_effect("too_smooth_none", n)
+        assert lookup.detectable("too_smooth_none", n, 0.5) is False
+
+
+def test_the_default_sampler_shuffles_the_same_population_into_a_nominal_looking_row():
+    """Why the contiguous sampler exists. Drawing units at random returns them in random
+    order, so the zero-effect row is the test on exchangeable data and passes the
+    calibration check that the contiguous row fails. docs/redteam.md records 0.04 / 0.04 /
+    0.02 at n = 50 / 100 / 300 under sampling="units", and a minimum detectable effect of 0.5.
+    """
+    atlas = persistent_atlas("units")
+    zero = atlas[atlas["effect_size"] == 0.0]
+    assert (zero["power"] <= FPR_TOLERANCE * 0.05).all(), list(zero["power"])
+    assert atlas.attrs["spec"].settings["sampling"] == "units"
+    # the blind spot, stated as what it does: a number comes back
+    assert minimum_detectable_effect(atlas, 300) == 0.5
+
+
+def test_a_contiguous_sample_is_a_window_of_consecutive_values():
+    seen: list[np.ndarray] = []
+
+    def record(sample: np.ndarray) -> float:
+        seen.append(sample.copy())
+        return 0.5
+
+    population = np.arange(5000, dtype=float)
+    power_curve(
+        population,
+        record,
+        shift_injector,
+        method="m",
+        effect_sizes=(0.0,),
+        sample_sizes=(50, 400),
+        n_replicates=25,
+        sampling="contiguous",
+    )
+    assert len(seen) == 50
+    for sample in seen:
+        assert np.all(np.diff(sample) == 1.0), "a contiguous sample must keep the order"
+        assert 0.0 <= sample[0] and sample[-1] <= population[-1]
+    starts = {float(sample[0]) for sample in seen}
+    assert len(starts) > 1, "every replicate drew the same window"
+
+
+def test_an_injector_writing_in_place_cannot_leak_into_later_windows():
+    """A window is a slice of the population; handing the slice itself to an injector that
+    writes into its argument would corrupt every later replicate drawn over it."""
+    seen: list[np.ndarray] = []
+
+    def in_place(sample, effect, rng):
+        sample *= 1.0 - effect  # zeroes the window at effect 1.0
+        return sample
+
+    def record(sample: np.ndarray) -> float:
+        seen.append(sample.copy())
+        return 0.5
+
+    power_curve(
+        np.arange(1.0, 401.0),
+        record,
+        in_place,
+        method="m",
+        effect_sizes=(1.0,),
+        sample_sizes=(100, 120),
+        n_replicates=20,
+        seed=3,
+        sampling="contiguous",
+    )
+    # calls run n=100 (effect 0, then 1.0), then n=120 (effect 0, then 1.0)
+    later_zero_row = seen[40:60]
+    assert all(np.all(np.diff(s) == 1.0) for s in later_zero_row), (
+        "an in-place injection at n=100 altered the population that n=120 sampled from"
+    )
+
+
+def test_a_contiguous_population_with_a_gap_is_refused():
+    """Dropping a missing value would join two periods that were not adjacent."""
+    population = honest_persistent_population()[:2000].copy()
+    population[700] = np.nan
+    with pytest.raises(AtlasError, match="finite throughout"):
+        power_curve(
+            population,
+            too_smooth_levels,
+            smoothing_injector,
+            method="m",
+            effect_sizes=(0.5,),
+            sample_sizes=(100,),
+            n_replicates=5,
+            sampling="contiguous",
+        )
+
+
+def test_an_unknown_sampler_is_refused():
+    with pytest.raises(AtlasError, match="sampling must be one of"):
+        power_curve(
+            population(),
+            shift_test,
+            shift_injector,
+            method="m",
+            effect_sizes=(0.5,),
+            sample_sizes=(100,),
+            n_replicates=5,
+            sampling="blocks",
+        )
+
+
+def test_settings_that_contradict_the_sampler_are_refused():
+    """The record must describe the measurement that produced the numbers."""
+    with pytest.raises(AtlasError, match="different measurement"):
+        power_curve(
+            population(),
+            shift_test,
+            shift_injector,
+            method="m",
+            effect_sizes=(0.5,),
+            sample_sizes=(100,),
+            n_replicates=5,
+            settings={"sampling": "contiguous"},
+        )
+
+
+def test_publishing_cannot_relabel_the_sampler(tmp_path):
+    """The published record is what the lookup and a citation read, so it must name the
+    sampler that produced the numbers. A shuffled-units curve published as "contiguous" would
+    be the blind spot again, under a label that says it was fixed."""
+    atlas = power_curve(
+        population(),
+        shift_test,
+        shift_injector,
+        method="m",
+        effect_sizes=(0.5,),
+        sample_sizes=(100,),
+        n_replicates=5,
+    )
+    path = tmp_path / "m.parquet"
+    with pytest.raises(AtlasError, match="different measurement"):
+        publish_atlas(atlas, path, settings={"sampling": "contiguous"})
+    assert not path.exists(), "a refused publication must leave no file behind"
+
+    # settings that agree with the measurement, or add to it, still publish
+    publish_atlas(atlas, path, settings={"sampling": "units", "note": "agrees"})
+    published = power_lookup(path).select("m").settings
+    assert published["sampling"] == "units"
+    assert published["note"] == "agrees"
 
 
 # ---------------------------------------------------------------- storage

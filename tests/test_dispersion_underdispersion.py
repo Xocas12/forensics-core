@@ -446,6 +446,20 @@ def test_too_smooth_n_perm_two_is_usable_and_warning_free() -> None:
     assert res.pvalue in (1 / 3, 2 / 3, 1.0)
 
 
+def test_too_smooth_docstring_warns_that_none_and_linear_reject_honest_persistence() -> None:
+    """Stationary is not exchangeable. The docstring used to send a user with a share or a
+    rate to detrend="none", where an honest AR(0.5) of length 50 is rejected 95 times in 100
+    (docs/redteam.md, trap core-1). The warning is the guidance a user acts on, so it is
+    guarded; the firing itself is asserted in tests/test_redteam.py."""
+    doc = " ".join((too_smooth_test.__doc__ or "").split())
+    assert '``"none"`` and ``"linear"`` reject honest persistent series' in doc
+    assert "persistent" in doc.split('``"diff"`` is no safe harbour')[1][:400]
+    # the advice that pointed at the failure is gone
+    assert "For a stationary or trend-stationary series use" not in doc
+    assert "supposed to be stationary (a share, a rate" not in doc
+    assert "the usual fabrication shape" not in doc
+
+
 # --------------------------------------------------------------------------------------
 # rolling_variance_floor
 

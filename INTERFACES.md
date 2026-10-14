@@ -528,8 +528,10 @@ def rolling_variance_floor(series, floor_variance, window: int, *,
   `n_analysed`, `null_mean`, `null_sd`, `null_q05` and `implied_lag1_autocorr`. The docstring
   carries a calibration warning that matters for use: the default `"diff"` is the exact test
   only for a random-walk-like series and has essentially no power against a smoothed
-  mean-reverting path, which is the usual fabrication shape; use `"linear"` or `"none"`
-  there. `n_perm` must be at least 2.
+  mean-reverting path. `"linear"` and `"none"` can see that path, but they also reject
+  honest persistent series, and `"diff"` rejects an honest persistent growth rate, so no
+  option controls the false-positive rate on persistent honest data (measured in the
+  docstring; trap `core-1` in `docs/redteam.md`). `n_perm` must be at least 2.
 - `smoothness_ratio` raises on a series that is constant to within floating-point precision,
   rather than returning a ratio computed from rounding error; the guard is scaled by the
   magnitude of the original series, which is what makes it correct for detrended residuals.)

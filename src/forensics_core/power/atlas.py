@@ -17,6 +17,20 @@ number without it cannot be read: a method that rejects everything has power 1.0
 useless. :func:`power_curve` always measures it, and :func:`power_lookup` refuses to answer
 from an atlas whose false-positive rate is far from nominal.
 
+Order-dependent tests
+---------------------
+The default sampler, ``sampling="units"``, draws units at random and returns them in random
+order. **It destroys the time order of the population.** For a test whose answer depends on
+order -- :func:`forensics_core.dispersion.underdispersion.too_smooth_test`, or any test of
+serial correlation -- the false-positive row is then the test's behaviour on exchangeable
+data, whatever population was supplied. An honest persistent series looks calibrated there
+and the lookup lends its power column to a claim it cannot support.
+
+``sampling="contiguous"`` keeps the order: the population is one series in time order and
+every replicate is a window of ``n`` consecutive values from it. For an order-dependent test
+use it, with a clean population built from a process as persistent as the honest series the
+method will be run on. The sampler is recorded in the atlas's settings.
+
 What this is not
 ----------------
 This measures the power of a **test on a collection**, which is the question "at what sample
@@ -56,6 +70,10 @@ ATLAS_COLUMNS = [
 #: A false-positive rate this far above nominal makes the power column unreadable, because
 #: rejections are then partly the method firing on nothing.
 FPR_TOLERANCE = 2.0
+
+#: How :func:`power_curve` can draw a sample: ``"units"`` at random and in random order, or
+#: ``"contiguous"`` as a window of consecutive values that keeps the population's order.
+SAMPLING_MODES: tuple[str, ...] = ("units", "contiguous")
 
 
 class AtlasError(ValueError):
@@ -98,14 +116,17 @@ def power_curve(
     alpha: float = 0.05,
     seed: int | None = 0,
     settings: dict[str, Any] | None = None,
+    sampling: str = "units",
 ) -> pd.DataFrame:
     """Measure power over a grid of sample sizes and effect sizes.
 
     Parameters
     ----------
     population : array
-        Units believed clean, drawn from without replacement. Must be at least as large as the
-        biggest requested sample size.
+        Units believed clean. Must be at least as large as the biggest requested sample size.
+        Under ``sampling="contiguous"`` it is one series **in time order**, and it must be
+        finite throughout: dropping a missing value would join two periods that were not
+        adjacent.
     test : callable
         ``test(sample) -> p-value``. Anything returning a p-value works; wrap a ``TestResult``
         with ``lambda s: my_test(s).pvalue``.
@@ -116,22 +137,52 @@ def power_curve(
     effect_sizes : sequence of float
         Zero is added if absent, because the false-positive row is what makes the rest
         readable.
+    sampling : {"units", "contiguous"}, default "units"
+        How each replicate's sample is drawn, and recorded in the spec's settings.
+
+        * ``"units"``: ``n`` units at random without replacement, **in random order**. This
+          destroys any time order in the population, so for an order-dependent test (a
+          too-smooth or serial-correlation test) the false-positive row measures the test on
+          exchangeable data whatever population was supplied, and an honest persistent
+          series reads as calibrated. Use it for tests that ignore order.
+        * ``"contiguous"``: a window of ``n`` consecutive values starting at a uniformly
+          random position, so the sample keeps the population's order and persistence. Use
+          it for an order-dependent test, with a population drawn from a process as
+          persistent as the honest series the test will meet. Windows can overlap, so the
+          replicates are not independent and ``power_se`` (a binomial standard error)
+          understates the uncertainty unless the population is many times longer than ``n``.
 
     Returns
     -------
     pandas.DataFrame
         One row per ``(n, effect_size)`` with :data:`ATLAS_COLUMNS`. ``.attrs["spec"]`` carries
-        the :class:`PowerSpec`.
+        the :class:`PowerSpec`, whose ``settings["sampling"]`` names the sampler used.
 
     Raises
     ------
     AtlasError
-        If the population is too small for the largest sample, or the injector is not a no-op
-        at effect size zero.
+        If the population is too small for the largest sample, the injector is not a no-op
+        at effect size zero, ``sampling`` is unknown or contradicts ``settings["sampling"]``,
+        or a contiguous population has a non-finite value.
     """
     import pandas as pd
 
+    if sampling not in SAMPLING_MODES:
+        raise AtlasError(f"sampling must be one of {list(SAMPLING_MODES)}; got {sampling!r}")
+    recorded = dict(settings or {})
+    if recorded.setdefault("sampling", sampling) != sampling:
+        raise AtlasError(
+            f"settings records sampling={recorded['sampling']!r} but the curve is measured "
+            f"with sampling={sampling!r}; the record would describe a different measurement"
+        )
+
     pop = np.asarray(population, dtype=float)
+    if sampling == "contiguous" and not np.isfinite(pop).all():
+        raise AtlasError(
+            "a contiguous population must be finite throughout. Dropping a missing value "
+            "would join two periods that were not adjacent, which changes exactly the "
+            "property an order-dependent test measures; split or fill the series first."
+        )
     pop = pop[np.isfinite(pop)]
     sizes = sorted({int(n) for n in sample_sizes})
     effects = sorted({float(e) for e in effect_sizes} | {0.0})
@@ -159,7 +210,12 @@ def power_curve(
         for effect in effects:
             reject = 0
             for _ in range(n_replicates):
-                sample = rng.choice(pop, size=n, replace=False)
+                if sampling == "contiguous":
+                    start = int(rng.integers(0, pop.size - n + 1))
+                    # a copy, so an injector that writes in place cannot alter the population
+                    sample = pop[start : start + n].copy()
+                else:
+                    sample = rng.choice(pop, size=n, replace=False)
                 if effect != 0.0:
                     sample = injector(sample, effect, rng)
                 try:
@@ -192,7 +248,7 @@ def power_curve(
         alpha=alpha,
         n_replicates=n_replicates,
         seed=seed,
-        settings=dict(settings or {}),
+        settings=recorded,
     )
     return frame
 
