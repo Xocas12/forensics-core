@@ -104,6 +104,26 @@ entries whose `variable` is not a column or whose threshold falls outside the ob
 That second skip is deliberate: a threshold the data never reaches produces a number that looks
 like a result and is not one.
 
+## The top row of a scan is exploratory
+
+Sorting puts the largest of k estimates first, so the top row of a scan looks good even when
+nothing is there. Checking it with `placebo_test`, as if it had been named in advance, does not
+account for that. With no bunching anywhere (uniform density, five candidates, 20 placebos, 200
+replicates), `placebo_test` on the winner gave p <= 0.05 in 17.5 per cent of replicates, and in
+38 per cent with the plain-share p-value that used to be its default. A bootstrap interval for
+the winner is no better: it excluded zero in 18 per cent of 200 such replicates.
+
+To confirm the winner of a scan over thresholds of one variable, use
+`bunching.inference.scan_placebo_test` with every candidate that was scanned. It compares the
+winner with the largest value among every k-sized set of the pooled candidates and placebos, and
+its p-value is exact under the null. The price is a floor: the smallest p-value it can return is
+k / (k + m) for m placebos, so confirming one of five candidates at 0.05 takes 95 placebos. With
+20 it cannot confirm anything at that level, and says so in `min_attainable_pvalue`.
+
+A catalogue entry tested on its own needs only `placebo_test`, because its threshold was fixed by
+the incentive before anyone looked at the data. That is the practical reason to name notches in
+advance rather than scan for them.
+
 ## What this does not do
 
 It does not test whether the bunching it finds is misreporting. Every entry's `confounds` list

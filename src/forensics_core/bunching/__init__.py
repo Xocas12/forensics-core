@@ -1,5 +1,6 @@
 """Bunching at incentive discontinuities: polynomial counterfactual densities, notch vs kink
-specifications, candidate-notch scanning, and bootstrap / placebo inference.
+specifications, candidate-notch scanning, and bootstrap / placebo inference (including the
+selection-aware placebo test that confirms the winner of a scan).
 
 The unifying hypothesis of the programme is that distortion concentrates at discontinuities
 in the incentive function. "Find the notch, estimate excess mass around it" is the
@@ -25,6 +26,7 @@ from forensics_core.bunching.inference import (
     bootstrap_bunching,
     permutation_test,
     placebo_test,
+    scan_placebo_test,
 )
 from forensics_core.bunching.notch import (
     SCAN_COLUMNS,
@@ -50,4 +52,5 @@ __all__ = [
     "permutation_test",
     "placebo_test",
     "scan_candidate_notches",
+    "scan_placebo_test",
 ]

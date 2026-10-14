@@ -14,12 +14,17 @@ it is slower but propagates uncertainty in the binning itself.
 Placebo thresholds are the field's standard falsification: re-run the estimator at
 thresholds where the incentive function does *not* jump and check that the measured excess
 is unremarkable there (Kleven 2016, *Annual Review of Economics* 8: 435-464).
+:func:`placebo_test` does that for one threshold named in advance;
+:func:`scan_placebo_test` does it for the winner of a scan over several candidates, where
+the winner was chosen on the same data and a single-threshold comparison would confirm it
+far too often.
 
 All functions here are pure; randomness flows through ``seed`` -> ``np.random.default_rng``.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
@@ -36,6 +41,7 @@ __all__ = [
     "bootstrap_bunching",
     "permutation_test",
     "placebo_test",
+    "scan_placebo_test",
 ]
 
 BootstrapMethod = Literal["residual", "pairs"]
@@ -115,6 +121,26 @@ def _extract(result: BunchingResult, statistic: str | Callable[[BunchingResult],
     if statistic not in _STATISTICS:
         raise ValueError(f"statistic must be a callable or one of {_STATISTICS}; got {statistic!r}")
     return float(getattr(result, statistic))
+
+
+def _statistic_name(statistic: str | Callable[[BunchingResult], float]) -> str:
+    return statistic if isinstance(statistic, str) else getattr(statistic, "__name__", "custom")
+
+
+def _statistic_at(
+    arr: np.ndarray,
+    threshold: float,
+    estimator_factory: Callable[[float], Callable[[np.ndarray], BunchingResult]],
+    statistic: str | Callable[[BunchingResult], float],
+) -> float:
+    """Build the estimator for ``threshold``, run it on ``arr`` and extract ``statistic``."""
+    estimator = estimator_factory(float(threshold))
+    if not callable(estimator):
+        raise ValueError("estimator_factory must return a callable estimator")
+    result = estimator(arr)
+    if not isinstance(result, BunchingResult):
+        raise ValueError(f"estimator must return a BunchingResult; got {type(result).__name__}")
+    return _extract(result, statistic)
 
 
 def _result_from_fit(
@@ -204,6 +230,14 @@ def bootstrap_bunching(
     The pairs bootstrap resamples ``x`` only. If the estimator uses observation weights,
     close over weights that are a function of the value (or use ``method="residual"``),
     because the resampled units cannot be matched back to positions in the weight vector.
+
+    The interval describes the sampling variability of the estimate at a threshold that was
+    fixed before looking at the data. It knows nothing about how the threshold was chosen:
+    applied to the winner of
+    :func:`~forensics_core.bunching.notch.scan_candidate_notches`, an interval that excludes
+    zero is not evidence of bunching, because the winner is the candidate whose estimate
+    came out largest. Confirm a scanned winner with :func:`scan_placebo_test`, then use the
+    bootstrap for the size of the excess.
     """
     if int(n_boot) < 2:
         raise ValueError(f"n_boot must be >= 2; got {n_boot!r}")
@@ -267,16 +301,21 @@ def placebo_test(
     placebo_thresholds: Sequence[float],
     *,
     statistic: str | Callable[[BunchingResult], float] = "normalized_excess",
-    add_one: bool = False,
+    add_one: bool = True,
 ) -> TestResult:
     """Compare the excess mass at ``threshold`` with the excess at placebo thresholds.
 
     The identifying assumption of a bunching design is that the counterfactual density is
     smooth, so the *same* estimator applied where the incentive function does not jump
-    should find nothing. This test makes that check quantitative: the p-value is the share
-    of placebo thresholds whose excess is at least as large as the real one (Kleven 2016,
-    *Annual Review of Economics*, on placebo/robustness practice; the permutation logic is
-    the usual one).
+    should find nothing. This test makes that check quantitative: the p-value is the rank of
+    the real threshold's excess among the placebo excesses (Kleven 2016, *Annual Review of
+    Economics*, on placebo/robustness practice; the permutation logic is the usual one).
+
+    It is a test for **one threshold named in advance**. For the winner of a scan over
+    several candidates use :func:`scan_placebo_test`. This function treats the winner as if
+    it had been named before the data were seen: with no bunching anywhere and exchangeable
+    thresholds, the best of five candidates beats all of 20 placebos, and so gets
+    ``p = 1/21 < 0.05``, with probability ``5/25 = 0.20``.
 
     Parameters
     ----------
@@ -294,11 +333,17 @@ def placebo_test(
     statistic : str or callable, default "normalized_excess"
         Which scalar to compare. The normalised excess is the right default because the
         counterfactual level differs between thresholds.
-    add_one : bool, default False
-        If ``True`` use ``(1 + #{placebo >= observed}) / (1 + n_placebo)``, the
-        never-zero permutation p-value of Phipson and Smyth (2010, *Statistical Applications
-        in Genetics and Molecular Biology* 9(1), Article 39). The default ``False`` is the
-        plain share fixed by INTERFACES.md, which can return exactly 0.
+    add_one : bool, default True
+        If ``True`` (the default) use ``(1 + #{placebo >= observed}) / (1 + n_placebo)``,
+        the never-zero permutation p-value of Phipson and Smyth (2010, *Statistical
+        Applications in Genetics and Molecular Biology* 9(1), Article 39). It counts the
+        real threshold as one of the ``n_placebo + 1`` exchangeable values, so under the
+        null (and without ties) ``P(p <= alpha) = floor(alpha * (n_placebo + 1)) /
+        (n_placebo + 1)``, which never exceeds ``alpha``. ``False`` gives the plain share
+        ``#{placebo >= observed} / n_placebo`` that INTERFACES.md originally fixed. It can
+        return exactly 0, and its size is ``(floor(alpha * n_placebo) + 1) / (n_placebo +
+        1)``, which exceeds ``alpha`` at most placebo counts: ``2/21 = 0.095`` at
+        ``alpha = 0.05`` with 20 placebos.
 
     Returns
     -------
@@ -331,26 +376,16 @@ def placebo_test(
     if arr.size == 0:
         raise ValueError("x contains no finite values")
 
-    def _run(t: float) -> float:
-        estimator = estimator_factory(float(t))
-        if not callable(estimator):
-            raise ValueError("estimator_factory must return a callable estimator")
-        result = estimator(arr)
-        if not isinstance(result, BunchingResult):
-            raise ValueError(f"estimator must return a BunchingResult; got {type(result).__name__}")
-        return _extract(result, statistic)
-
-    observed = _run(thr)
-    values = np.array([_run(t) for t in placebos], dtype=float)
+    observed = _statistic_at(arr, thr, estimator_factory, statistic)
+    values = np.array(
+        [_statistic_at(arr, t, estimator_factory, statistic) for t in placebos], dtype=float
+    )
     n_ge = int(np.sum(values >= observed))
     if add_one:
         pvalue = (1.0 + n_ge) / (1.0 + values.size)
     else:
         pvalue = n_ge / values.size
 
-    stat_name = (
-        statistic if isinstance(statistic, str) else getattr(statistic, "__name__", "custom")
-    )
     return TestResult(
         method="bunching_placebo",
         statistic=float(observed),
@@ -359,7 +394,7 @@ def placebo_test(
         details={
             "alternative": "greater",
             "threshold": thr,
-            "statistic_name": stat_name,
+            "statistic_name": _statistic_name(statistic),
             "placebo_thresholds": placebos,
             "placebo_values": values,
             "n_placebo": int(values.size),
@@ -367,6 +402,155 @@ def placebo_test(
             "placebo_mean": float(np.mean(values)),
             "placebo_sd": float(np.std(values, ddof=1)) if values.size > 1 else float("nan"),
             "add_one": bool(add_one),
+            "n_dropped": int(n_dropped),
+        },
+    )
+
+
+def _distinct_finite_thresholds(values: Sequence[float], name: str) -> np.ndarray:
+    arr = np.asarray(list(values), dtype=float)
+    if arr.ndim != 1 or arr.size == 0:
+        raise ValueError(f"{name} must be a non-empty 1-D sequence of thresholds")
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} must all be finite")
+    if np.unique(arr).size != arr.size:
+        raise ValueError(f"{name} must not contain duplicates")
+    return arr
+
+
+def scan_placebo_test(
+    x: ArrayLike,
+    candidates: Sequence[float],
+    estimator_factory: Callable[[float], Callable[[np.ndarray], BunchingResult]],
+    placebo_thresholds: Sequence[float],
+    *,
+    statistic: str | Callable[[BunchingResult], float] = "normalized_excess",
+) -> TestResult:
+    """Confirm the winner of a candidate scan against placebo thresholds, paying for the scan.
+
+    :func:`~forensics_core.bunching.notch.scan_candidate_notches` ranks ``k`` candidate
+    thresholds and puts the largest excess in row 0. That winner is the maximum of ``k``
+    estimates, so comparing it with the placebo values one at a time, as
+    :func:`placebo_test` does, asks the wrong question: with no bunching anywhere the best
+    of ``k`` still tends to beat most placebos. This test asks whether the winner is large
+    compared with the *maximum of k values* taken where nothing happens.
+
+    The reference distribution is the maximum over every ``k``-sized set of the pooled
+    ``k + m`` thresholds, the candidates together with the ``m`` placebos. Under the null
+    that no threshold carries bunching and the statistic is exchangeable across thresholds,
+    the candidate set is one of those ``C(k + m, k)`` sets, each equally likely, so::
+
+        p = #{k-sets whose maximum is >= the winner's value} / C(k + m, k)
+          = 1 - C(k + m - r, k) / C(k + m, k)
+
+    where ``r`` is the number of pooled values at least as large as the winner's, is an
+    exact permutation p-value: ``P(p <= alpha) <= alpha``. With ``k = 1`` it is the add-one
+    placebo p-value ``(1 + #{placebo >= observed}) / (1 + m)`` of :func:`placebo_test`.
+
+    The candidates are pooled into the reference on purpose. Comparing the winner only with
+    the maxima of ``k``-sets drawn from the placebos gives ``p = 0`` whenever the winner
+    beats every placebo, and under the null that happens with probability ``k / (k + m)``.
+
+    Parameters
+    ----------
+    x : array-like
+        Running variable.
+    candidates : sequence of float
+        Every threshold the scan looked at, not only the winner: the test pays for the
+        whole scan. Must be finite, non-empty and free of duplicates.
+    estimator_factory : callable
+        ``estimator_factory(threshold) -> (estimator(x) -> BunchingResult)``, as in
+        :func:`placebo_test`. Build it with the scan's settings (bin width, windows,
+        degree, range and side) so that the winner found here is row 0 of the scan;
+        ``details["winner"]`` says which candidate won.
+    placebo_thresholds : sequence of float
+        Thresholds at which nothing should happen, chosen as for :func:`placebo_test`.
+        Must be finite, non-empty, free of duplicates and disjoint from ``candidates``.
+    statistic : str or callable, default "normalized_excess"
+        Which scalar to compare, as in :func:`placebo_test`. The winner is the candidate
+        with the largest value of this statistic.
+
+    Returns
+    -------
+    TestResult
+        ``statistic`` is the winner's value; ``pvalue`` is one-sided
+        (``details["alternative"] = "greater"``). ``details`` carries the winner, the
+        candidates and their values, the placebos and their values,
+        ``n_at_least_observed`` (placebos at least as large as the winner),
+        ``n_pooled_at_least_observed`` (``r`` above) and ``min_attainable_pvalue``.
+
+    Raises
+    ------
+    ValueError
+        On empty, non-finite or duplicated candidates or placebos, a placebo that is also a
+        candidate, a factory whose estimators do not return a ``BunchingResult``, or a
+        statistic that is not finite at some threshold.
+
+    Notes
+    -----
+    The smallest p-value this test can return is ``k / (k + m)``, when the winner beats
+    every placebo. That floor is not an artefact of the method. With no bunching, the
+    largest of the ``k + m`` values falls on a candidate with probability ``k / (k + m)``,
+    and a comparison with placebos cannot tell that case from a real notch. Rejecting at
+    level ``alpha`` therefore needs ``m >= k * (1 - alpha) / alpha`` placebos: 95 for five
+    candidates at 0.05, 19 for one. With fewer, the test cannot confirm the winner at that
+    level whatever the data say, and ``details["min_attainable_pvalue"]`` reports the floor
+    so that such a result is not read as evidence of no bunching. That is the price of
+    scanning; a threshold named in advance by the incentive scheme needs only
+    :func:`placebo_test`.
+    """
+    if not callable(estimator_factory):
+        raise ValueError("estimator_factory must be callable: factory(threshold) -> estimator")
+    cand = _distinct_finite_thresholds(candidates, "candidates")
+    placebos = _distinct_finite_thresholds(placebo_thresholds, "placebo_thresholds")
+    if np.intersect1d(cand, placebos).size:
+        raise ValueError("placebo_thresholds must not contain any of the candidates")
+
+    arr = as_float_array(x, "x")
+    arr, _, n_dropped = drop_nonfinite(arr, None)
+    if arr.size == 0:
+        raise ValueError("x contains no finite values")
+
+    cand_values = np.array(
+        [_statistic_at(arr, t, estimator_factory, statistic) for t in cand], dtype=float
+    )
+    values = np.array(
+        [_statistic_at(arr, t, estimator_factory, statistic) for t in placebos], dtype=float
+    )
+    pooled_thresholds = np.concatenate([cand, placebos])
+    pooled = np.concatenate([cand_values, values])
+    if not np.all(np.isfinite(pooled)):
+        bad = pooled_thresholds[~np.isfinite(pooled)].tolist()
+        raise ValueError(f"the statistic is not finite at threshold(s) {bad}")
+
+    k = int(cand.size)
+    total = k + int(placebos.size)
+    winner_index = int(np.argmax(cand_values))
+    observed = float(cand_values[winner_index])
+    r = int(np.sum(pooled >= observed))
+    n_sets = math.comb(total, k)
+    pvalue = (n_sets - math.comb(total - r, k)) / n_sets
+
+    return TestResult(
+        method="bunching_scan_placebo",
+        statistic=observed,
+        pvalue=float(pvalue),
+        n=int(arr.size),
+        details={
+            "alternative": "greater",
+            "winner": float(cand[winner_index]),
+            "statistic_name": _statistic_name(statistic),
+            "candidates": cand,
+            "candidate_values": cand_values,
+            "placebo_thresholds": placebos,
+            "placebo_values": values,
+            "n_candidates": k,
+            "n_placebo": int(placebos.size),
+            "n_at_least_observed": int(np.sum(values >= observed)),
+            "n_pooled_at_least_observed": r,
+            "min_attainable_pvalue": k / total,
+            "placebo_mean": float(np.mean(values)),
+            "placebo_sd": float(np.std(values, ddof=1)) if values.size > 1 else float("nan"),
             "n_dropped": int(n_dropped),
         },
     )
