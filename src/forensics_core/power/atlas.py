@@ -17,6 +17,16 @@ number without it cannot be read: a method that rejects everything has power 1.0
 useless. :func:`power_curve` always measures it, and :func:`power_lookup` refuses to answer
 from an atlas whose false-positive rate is far from nominal.
 
+A test that refuses to answer has not answered
+----------------------------------------------
+A replicate on which the test raises (too few units left after exclusion, a counterfactual that
+cannot be fitted) is neither a rejection nor a non-rejection. Counting it as a non-rejection
+pulls both power and the false-positive rate towards zero by the refusal share, which can hide
+a test that rejects five times nominal under the calibration guard. So power and the
+false-positive rate are computed over the replicates that answered, and the refusals are
+reported beside them in ``n_failed`` and ``refusal_share``. A cell where no replicate answered
+has power ``NaN``: there is nothing to read.
+
 What this is not
 ----------------
 This measures the power of a **test on a collection**, which is the question "at what sample
@@ -51,7 +61,13 @@ ATLAS_COLUMNS = [
     "n_replicates",
     "alpha",
     "false_positive_rate",
+    "n_failed",
+    "refusal_share",
 ]
+
+#: The columns that record refusals. An atlas saved before they existed lacks them; it loads
+#: with them set to ``NaN`` ("not recorded"), never to zero, which would be a claim.
+REFUSAL_COLUMNS = ("n_failed", "refusal_share")
 
 #: A false-positive rate this far above nominal makes the power column unreadable, because
 #: rejections are then partly the method firing on nothing.
@@ -121,7 +137,11 @@ def power_curve(
     -------
     pandas.DataFrame
         One row per ``(n, effect_size)`` with :data:`ATLAS_COLUMNS`. ``.attrs["spec"]`` carries
-        the :class:`PowerSpec`.
+        the :class:`PowerSpec`. ``power`` and ``false_positive_rate`` are fractions of the
+        replicates on which ``test`` answered; ``n_failed`` counts the replicates on which it
+        raised ``ValueError``, ``ZeroDivisionError`` or ``FloatingPointError``, and
+        ``refusal_share`` is ``n_failed / n_replicates``. A cell with no answered replicate has
+        ``power`` (and, at effect zero, ``false_positive_rate``) ``NaN``.
 
     Raises
     ------
@@ -158,6 +178,7 @@ def power_curve(
     for n in sizes:
         for effect in effects:
             reject = 0
+            failed = 0
             for _ in range(n_replicates):
                 sample = rng.choice(pop, size=n, replace=False)
                 if effect != 0.0:
@@ -165,10 +186,12 @@ def power_curve(
                 try:
                     p = float(test(sample))
                 except (ValueError, ZeroDivisionError, FloatingPointError):
+                    # a refusal is not a non-rejection; see the module docstring
+                    failed += 1
                     continue
                 if np.isfinite(p) and p <= alpha:
                     reject += 1
-            power = reject / n_replicates
+            power, power_se = rejection_fraction(reject, n_replicates - failed)
             if effect == 0.0:
                 fpr_by_n[n] = power
             rows.append(
@@ -177,11 +200,12 @@ def power_curve(
                     "n": n,
                     "effect_size": effect,
                     "power": power,
-                    # binomial standard error of the rejection fraction
-                    "power_se": float(np.sqrt(power * (1.0 - power) / n_replicates)),
+                    "power_se": power_se,
                     "n_replicates": n_replicates,
                     "alpha": alpha,
                     "false_positive_rate": np.nan,
+                    "n_failed": failed,
+                    "refusal_share": failed / n_replicates if n_replicates else np.nan,
                 }
             )
 
@@ -197,6 +221,18 @@ def power_curve(
     return frame
 
 
+def rejection_fraction(rejections: int, answered: int) -> tuple[float, float]:
+    """``(fraction, binomial standard error)`` over the replicates that answered.
+
+    ``(nan, nan)`` when none answered: a cell where the test never gave an answer has no
+    rejection rate, and zero would be a claim that it never rejects.
+    """
+    if answered <= 0:
+        return float("nan"), float("nan")
+    fraction = rejections / answered
+    return fraction, float(np.sqrt(fraction * (1.0 - fraction) / answered))
+
+
 def minimum_detectable_effect(
     atlas: pd.DataFrame,
     n: int,
@@ -204,6 +240,7 @@ def minimum_detectable_effect(
     target_power: float = 0.8,
     method: str | None = None,
     check_calibration: bool = True,
+    max_refusal_share: float | None = None,
 ) -> float:
     """The smallest measured effect reaching ``target_power`` at sample size ``n``.
 
@@ -215,12 +252,23 @@ def minimum_detectable_effect(
     unearned number into a claim about the historical record, which is the specific failure
     this programme exists to avoid.
 
+    Parameters
+    ----------
+    max_refusal_share : float, optional
+        When given, a cell whose test refused on more than this share of its replicates is
+        not used: the false-positive row at ``n`` refuses the query outright, and an effect
+        row is skipped as unmeasured. ``None`` (the default) applies no share limit, though a
+        false-positive row on which the test never answered is always refused.
+
     Raises
     ------
     AtlasError
-        If ``n`` is not in the atlas, no measured effect reaches the target, or the
-        false-positive rate at that ``n`` is too far above nominal for the power to be read.
+        If ``n`` is not in the atlas, no measured effect reaches the target, the
+        false-positive rate at that ``n`` is too far above nominal for the power to be read,
+        or the false-positive rate at that ``n`` was not measured because the test refused.
     """
+    if max_refusal_share is not None and not 0.0 <= max_refusal_share <= 1.0:
+        raise AtlasError(f"max_refusal_share must be in [0, 1]; got {max_refusal_share}")
     frame = atlas if method is None else atlas[atlas["method"] == method]
     if frame.empty:
         raise AtlasError(f"the atlas has no rows for method {method!r}")
@@ -232,6 +280,21 @@ def minimum_detectable_effect(
             f"the atlas does not cover n={n}; it measured {covered}. It will not extrapolate: "
             "a power number invented between measured points is not a measurement."
         )
+
+    if "refusal_share" in at_n.columns:
+        shares = at_n["refusal_share"].astype(float)
+        zero_shares = shares[at_n["effect_size"] == 0.0]
+        zero_share = float(zero_shares.max()) if not zero_shares.empty else float("nan")
+        if np.isfinite(zero_share) and (
+            zero_share >= 1.0 or (max_refusal_share is not None and zero_share > max_refusal_share)
+        ):
+            raise AtlasError(
+                f"at n={n} the test refused on {zero_share:.0%} of the replicates with no "
+                "injected effect, so the false-positive rate there is not measured well enough "
+                "to read the power column. A refusal is not a non-rejection."
+            )
+        if max_refusal_share is not None:
+            at_n = at_n[~(shares > max_refusal_share)]
 
     if check_calibration:
         fpr = float(at_n["false_positive_rate"].iloc[0])
@@ -296,13 +359,28 @@ def save_atlas(atlas: pd.DataFrame, path: str | Path) -> Path:
     return path
 
 
+def with_refusal_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """``frame`` with :data:`REFUSAL_COLUMNS` present, added as ``NaN`` if it predates them.
+
+    ``NaN`` means "not recorded": an atlas measured before refusals were counted may have
+    counted them as non-rejections, and filling zero would claim it did not.
+    """
+    missing = [column for column in REFUSAL_COLUMNS if column not in frame.columns]
+    if not missing:
+        return frame
+    out = frame.copy()
+    for column in missing:
+        out[column] = np.nan
+    return out
+
+
 def load_atlas(path: str | Path) -> pd.DataFrame:
     """Read an atlas back, restoring its spec into ``.attrs``."""
     import json
 
     import pandas as pd
 
-    frame = pd.read_parquet(path)
+    frame = with_refusal_columns(pd.read_parquet(path))
     if "_spec" in frame.columns:
         raw = json.loads(frame["_spec"].iloc[0] or "{}")
         frame = frame.drop(columns=["_spec"])

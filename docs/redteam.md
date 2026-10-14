@@ -143,6 +143,12 @@ With denominators of {60, 80} and `min_denominator=100`, every unit is excluded 
 non-firing. A report that scored a refusal to answer as a clean bill of health would be
 reading silence as evidence.
 
+The error is a state of its own on `RedTeamResult` (`error`, `errored`). `survivors()` leaves
+an errored pair out, `errors()` lists it, and `format_redteam_table` marks it `ERROR` and
+lists it separately below the table; it never ends a pass that had an error with "No detector
+fired". `ocr_firing_threshold` reads its firing share over the replicates the detector
+answered, and raises rather than stepping past a rate where it answered none.
+
 ---
 
 ## Traps generated but not yet run against a detector

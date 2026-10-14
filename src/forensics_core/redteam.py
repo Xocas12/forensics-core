@@ -55,6 +55,7 @@ __all__ = [
     "TrapSample",
     "TrapSpec",
     "casualties",
+    "errors",
     "format_redteam_table",
     "heterogeneous_mixture",
     "level_shift",
@@ -563,7 +564,12 @@ def ocr_noise(
 
 @dataclass(frozen=True)
 class RedTeamResult:
-    """What one detector did on one trap. ``fired`` is a false positive by construction."""
+    """What one detector did on one trap. ``fired`` is a false positive by construction.
+
+    ``error`` is set when the detector raised or produced no usable p-value. Such a pair has
+    ``fired=False`` and ``pvalue=None``, but it did not survive the trap either: it was never
+    scored. :func:`survivors` leaves it out and :func:`errors` lists it.
+    """
 
     trap_id: str
     detector: str
@@ -571,6 +577,12 @@ class RedTeamResult:
     pvalue: float | None
     alpha: float
     detail: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+
+    @property
+    def errored(self) -> bool:
+        """Whether the detector refused to answer, so the pair was never scored."""
+        return self.error is not None
 
     @property
     def spec(self) -> TrapSpec:
@@ -584,6 +596,7 @@ class RedTeamResult:
             "pvalue": self.pvalue,
             "alpha": self.alpha,
             "detail": dict(self.detail),
+            "error": self.error,
         }
 
 
@@ -625,6 +638,7 @@ def red_team(
             try:
                 raw = fn(sample)
             except Exception as exc:
+                error = f"{type(exc).__name__}: {exc}"
                 results.append(
                     RedTeamResult(
                         trap_id=sample.trap_id,
@@ -632,13 +646,15 @@ def red_team(
                         fired=False,
                         pvalue=None,
                         alpha=alpha,
-                        detail={**detail, "error": f"{type(exc).__name__}: {exc}"},
+                        detail={**detail, "error": error},
+                        error=error,
                     )
                 )
                 continue
 
             pvalue = _pvalue_of(raw)
             if pvalue is None or not np.isfinite(pvalue):
+                error = "detector produced no usable p-value"
                 results.append(
                     RedTeamResult(
                         trap_id=sample.trap_id,
@@ -646,7 +662,8 @@ def red_team(
                         fired=False,
                         pvalue=None,
                         alpha=alpha,
-                        detail={**detail, "error": "detector produced no usable p-value"},
+                        detail={**detail, "error": error},
+                        error=error,
                     )
                 )
                 continue
@@ -685,8 +702,17 @@ def casualties(results: Sequence[RedTeamResult]) -> list[RedTeamResult]:
 
 
 def survivors(results: Sequence[RedTeamResult], detector: str) -> list[str]:
-    """The trap ids that ``detector`` did not fire on."""
-    return [r.trap_id for r in results if r.detector == detector and not r.fired]
+    """The trap ids that ``detector`` answered on and did not fire on.
+
+    A trap the detector refused to answer on is not here: declining to answer is not
+    withstanding the trap. Those pairs are in :func:`errors`.
+    """
+    return [r.trap_id for r in results if r.detector == detector and not r.fired and not r.errored]
+
+
+def errors(results: Sequence[RedTeamResult]) -> list[RedTeamResult]:
+    """The pairs that were never scored because the detector raised or gave no p-value."""
+    return [r for r in results if r.errored]
 
 
 # ---------------------------------------------------------------- the OCR gate
@@ -714,9 +740,19 @@ def ocr_firing_threshold(
     -------
     float or None
         The smallest rate in ``error_rates`` at which the detector fired in more than
-        ``fire_share`` of replicates, or ``None`` if it survived every rate tested. ``None``
-        means "not detected up to the highest rate tested", never "safe at any rate": pass a
-        grid that reaches beyond the error rates you expect to measure.
+        ``fire_share`` of the replicates it answered, or ``None`` if it survived every rate
+        tested. ``None`` means "not detected up to the highest rate tested", never "safe at any
+        rate": pass a grid that reaches beyond the error rates you expect to measure.
+
+        A replicate on which the detector raised or gave no usable p-value is a refusal, and
+        is left out of the share rather than counted as not firing.
+
+    Raises
+    ------
+    RedTeamError
+        If at some rate the detector refused on every replicate. Nothing is known about
+        whether it fires there, and stepping past that rate would report a threshold above a
+        rate that was never measured, which would let the gate open across it.
     """
     if not error_rates:
         raise RedTeamError("error_rates is empty")
@@ -728,16 +764,29 @@ def ocr_firing_threshold(
     base = np.random.default_rng(seed)
     for rate in sorted(float(r) for r in error_rates):
         fired = 0
+        answered = 0
+        last_error = ""
         for _ in range(n_replicates):
             child = int(base.integers(0, 2**31 - 1))
             _, sample = ocr_noise(values, rate, positions, seed=child)
             try:
                 pvalue = _pvalue_of(detector(sample))
-            except Exception:
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
                 continue
-            if pvalue is not None and np.isfinite(pvalue) and pvalue <= alpha:
+            if pvalue is None or not np.isfinite(pvalue):
+                last_error = "detector produced no usable p-value"
+                continue
+            answered += 1
+            if pvalue <= alpha:
                 fired += 1
-        if fired / n_replicates > fire_share:
+        if answered == 0:
+            raise RedTeamError(
+                f"at error rate {rate} the detector refused on all {n_replicates} replicates "
+                f"({last_error}). Whether it fires there is unknown, so no firing threshold "
+                "can be reported above it."
+            )
+        if fired / answered > fire_share:
             return rate
     return None
 
@@ -770,14 +819,28 @@ def format_redteam_table(results: Sequence[RedTeamResult]) -> str:
     lines = [header, "-" * len(header)]
     for r in results:
         p = "-" if r.pvalue is None else f"{r.pvalue:.4g}"
-        lines.append(f"{r.trap_id:<14} {r.detector:<28} {p:>10} {r.fired!s:>7}")
+        fired = "ERROR" if r.errored else str(r.fired)
+        lines.append(f"{r.trap_id:<14} {r.detector:<28} {p:>10} {fired:>7}")
 
     hits = casualties(results)
+    failed = errors(results)
     lines.append("")
-    if not hits:
-        lines.append("No detector fired on any trap in this pass.")
-    else:
+    if hits:
         lines.append(f"{len(hits)} of {len(results)} pairs fired on honest data:")
         for r in hits:
             lines.append(f"  {r.detector} on {r.trap_id} — {r.spec.summary}")
+    elif not failed:
+        lines.append("No detector fired on any trap in this pass.")
+    else:
+        answered = len(results) - len(failed)
+        lines.append(f"None of the {answered} answered pairs fired on honest data.")
+    if failed:
+        if hits:
+            lines.append("")
+        lines.append(
+            f"{len(failed)} of {len(results)} pairs errored and were not scored; a refusal is "
+            "not a survival:"
+        )
+        for r in failed:
+            lines.append(f"  {r.detector} on {r.trap_id} — error: {r.error}")
     return "\n".join(lines)

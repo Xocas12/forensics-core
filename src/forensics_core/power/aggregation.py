@@ -63,6 +63,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from numpy.typing import ArrayLike
 
+from forensics_core.power.atlas import rejection_fraction
+
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import pandas as pd
 
@@ -90,6 +92,8 @@ LADDER_COLUMNS = [
     "false_positive_rate",
     "n_replicates",
     "alpha",
+    "n_failed",
+    "refusal_share",
 ]
 
 
@@ -206,7 +210,11 @@ def aggregation_ladder(
     Returns
     -------
     pandas.DataFrame
-        One row per ``(level, semantics, effect_size)`` with :data:`LADDER_COLUMNS`.
+        One row per ``(level, semantics, effect_size)`` with :data:`LADDER_COLUMNS`. As in
+        :func:`~forensics_core.power.atlas.power_curve`, ``power`` and
+        ``false_positive_rate`` are fractions of the replicates on which ``test`` answered;
+        a replicate on which it raised is counted in ``n_failed`` (and ``refusal_share``),
+        not as a non-rejection. A cell with no answered replicate has ``power`` ``NaN``.
 
     Raises
     ------
@@ -249,6 +257,7 @@ def aggregation_ladder(
         for sem in semantics:
             for effect in effects:
                 reject = 0
+                failed = 0
                 n_units_seen = 0
                 for _ in range(n_replicates):
                     num = (
@@ -261,10 +270,12 @@ def aggregation_ladder(
                     try:
                         p = float(test(a_num, a_den, a_pct))
                     except (ValueError, ZeroDivisionError, FloatingPointError):
+                        # a refusal is not a non-rejection
+                        failed += 1
                         continue
                     if np.isfinite(p) and p <= alpha:
                         reject += 1
-                power = reject / n_replicates
+                power, power_se = rejection_fraction(reject, n_replicates - failed)
                 if effect == 0.0:
                     fpr[(level_name, sem)] = power
                 rows.append(
@@ -275,10 +286,12 @@ def aggregation_ladder(
                         "n_units": int(n_units_seen),
                         "mean_group_size": float(num0.size / n_units_seen) if n_units_seen else 0.0,
                         "power": power,
-                        "power_se": float(np.sqrt(power * (1.0 - power) / n_replicates)),
+                        "power_se": power_se,
                         "false_positive_rate": np.nan,
                         "n_replicates": n_replicates,
                         "alpha": alpha,
+                        "n_failed": failed,
+                        "refusal_share": failed / n_replicates if n_replicates else np.nan,
                     }
                 )
 

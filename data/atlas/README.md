@@ -23,7 +23,9 @@ A published atlas is one parquet file, written by
 
 - one row per `(n, effect_size)` with the columns of
   `forensics_core.power.atlas.ATLAS_COLUMNS`:
-  `method, n, effect_size, power, power_se, n_replicates, alpha, false_positive_rate`;
+  `method, n, effect_size, power, power_se, n_replicates, alpha, false_positive_rate,
+  n_failed, refusal_share`. `power` and `false_positive_rate` are read over the replicates
+  on which the test answered; `n_failed` counts the ones on which it refused;
 - the record of how it was measured in the `_spec` column, a JSON `PowerSpec`.
 
 Two keys are required in that record's `settings`, and `publish_atlas` writes both:
