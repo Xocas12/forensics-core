@@ -206,6 +206,188 @@ def test_anchor_holdout_tests_exactly_the_anchor_rows():
         )
 
 
+def synthetic_anchor_panel() -> tuple[Dataset, pd.Series]:
+    """200 rows: a 20-row anchor (6 positives, then 14 presumed clean) after 180 clean rows.
+
+    Column ``low`` puts every anchor row below all 180 others, positives first inside the
+    anchor, so the positives sit at overall ranks 181-186. Column ``high`` is the same except
+    that the six positives sit at overall ranks 1-6. Inside the anchor the two orderings are
+    identical; against the rest they are opposites.
+    """
+    n_rest, n_pos, n_neg = 180, 6, 14
+    n = n_rest + n_pos + n_neg
+    rest = np.linspace(100.0, 20.0, n_rest)
+    clean = np.linspace(4.0, 0.0, n_neg)
+    low = np.concatenate([rest, np.linspace(10.0, 5.0, n_pos), clean])
+    high = np.concatenate([rest, np.linspace(200.0, 150.0, n_pos), clean])
+    y = np.zeros(n)
+    y[n_rest : n_rest + n_pos] = 1.0
+    anchor = np.zeros(n, dtype=bool)
+    anchor[n_rest:] = True
+    ds = Dataset(
+        unit_id=pd.Series([f"unit_{i:04d}" for i in range(n)]),
+        X=pd.DataFrame({"low": low, "high": high}),
+        y=pd.Series(y),
+        meta={"name": "synthetic_anchor_panel"},
+    )
+    return ds, pd.Series(anchor)
+
+
+def pairwise_auc(anchor_scores: np.ndarray, comparison_scores: np.ndarray) -> float:
+    """P(anchor score > comparison score) + half P(tie), by brute force over every pair."""
+    a = np.asarray(anchor_scores, dtype=float)[:, None]
+    c = np.asarray(comparison_scores, dtype=float)[None, :]
+    return float(np.mean((a > c) + 0.5 * (a == c)))
+
+
+def test_anchor_holdout_metrics_cannot_place_the_anchor_but_anchor_rank_can():
+    ds, anchor = synthetic_anchor_panel()
+    spec = EvalSpec(
+        split="anchor_holdout",
+        anchor_mask=anchor,
+        ks=(5,),
+        metrics=("roc_auc", "average_precision", "precision_at_k"),
+    )
+    below = evaluate(FunctionDetector(lambda X: X["low"].to_numpy(), name="below"), ds, spec)
+    above = evaluate(FunctionDetector(lambda X: X["high"].to_numpy(), name="above"), ds, spec)
+
+    # Inside the anchor both detectors are perfect, so the metrics cannot tell them apart.
+    perfect = {"roc_auc": 1.0, "average_precision": 1.0, "precision@5": 1.0}
+    assert below.metrics == above.metrics == perfect
+
+    # Against the rest they are opposites, and anchor_rank says so.
+    assert below.anchor_rank["auc_positives_vs_comparison"] == 0.0
+    assert above.anchor_rank["auc_positives_vs_comparison"] == 1.0
+    assert below.anchor_rank["auc_anchor_vs_comparison"] == 0.0
+    assert above.anchor_rank["auc_anchor_vs_comparison"] == pytest.approx(6 / 20)
+    assert below.anchor_rank["percentiles"] == [0.0] * 20
+    assert above.anchor_rank["percentiles"] == [1.0] * 6 + [0.0] * 14
+    assert above.anchor_rank["unit_ids"] == ds.unit_id[anchor.to_numpy()].tolist()
+    assert above.anchor_rank["median_percentile"] == 0.0
+    assert {key: above.anchor_rank[key] for key in ("n_anchor", "n_comparison")} == {
+        "n_anchor": 20,
+        "n_comparison": 180,
+    }
+    assert above.anchor_rank["n_anchor_positive"] == 6
+    assert above.anchor_rank["comparison"] == "training_rows"
+
+    # The report says which question each number answers, and that the comparison rows here
+    # are the rows the detector was fitted on.
+    assert any("within-anchor" in note for note in above.notes)
+    assert any("comparison_mask" in note for note in above.notes)
+
+
+def test_anchor_rank_counts_every_row_and_ties_as_half():
+    ds = synthetic_panel()
+    y = ds.y_values().copy()
+    y[::3] = np.nan  # unlabeled rows on both sides still belong to the anchor and the rest
+    ds = Dataset(unit_id=ds.unit_id, X=ds.X, y=pd.Series(y), time=ds.time, meta=ds.meta)
+    anchor = pd.Series(ds.time.to_numpy() == 2004)
+    spec = EvalSpec(split="anchor_holdout", anchor_mask=anchor, ks=(5,), metrics=("roc_auc",))
+
+    report = evaluate(signal_detector(), ds, spec)
+    signal = ds.X["signal"].to_numpy()
+    is_anchor = anchor.to_numpy()
+    assert report.anchor_rank["n_anchor"] == 40 > report.n_test
+    assert report.anchor_rank["n_comparison"] == 160
+    assert report.anchor_rank["auc_anchor_vs_comparison"] == pytest.approx(
+        pairwise_auc(signal[is_anchor], signal[~is_anchor])
+    )
+    positives = is_anchor & (y == 1.0)
+    assert report.anchor_rank["auc_positives_vs_comparison"] == pytest.approx(
+        pairwise_auc(signal[positives], signal[~is_anchor])
+    )
+
+    flat = evaluate(FunctionDetector(lambda X: np.zeros(len(X)), name="flat"), ds, spec)
+    assert flat.anchor_rank["auc_anchor_vs_comparison"] == 0.5
+    assert flat.anchor_rank["median_percentile"] == 0.5
+
+    temporal = EvalSpec(split="temporal", train_end=2003, ks=(5,), metrics=("roc_auc",))
+    assert evaluate(signal_detector(), ds, temporal).anchor_rank is None
+
+
+class FitRecorder:
+    """Records the unit ids each fold's copy was fitted on, and asks for the unlabeled pool.
+
+    The record lives on the class because ``evaluate`` deep-copies the detector per fold.
+    """
+
+    name = "fit_recorder"
+    wants_unlabeled = True
+    FITTED: list[list[str]] = []
+
+    def fit(self, ds: Dataset) -> FitRecorder:
+        FitRecorder.FITTED.append(ds.unit_id.tolist())
+        return self
+
+    def score(self, ds: Dataset) -> np.ndarray:
+        return ds.X["signal"].to_numpy(dtype=float)
+
+
+def test_comparison_mask_compares_the_anchor_with_rows_kept_out_of_the_fit():
+    ds = synthetic_panel()
+    y = ds.y_values().copy()
+    y[::3] = np.nan  # an unlabeled pool on every side, which a PU detector is handed
+    ds = Dataset(unit_id=ds.unit_id, X=ds.X, y=pd.Series(y), time=ds.time, meta=ds.meta)
+    years = ds.time.to_numpy()
+    anchor = pd.Series(years == 2004)
+    held = pd.Series(years == 2003)
+    spec = EvalSpec(
+        split="anchor_holdout",
+        anchor_mask=anchor,
+        comparison_mask=held,
+        ks=(5,),
+        metrics=("roc_auc",),
+    )
+
+    FitRecorder.FITTED.clear()
+    try:
+        report = evaluate(FitRecorder(), ds, spec)
+        fitted = FitRecorder.FITTED[0]
+    finally:
+        FitRecorder.FITTED.clear()
+    held_ids = set(ds.unit_id[held.to_numpy()])
+    assert held_ids.isdisjoint(fitted)
+    assert report.per_fold[0]["n_train"] == 120
+
+    signal = ds.X["signal"].to_numpy()
+    assert report.anchor_rank["comparison"] == "held_out"
+    assert report.anchor_rank["n_comparison"] == 40
+    assert report.anchor_rank["auc_anchor_vs_comparison"] == pytest.approx(
+        pairwise_auc(signal[anchor.to_numpy()], signal[held.to_numpy()])
+    )
+    assert not any("comparison_mask" in note for note in report.notes)
+
+    payload = json.loads(json.dumps(report.to_dict()))
+    assert payload["spec"]["comparison_mask"] == {"n_rows": 200, "n_comparison": 40}
+    assert payload["anchor_rank"]["n_anchor"] == 40
+
+    with pytest.raises(ValueError, match="only to split='anchor_holdout'"):
+        EvalSpec(split="temporal", train_end=2002, comparison_mask=held)
+    with pytest.raises(ValueError, match="share 40 row"):
+        evaluate(
+            signal_detector(),
+            ds,
+            EvalSpec(split="anchor_holdout", anchor_mask=anchor, comparison_mask=anchor),
+        )
+    with pytest.raises(ValueError, match="selects no rows"):
+        evaluate(
+            signal_detector(),
+            ds,
+            EvalSpec(
+                split="anchor_holdout",
+                anchor_mask=anchor,
+                comparison_mask=pd.Series(np.zeros(len(ds), dtype=bool)),
+            ),
+        )
+    with pytest.raises(ValueError, match="nothing is left to train on"):
+        evaluate(
+            signal_detector(),
+            ds,
+            EvalSpec(split="anchor_holdout", anchor_mask=anchor, comparison_mask=~anchor),
+        )
+
+
 def test_group_kfold_puts_each_group_in_exactly_one_test_fold():
     ds = synthetic_panel()
     spec = EvalSpec(split="group_kfold", n_splits=4, ks=(0.1,), metrics=("roc_auc",))

@@ -987,6 +987,7 @@ class EvalSpec:
     anchor_mask: pandas.Series | None = None    # anchor_holdout: rows that ARE the anchor
     ks: tuple[int | float, ...] = (0.01, 0.05, 0.10)
     metrics: tuple[str, ...] = ("roc_auc", "average_precision", "ndcg_at_k", "precision_at_k")
+    comparison_mask: pandas.Series | None = None  # (changed: added) anchor_holdout: rows held out of fit
     def to_dict(self) -> dict[str, Any]         # (changed: added)
 
 @dataclass
@@ -995,6 +996,7 @@ class EvalReport:
     metrics: dict[str, float]; per_fold: list[dict]; n_train: int; n_test: int; n_pos_test: int
     in_sample: bool = False        # (changed: added)
     notes: tuple[str, ...] = ()    # (changed: added)
+    anchor_rank: dict | None = None  # (changed: added) anchor_holdout: the anchor among the rest
     def to_dict(self) -> dict; def summary_table(self) -> pandas.DataFrame
 
 def evaluate(detector: Detector, ds: Dataset, spec: EvalSpec) -> EvalReport
@@ -1054,6 +1056,19 @@ of importing it.)
   empty or mistyped `ks`) and accepts `"recall_at_k"` in `metrics` alongside the four
   contracted names. `EvalSpec.to_dict` summarises `anchor_mask` by its size rather than
   copying it.
+- Under `split="anchor_holdout"` the test set is the anchor, so `EvalReport.metrics` is
+  within-anchor discrimination (a float `k` is a fraction of the anchor's labeled rows) and
+  never scores a non-anchor row; it cannot show that the anchor ranks above the rest.
+  `EvalReport.anchor_rank` was added for that: the fitted copy scores the anchor and the
+  comparison rows in one call, and the report gives each anchor row's percentile among the
+  comparison rows (ties count half), their mean `auc_anchor_vs_comparison` and median, the
+  same mean over the anchor's positives, and whether the comparison rows were the training
+  rows or held out. `EvalSpec.comparison_mask` (default `None`, which compares with every
+  non-anchor row) names non-anchor rows to keep out of the fit and compare with instead;
+  it raises with any other split, when it overlaps the anchor, selects nothing, or leaves
+  nothing to train on. `EvalSpec.to_dict` summarises it as `{"n_rows", "n_comparison"}`.
+  Both fields are additive: with `comparison_mask=None` the fold, the fit and `metrics` are
+  what they were, and every other split is untouched.
 - `Dataset` validates on construction: `X` must be a DataFrame, companion series must match
   in length and index, `unit_id` must be unique, and `y` may hold only 0, 1 or NaN. An index
   mismatch is an error rather than something pandas resolves silently, because silent

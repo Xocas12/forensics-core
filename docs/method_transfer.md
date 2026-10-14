@@ -162,8 +162,9 @@ EvalSpec(
     train_end=None,  # temporal: last training period, inclusive
     n_splits=5,  # group_kfold: number of folds, at least 2
     anchor_mask=None,  # anchor_holdout: boolean Series, True = rows that ARE the anchor
-    ks=(0.01, 0.05, 0.10),  # ints are counts, floats in (0, 1) are fractions of the test set
+    ks=(0.01, 0.05, 0.10),  # ints are counts, floats in (0, 1) fractions of labeled test rows
     metrics=("roc_auc", "average_precision", "ndcg_at_k", "precision_at_k"),
+    comparison_mask=None,  # anchor_holdout: non-anchor rows held out of fit; section 5
 )
 ```
 
@@ -176,7 +177,9 @@ The four splits, in this programme's terms:
 - `"group_kfold"` wraps `sklearn.model_selection.GroupKFold` so a whole firm, province or
   year sits on one side of the split. This is the guard against a detector learning a
   region's fixed characteristics instead of its distortion.
-- `"anchor_holdout"` holds out an anchor event and trains on the rest. Section 5.
+- `"anchor_holdout"` holds out an anchor event and trains on the rest. Its metrics are
+  computed inside the anchor; where the anchor ranks against the rest is
+  `EvalReport.anchor_rank`. Section 5.
 - `"none"` fits and scores the same labeled rows. The resulting metrics are in-sample, and
   the report says so in `EvalReport.in_sample` and in a note attached to the numbers.
 
@@ -187,8 +190,8 @@ that the `@k` entries are *spec* names: in the report they appear expanded per c
 
 Rank metrics, not accuracy, because the base rate is tiny in every project here. A detector
 that flags nothing is right almost always. `EvalSpec.to_dict()` gives a JSON-friendly view
-in which `anchor_mask` is summarised by `{"n_rows": ..., "n_anchor": ...}` rather than
-copied.
+in which `anchor_mask` is summarised by `{"n_rows": ..., "n_anchor": ...}` and
+`comparison_mask` by `{"n_rows": ..., "n_comparison": ...}` rather than copied.
 
 ### `EvalReport`
 
@@ -202,7 +205,8 @@ What `evaluate` returns:
 | `per_fold` | One dict per fold with `fold`, `n_train` (rows given to `fit`), `n_test` (labeled test rows scored), `n_test_rows` (all test rows scored), `n_pos_test`, `metrics`, `test_unit_ids`, `skipped`, `reason`. |
 | `n_train`, `n_test`, `n_pos_test` | Sums over folds. Under `group_kfold`, `n_train` counts a row once per fold that trained on it, so it exceeds the sample size. |
 | `in_sample` | `True` when `spec.split == "none"`. |
-| `notes` | Warnings worth carrying with the numbers: skipped folds, in-sample scoring. |
+| `notes` | Warnings worth carrying with the numbers: skipped folds, in-sample scoring, and under `anchor_holdout` what the metrics do and do not compare. |
+| `anchor_rank` | `anchor_holdout` only, otherwise `None`: where the anchor stands among the comparison rows. `auc_anchor_vs_comparison`, `median_percentile`, `auc_positives_vs_comparison`, the row counts, whether the comparison rows were `"training_rows"` or `"held_out"`, and one `percentiles` entry per anchor row (`unit_ids`). Section 5. |
 
 `report.summary_table()` returns a tidy one-row-per-metric DataFrame carrying `detector`,
 `dataset`, `split`, `in_sample`, `n_train`, `n_test`, `n_pos_test`, `metric`, `value`.
@@ -225,6 +229,8 @@ The mechanics, which matter for reading any number it returns:
   in `per_fold` with a reason, added to `notes`, and left out of the averages. Rank metrics
   are undefined there, and the harness says so instead of inventing a value.
 - If no fold was usable, `evaluate` raises rather than returning an empty report.
+- Under `anchor_holdout` the same fitted copy also scores the anchor together with the
+  comparison rows, in one call, and fills `anchor_rank`. Section 5.
 
 ### `transfer(...) -> TransferResult`
 
@@ -501,6 +507,37 @@ EvalSpec(split="anchor_holdout", anchor_mask=mask, ks=(10,), metrics=("roc_auc",
 become the test set; training uses everything else. The mask must select at least one row
 and must not select every row; both cases raise.
 
+The report carries two numbers here, and they answer different questions.
+
+- **`EvalReport.metrics` is within-anchor discrimination.** It is computed on the anchor's
+  labeled rows and on nothing else: `roc_auc` is how well the detector separates the
+  anchor's positives from the anchor's negatives, and a float `k` is a fraction of the
+  anchor's labeled rows, not of the panel. No non-anchor row is ever scored for it, so it
+  cannot say that the anchor ranks above the rest. A detector that puts the whole anchor
+  below every other row, but orders the anchor correctly inside itself, gets 1.0 here.
+- **`EvalReport.anchor_rank` is where the anchor stands among the rest.** The fitted
+  detector scores the anchor rows and the comparison rows in one call. Each anchor row gets
+  a percentile, the share of comparison rows it outscores with ties counting half, and
+  `auc_anchor_vs_comparison` is their mean: the probability that an anchor row outscores a
+  comparison row, 0.5 for no lift, 1.0 for the whole anchor above every comparison row.
+  `auc_positives_vs_comparison` is the same mean over the anchor rows labelled 1 (`None`
+  if there are none), `median_percentile` is the median, and `unit_ids` with `percentiles`
+  give it row by row.
+
+By default the comparison rows are every non-anchor row. Those are also the rows the
+detector was fitted on, which is exact for a `FunctionDetector` (its `fit` ignores its
+rows) and in-sample for a detector that learns from them; `anchor_rank["comparison"]` says
+`"training_rows"` and a note on the report says the rest. To compare the anchor with rows
+the detector never saw, pass `comparison_mask`, a boolean Series of non-anchor rows. Those
+rows are kept out of the fit, including the unlabeled pool a `PUDetector` is otherwise
+handed, and `anchor_rank["comparison"]` says `"held_out"`. The comparison mask must not
+overlap the anchor, must select at least one row and must leave rows to train on; each
+case raises. It is accepted with `split="anchor_holdout"` only.
+
+```python
+EvalSpec(split="anchor_holdout", anchor_mask=mask, comparison_mask=held, ks=(10,))
+```
+
 The `gosplan` anchor is the **Uzbek cotton affair, 1978-1983**: reported Uzbek raw cotton
 output was systematically padded across roughly a decade, exposed in the 1980s, followed by
 prosecutions and revised figures. The magnitude, the internal inconsistency between two
@@ -513,13 +550,14 @@ one region-and-period where the answer is known and a large body of rows where i
 `temporal` would put the anchor on whichever side of a date it happens to fall.
 `group_kfold` would need several known-distorted groups and there is one. `none` would fit
 and score on the same rows and say so. `anchor_holdout` at least states the design
-explicitly: hold out the event, train on everything else, and see whether the anchor rows
-rise.
+explicitly: hold out the event, train on everything else, and read `anchor_rank` to see
+whether the anchor rows rise.
 
 What it buys, and what it does not:
 
 - It buys a **direction check**. The claim it can support is "the detector, trained without
-  the anchor rows, ranks them above the rest". `projects/gosplan/docs/validation_anchors.md`
+  the anchor rows, ranks them above the rest", and the number behind that claim is
+  `anchor_rank`, not `metrics`. `projects/gosplan/docs/validation_anchors.md`
   puts it as: direction and window are what the detector must recover, an upward bias
   concentrated in the late 1970s and early 1980s, ending with the exposure.
 - It does not buy an out-of-sample validation, because the anchor is also the event the
@@ -530,8 +568,11 @@ What it buys, and what it does not:
   `EvalSpec.to_dict()` records only its size (`n_rows`, `n_anchor`), not its logic.
 - Under `anchor_holdout` there is exactly one fold, so `EvalReport.metrics` is that fold's
   metrics and nothing is averaged. If the held-out anchor rows contain no negative among the
-  labeled rows, the fold is skipped and `evaluate` raises because no fold was usable. That
-  failure is informative: it means the mask defines a test set with no contrast in it.
+  labeled rows, the fold is skipped and `evaluate` raises because no fold was usable, so no
+  `anchor_rank` comes back either. That failure is informative: it means the mask defines a
+  test set with no contrast inside it. Adding presumed-clean rows to the mask makes the
+  metrics computable, but what they then measure is within-anchor discrimination; the
+  direction check is still `anchor_rank`.
 
 ---
 
