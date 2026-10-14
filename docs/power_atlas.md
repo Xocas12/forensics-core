@@ -43,7 +43,8 @@ row is 1.00 at every n and the lookup refuses. For an order-dependent test, use 
 population built from a process as persistent as the honest series the test will meet; an iid
 population would hide the same failure the shuffle hides. The sampler is recorded in the
 atlas's settings (`settings["sampling"]`), so two atlases measured with different samplers are
-two atlases. Windows can overlap, so their replicates are not independent and `power_se`
+two atlases, and `publish_atlas` refuses settings that name a sampler other than the one the
+curve was measured with. Windows can overlap, so their replicates are not independent and `power_se`
 understates the uncertainty unless the population is many times longer than `n`.
 
 ## The frozen format

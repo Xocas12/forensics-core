@@ -399,6 +399,31 @@ def test_settings_that_contradict_the_sampler_are_refused():
         )
 
 
+def test_publishing_cannot_relabel_the_sampler(tmp_path):
+    """The published record is what the lookup and a citation read, so it must name the
+    sampler that produced the numbers. A shuffled-units curve published as "contiguous" would
+    be the blind spot again, under a label that says it was fixed."""
+    atlas = power_curve(
+        population(),
+        shift_test,
+        shift_injector,
+        method="m",
+        effect_sizes=(0.5,),
+        sample_sizes=(100,),
+        n_replicates=5,
+    )
+    path = tmp_path / "m.parquet"
+    with pytest.raises(AtlasError, match="different measurement"):
+        publish_atlas(atlas, path, settings={"sampling": "contiguous"})
+    assert not path.exists(), "a refused publication must leave no file behind"
+
+    # settings that agree with the measurement, or add to it, still publish
+    publish_atlas(atlas, path, settings={"sampling": "units", "note": "agrees"})
+    published = power_lookup(path).select("m").settings
+    assert published["sampling"] == "units"
+    assert published["note"] == "agrees"
+
+
 # ---------------------------------------------------------------- storage
 
 

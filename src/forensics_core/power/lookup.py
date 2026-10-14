@@ -323,7 +323,9 @@ def publish_atlas(
         be told, or published as ``None`` ("measured once, unrepeatable").
     settings : mapping, optional
         Further estimator settings to record. They are part of the atlas: two atlases that
-        differ here are different atlases.
+        differ here are different atlases. They may add to the frame's recorded settings but
+        not contradict its ``sampling``: a curve measured on shuffled units published as
+        ``"contiguous"`` would carry a label saying the order was kept when it was not.
 
     Returns
     -------
@@ -333,7 +335,15 @@ def publish_atlas(
     """
     spec = frame.attrs.get("spec")
     merged: dict[str, Any] = dict(getattr(spec, "settings", None) or {})
-    merged.update(dict(settings or {}))
+    given = dict(settings or {})
+    measured_with = merged.get("sampling")
+    if measured_with is not None and given.get("sampling", measured_with) != measured_with:
+        raise AtlasError(
+            f"the frame was measured with sampling={measured_with!r} but settings gives "
+            f"sampling={given['sampling']!r}; publishing it under another sampler would "
+            "describe a different measurement"
+        )
+    merged.update(given)
 
     column_method = _column_method(frame)
     if method is not None and column_method and method != column_method:
