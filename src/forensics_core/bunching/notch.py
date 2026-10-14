@@ -332,13 +332,27 @@ def scan_candidate_notches(
 
     Notes
     -----
-    The ranking is descriptive, not a test: with many candidates the top one is selected on
-    the same data it is measured on. Confirm the winner with
-    :func:`forensics_core.bunching.inference.placebo_test` (are neighbouring, incentive-free
-    thresholds as extreme?) and
-    :func:`forensics_core.bunching.inference.bootstrap_bunching` (is the excess mass
-    distinguishable from zero?), and prefer candidates named in advance by the incentive
-    scheme over candidates found by scanning.
+    The ranking is descriptive, not a test. Row 0 is the largest of ``k`` estimates, chosen
+    on the same data it is measured on, so a scanned winner is **exploratory** until a
+    selection-aware test confirms it. The confirmation is
+    :func:`forensics_core.bunching.inference.scan_placebo_test`, given every candidate that
+    was scanned and a set of incentive-free placebo thresholds: it compares the winner with
+    the maximum over every ``k``-sized set of the pooled candidates and placebos. It cannot
+    confirm anything at level ``alpha`` with fewer than ``k * (1 - alpha) / alpha``
+    placebos (95 for five candidates at 0.05).
+
+    Two checks that look like confirmation are not:
+
+    * :func:`forensics_core.bunching.inference.placebo_test` on the winner treats it as if
+      it had been named in advance. With no bunching anywhere and exchangeable thresholds,
+      the best of five candidates beats all of 20 placebos, and passes at 0.05, with
+      probability ``5/25 = 0.20``.
+    * :func:`forensics_core.bunching.inference.bootstrap_bunching` measures the sampling
+      variability of the excess at a fixed threshold, not the selection. Use it for the
+      size of the excess once the winner is confirmed, not to confirm it.
+
+    Prefer candidates named in advance by the incentive scheme over candidates found by
+    scanning: a single pre-named threshold is tested by ``placebo_test`` alone.
     """
     _check_side(side)
     cand = np.asarray(list(candidates), dtype=float)

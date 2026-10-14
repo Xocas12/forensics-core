@@ -157,7 +157,10 @@ def test_placebo_test_singles_out_the_real_threshold():
     assert result.method == "bunching_placebo"
     assert result.details["alternative"] == "greater"
     assert result.details["n_placebo"] == len(PLACEBOS)
-    assert result.pvalue == 0.0
+    # no placebo reaches the real threshold, so the default (add-one) p-value is its floor
+    assert result.details["n_at_least_observed"] == 0
+    assert result.pvalue == pytest.approx(1.0 / (1.0 + len(PLACEBOS)))
+    assert result.details["add_one"] is True
     assert result.statistic > 0.5
     # the placebos see essentially nothing
     assert np.max(np.abs(result.details["placebo_values"])) < 0.15
@@ -169,6 +172,49 @@ def test_placebo_add_one_never_returns_zero():
     result = placebo_test(x, THRESHOLD, factory, PLACEBOS, add_one=True)
     assert result.pvalue == pytest.approx(1.0 / (1.0 + len(PLACEBOS)))
     assert result.details["add_one"] is True
+
+
+def test_placebo_plain_share_is_still_available():
+    x = lognormal_with_bunching(seed=20260903, n_moved=2_000)
+    result = placebo_test(x, THRESHOLD, factory, PLACEBOS, add_one=False)
+    assert result.pvalue == 0.0
+    assert result.details["add_one"] is False
+
+
+@pytest.mark.parametrize("n_placebo", [6, 20, 39])
+def test_placebo_default_has_size_at_most_alpha_for_a_prenamed_threshold(n_placebo):
+    """Exact size of the default p-value under the null, for a threshold named in advance.
+
+    With no bunching and exchangeable thresholds, the real threshold's excess is equally
+    likely to hold any of the ``n_placebo + 1`` ranks among the pooled values. The statistic
+    below ignores the fit and returns an assigned rank, so the test can walk the real
+    threshold through every rank and count how often the default p-value rejects.
+    """
+    x = smooth_lognormal(seed=7, n=20_000)
+    thresholds = [80.0 + 2.0 * i for i in range(n_placebo + 1)]
+    fits = {t: factory(t)(x) for t in thresholds}
+    real, placebos = thresholds[0], thresholds[1:]
+    rank: dict[float, float] = {}
+
+    def cached(t: float):
+        return lambda _x: fits[t]
+
+    def statistic(result) -> float:
+        return rank[float(result.threshold)]
+
+    pvalues = []
+    for real_rank in range(n_placebo + 1):
+        others = [r for r in range(n_placebo + 1) if r != real_rank]
+        rank.clear()
+        rank[real] = float(real_rank)
+        rank.update({t: float(r) for t, r in zip(placebos, others, strict=True)})
+        pvalues.append(placebo_test(x, real, cached, placebos, statistic=statistic).pvalue)
+
+    pvalues = np.asarray(pvalues)
+    for alpha in (0.01, 0.05, 0.10):
+        assert np.mean(pvalues <= alpha) <= alpha
+    # the default can still reject: at the top rank it returns its floor 1 / (n_placebo + 1)
+    assert pvalues.min() == pytest.approx(1.0 / (n_placebo + 1.0))
 
 
 def test_placebo_test_is_unremarkable_on_a_smooth_density():

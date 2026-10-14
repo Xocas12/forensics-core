@@ -381,6 +381,7 @@ def scan_candidate_notches(x, candidates: Sequence[float], *, bin_width, exclude
     #   normalized_excess, n_in_window, side]; sorted by normalized_excess descending,
     #   index reset so row 0 is the best candidate.
     # Typical candidates: 100 (plan fulfilment), round vote shares, growth targets.
+    # Row 0 is exploratory until inference.scan_placebo_test confirms it.  (changed: added)
 ```
 
 (changed during implementation:
@@ -430,8 +431,13 @@ def bootstrap_bunching(x, estimator: Callable[[np.ndarray], BunchingResult], *,
 def placebo_test(x, threshold, estimator_factory: Callable[[float], Callable],
                  placebo_thresholds: Sequence[float], *,
                  statistic: str | Callable = "normalized_excess",   # (changed: added)
-                 add_one: bool = False                              # (changed: added)
+                 add_one: bool = True                   # (changed: added; default now True)
                  ) -> TestResult
+
+def scan_placebo_test(x, candidates: Sequence[float],                # (changed: new)
+                      estimator_factory: Callable[[float], Callable],
+                      placebo_thresholds: Sequence[float], *,
+                      statistic: str | Callable = "normalized_excess") -> TestResult
 
 def permutation_test(x, groups, statistic: Callable[[np.ndarray], float],
                      n_perm: int = 999, seed=None) -> TestResult
@@ -439,8 +445,11 @@ def permutation_test(x, groups, statistic: Callable[[np.ndarray], float],
 
 `residual` resamples bin-level residuals (Chetty et al. 2011); `pairs` resamples units.
 `placebo_test` compares the excess at the real threshold with the excess at placebo
-thresholds; `p` is the share of placebos at least as extreme, and `details` carries the
-placebo thresholds, their values, the count at least as extreme, and the placebo mean and sd.
+thresholds; `p` is the rank of the real threshold among them (by default
+`(1 + #{placebo >= observed}) / (1 + n_placebo)`), and `details` carries the placebo
+thresholds, their values, the count at least as extreme, and the placebo mean and sd.
+`scan_placebo_test` does the same for the winner of `scan_candidate_notches`, against the
+maximum over every k-sized set of the pooled candidates and placebos.
 
 (changed during implementation:
 
@@ -451,9 +460,20 @@ placebo thresholds, their values, the count at least as extreme, and the placebo
   `"normalized_excess"`, because the counterfactual level differs between thresholds and raw
   masses at different thresholds are not comparable.
 - `add_one` on `placebo_test` switches to `(1 + #{placebo >= observed}) / (1 + n_placebo)`,
-  the never-zero permutation p-value of Phipson and Smyth (2010). The default `False` is the
-  plain share fixed by this contract, which can return exactly 0 and should not be reported
-  as if a p-value of zero had been measured.
+  the never-zero permutation p-value of Phipson and Smyth (2010). It was added with default
+  `False`, the plain share this contract first fixed, and the default is now `True`. The
+  plain share is anticonservative as well as able to return exactly 0: for a threshold named
+  in advance and exchangeable placebos its size is `(floor(alpha * m) + 1) / (m + 1)`, which
+  is 2/21 = 0.095 at alpha 0.05 with 20 placebos, against 1/21 = 0.048 for the add-one form.
+  `add_one=False` still returns the plain share.
+- `scan_placebo_test` is new. `placebo_test` on the winner of a scan ignores that the winner
+  was the largest of k estimates: with no bunching anywhere, the best of five candidates
+  beats all of 20 placebos with probability 5/25 = 0.20. The scan test takes every candidate
+  that was scanned, recomputes the winner with the factory, and returns the exact
+  permutation p-value `1 - C(k + m - r, k) / C(k + m, k)`, where `r` counts the pooled values
+  at least as large as the winner's. With k = 1 it equals the add-one placebo p-value. Its
+  floor is `k / (k + m)` (`details["min_attainable_pvalue"]`), so it needs
+  `m >= k * (1 - alpha) / alpha` placebos to reject at all: 95 for five candidates at 0.05.
 - `permutation_test` always uses the add-one form (there is no contract text to preserve
   here), tests two groups two-sided on `|T|` and more than two groups one-sided on the range
   `max_g - min_g`, and reports `per_group_statistic`, `group_sizes` and the permutation
