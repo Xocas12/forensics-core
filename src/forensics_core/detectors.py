@@ -333,10 +333,12 @@ def too_smooth_detector(
     ``detrend`` is required, and passed straight to
     :func:`~forensics_core.dispersion.underdispersion.too_smooth_test`. The test's own default,
     ``"diff"``, is the exact null only for random-walk-like series; on stationary or iid units
-    it gives honest units a p-value near 1, so the ranking it produces says nothing. Which null
-    fits depends on how the project's series behave, which this module cannot know, so the
-    caller states it: ``"diff"`` for random-walk-like series, ``"linear"`` for
-    trend-stationary ones, ``"none"`` for series that are supposed to be stationary.
+    it gives honest units a p-value near 1, so it is blind to anything short of extreme
+    smoothing (power 0 against a 50 or 80 per cent variance loss on exchangeable samples at
+    each of n = 50, 100, 300 and 1000, see docs/power_atlas.md). Which null fits depends on
+    how the project's series behave, which this module cannot know, so the caller states it:
+    ``"diff"`` for random-walk-like series, ``"linear"`` for trend-stationary ones, ``"none"``
+    for series that are supposed to be stationary.
 
     ``n_perm`` defaults below the estimator's own default because this runs a permutation test
     per unit; raise it when the ranking near the top matters more than the runtime.

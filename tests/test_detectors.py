@@ -157,8 +157,8 @@ def test_too_smooth_scores_a_smooth_series_higher_not_lower():
 
 def test_too_smooth_has_no_default_detrend():
     """The test's own default, "diff", gives honest stationary units p near 1, so a detector
-    that inherited it silently would rank stationary units on nothing. The caller has to say
-    which null fits the series."""
+    that inherited it silently would be blind to all but extreme smoothing on stationary units
+    without saying so. The caller has to say which null fits the series."""
     with pytest.raises(TypeError, match="detrend"):
         make_detector("too_smooth")
     with pytest.raises(ValueError, match="detrend must be one of"):
