@@ -302,6 +302,68 @@ def test_by_group_survives_a_group_with_no_usable_unit():
     assert tiny["n_excluded_small"] == 20
 
 
+def _three_regions(seed: int = 11):
+    """Three groups of 600 honest units each, denominators 500..3000."""
+    num, den = _honest_units(seed=seed, n=1_800)
+    pct = percentage(num, den)
+    groups = np.repeat(np.array(["A", "B", "C"]), 600)
+    return pct, den.astype(float), groups
+
+
+def test_by_group_raises_naming_the_group_on_a_percentage_above_100():
+    pct, den, groups = _three_regions()
+    pct[600] = 100.4  # first row of group B
+    with pytest.raises(ValueError, match=r"group 'B'.*\[0, 100\]"):
+        integer_excess_by_group(pct, den, groups, n_mc=10, seed=1)
+
+
+def test_by_group_raises_naming_the_group_on_a_non_integer_denominator():
+    pct, den, groups = _three_regions()
+    den[601] = 1000.5  # a group B row, well above min_denominator
+    with pytest.raises(ValueError, match=r"group 'B'.*integer-valued"):
+        integer_excess_by_group(pct, den, groups, n_mc=10, seed=1)
+
+
+@pytest.mark.parametrize(
+    ("setting", "message"),
+    [
+        ({"tolerance": 0.7}, "tolerance"),
+        ({"n_mc": 0}, "n_mc"),
+        ({"min_denominator": 0}, "min_denominator"),
+        ({"neighbour_bins": -1}, "neighbour_bins"),
+    ],
+)
+def test_by_group_raises_on_an_invalid_setting(setting, message):
+    pct, den, groups = _three_regions()
+    with pytest.raises(ValueError, match=message):
+        integer_excess_by_group(pct, den, groups, seed=1, **setting)
+
+
+def test_by_group_checks_settings_even_when_every_group_is_empty():
+    den = np.full(30, 10.0)
+    pct = np.full(30, 50.0)
+    groups = np.repeat(np.array(["a", "b"]), 15)
+    with pytest.raises(ValueError, match="tolerance"):
+        integer_excess_by_group(pct, den, groups, tolerance=0.7)
+    with pytest.raises(TypeError, match="tolernce"):
+        integer_excess_by_group(pct, den, groups, tolernce=0.1)
+
+
+def test_by_group_empty_group_counts_small_and_non_finite_rows_separately():
+    num, den = _honest_units(seed=7, n=300)
+    pct = np.concatenate([percentage(num, den), np.full(20, 50.0), [np.nan, 40.0, np.nan]])
+    den = np.concatenate([den.astype(float), np.full(20, 10.0), [500.0, np.nan, 800.0]])
+    groups = np.array(["big"] * 300 + ["tiny"] * 23)
+    table = integer_excess_by_group(pct, den, groups, n_mc=20, seed=3).set_index("group")
+    tiny = table.loc["tiny"]
+    assert tiny["n"] == 0
+    assert np.isnan(tiny["z"])
+    assert tiny["n_excluded_small"] == 20
+    assert tiny["n_dropped"] == 3
+    assert table.loc["big", "n"] == 300
+    assert table.loc["big", "n_dropped"] == 0
+
+
 def test_by_group_length_mismatch_raises():
     num, den = _honest_units(seed=7, n=50)
     with pytest.raises(ValueError, match="same length"):
