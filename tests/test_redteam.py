@@ -349,9 +349,21 @@ def test_a_detector_that_crashes_is_recorded_rather_than_dropped():
     def broken(s):
         raise RuntimeError("no")
 
-    (r,) = red_team({"broken": broken}, [sample])
+    results = red_team({"broken": broken}, [sample])
+    (r,) = results
     assert r.fired is False
     assert "RuntimeError" in r.detail["error"], "a crash must be visible in the record"
+    assert survivors(results, "broken") == [], "a detector that crashed withstood nothing"
+    table = format_redteam_table(results)
+    assert "ERROR" in table
+    assert "1 of 1 pairs errored" in table
+    assert "broken on elections-1 — error: RuntimeError: no" in table
+    assert "No detector fired" not in table, "a pass where nothing answered fired on nothing"
+
+    from forensics_core.redteam import errors
+
+    assert r.errored and "RuntimeError" in r.error
+    assert errors(results) == [r]
 
 
 def test_survivors_lists_what_a_detector_withstood():
@@ -365,10 +377,36 @@ def test_a_detector_that_excludes_every_unit_is_recorded_as_an_error_not_a_pass(
     not the detector surviving the trap; it is the detector declining to answer, and a report
     that scored it as a survival would be reading a refusal as a clean bill of health."""
     _, tiny = small_units(500, [60, 80], seed=15)
-    (r,) = red_team({"integer_excess_conditioned": integer_test_conditioned}, [tiny])
+    results = red_team({"integer_excess_conditioned": integer_test_conditioned}, [tiny])
+    (r,) = results
     assert r.fired is False
     assert r.pvalue is None
     assert "no unit survives exclusion" in r.detail["error"]
+    assert survivors(results, "integer_excess_conditioned") == [], (
+        "a refusal to answer must not be listed as surviving the trap"
+    )
+    assert casualties(results) == []
+    table = format_redteam_table(results)
+    assert "no unit survives exclusion" in table
+    assert "No detector fired" not in table
+    assert r.errored
+
+
+def test_the_table_lists_errors_beside_firings_and_a_none_pvalue_is_an_error():
+    _, sample = small_units(500, [200], seed=17)
+    results = red_team(
+        {"always_fires": lambda s: 0.0, "no_answer": lambda s: None, "fine": lambda s: 0.9},
+        [sample],
+    )
+    assert survivors(results, "no_answer") == []
+    assert survivors(results, "fine") == ["elections-1"]
+    table = format_redteam_table(results)
+    assert "1 of 3 pairs fired on honest data" in table
+    assert "1 of 3 pairs errored" in table
+    assert "no_answer on elections-1 — error: detector produced no usable p-value" in table
+    by_name = {r.detector: r for r in results}
+    assert by_name["no_answer"].errored
+    assert not by_name["fine"].errored
 
 
 def test_an_empty_pass_is_refused():
@@ -401,6 +439,37 @@ def test_the_ocr_gate_finds_a_firing_threshold_and_closes_below_it():
         "a detector that was never made to fire has not been shown safe; the gate must stay "
         "shut and the grid must be widened"
     )
+
+
+def test_the_ocr_threshold_is_read_over_the_replicates_the_detector_answered():
+    """A detector that fires on every answer but refuses 70% of the time used to read 0.3 at
+    every rate, under fire_share 0.5, and so was reported as never firing."""
+    values = np.random.default_rng(16).integers(10000, 99999, size=500).astype(float)
+    rng = np.random.default_rng(0)
+
+    def fires_when_it_answers(sample):
+        if rng.random() < 0.7:
+            raise ValueError("refused")
+        return 0.0
+
+    threshold = ocr_firing_threshold(
+        fires_when_it_answers, values, error_rates=(0.01, 0.1), n_replicates=40, seed=2
+    )
+    assert threshold == 0.01
+
+
+def test_the_ocr_threshold_refuses_to_step_past_a_rate_it_could_not_measure():
+    values = np.random.default_rng(16).integers(10000, 99999, size=500).astype(float)
+
+    def refuses_at_low_rates(sample):
+        if sample.truth["error_rate"] < 0.05:
+            raise ValueError("too few readable digits")
+        return 0.0
+
+    with pytest.raises(RedTeamError, match="refused on all"):
+        ocr_firing_threshold(
+            refuses_at_low_rates, values, error_rates=(0.01, 0.1), n_replicates=5, seed=2
+        )
 
 
 def test_the_gate_opens_only_below_a_measured_firing_threshold():

@@ -386,3 +386,54 @@ def test_unknown_semantics_are_refused():
     num, den = panel(10)
     with pytest.raises(AggregationError, match="semantics must be one of"):
         aggregate(num, den, None, semantics="whatever")
+
+
+def test_a_refusal_is_counted_beside_the_ladder_rate_rather_than_as_a_non_rejection():
+    """The ladder's guard has the same hole as the atlas's: a test refusing 70% of the time and
+    rejecting 25% of its answers read about 0.08 when refusals counted as non-rejections."""
+    rng = np.random.default_rng(0)
+
+    def refuses(num, den, pct):
+        if rng.random() < 0.7:
+            raise ValueError("refused")
+        return 0.001 if rng.random() < 0.25 else 0.5
+
+    num, den = panel(400)
+    ladder = aggregation_ladder(
+        num,
+        den,
+        [("precinct", None)],
+        refuses,
+        round_injector,
+        effect_sizes=(0.5,),
+        n_replicates=400,
+        semantics=("sum_then_ratio",),
+    )
+    zero = ladder[ladder["effect_size"] == 0.0].iloc[0]
+    # about 120 answered replicates, so the standard error of 0.25 is about 0.04
+    assert abs(zero["false_positive_rate"] - 0.25) < 0.1, (
+        f"false-positive rate {zero['false_positive_rate']:.4f}; refusals were counted as "
+        "non-rejections if this reads about 0.075"
+    )
+    assert 240 <= zero["n_failed"] <= 320
+    assert zero["refusal_share"] == zero["n_failed"] / 400
+    assert (ladder["false_positive_rate"] > 0.2).all()
+
+
+def test_a_ladder_cell_where_the_test_never_answered_has_no_power():
+    def never(num, den, pct):
+        raise ZeroDivisionError("nothing to test")
+
+    num, den = panel(100)
+    ladder = aggregation_ladder(
+        num,
+        den,
+        [("precinct", None), ("group_4", nested_keys(num.size, 4))],
+        never,
+        round_injector,
+        effect_sizes=(0.5,),
+        n_replicates=5,
+    )
+    assert (ladder["n_failed"] == 5).all()
+    assert ladder["power"].isna().all(), "zero would claim the test never rejects"
+    assert coarsest_level_with_power(ladder, 0.5, target_power=0.0) is None

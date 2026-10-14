@@ -66,6 +66,7 @@ from forensics_core.power.atlas import (
     load_atlas,
     minimum_detectable_effect,
     save_atlas,
+    with_refusal_columns,
 )
 
 __all__ = [
@@ -223,7 +224,13 @@ class PowerLookup:
         return matches[0]
 
     def minimum_detectable_effect(
-        self, method: str, n: int, *, aggregation: str = UNIT_RUNG, power: float = 0.8
+        self,
+        method: str,
+        n: int,
+        *,
+        aggregation: str = UNIT_RUNG,
+        power: float = 0.8,
+        max_refusal_share: float | None = None,
     ) -> float:
         """The smallest measured effect reaching ``power`` at sample size ``n``.
 
@@ -236,10 +243,16 @@ class PowerLookup:
         AtlasError
             If the lookup holds no atlas for ``(method, aggregation)``, or the atlas does not
             cover ``n``, or its measured effects never reach ``power`` there, or its
-            false-positive rate at ``n`` is too far above nominal for the power to be read.
+            false-positive rate at ``n`` is too far above nominal for the power to be read, or
+            the test refused too often there; see ``max_refusal_share`` in
+            :func:`forensics_core.power.atlas.minimum_detectable_effect`.
         """
         atlas = self.select(method, aggregation=aggregation)
-        return float(minimum_detectable_effect(atlas.frame, n, target_power=power))
+        return float(
+            minimum_detectable_effect(
+                atlas.frame, n, target_power=power, max_refusal_share=max_refusal_share
+            )
+        )
 
     def detectable(
         self, method: str, n: int, effect: float, *, aggregation: str = UNIT_RUNG
@@ -358,6 +371,7 @@ def publish_atlas(
                 "frame with no ladder is a unit-level curve and can only be published at "
                 f"{UNIT_RUNG!r}."
             )
+        frame = with_refusal_columns(frame)
         _require_columns(frame, ATLAS_COLUMNS, "a unit-level atlas")
         stored = frame[ATLAS_COLUMNS].copy()
         stored["method"] = resolved
@@ -420,7 +434,9 @@ def _from_ladder(
                 s: subset[subset["semantics"] == s].sort_values("effect_size") for s in available
             }
             first, second = (by_semantics[s] for s in available[:2])
-            if not np.allclose(first["power"].to_numpy(), second["power"].to_numpy()):
+            if not np.allclose(
+                first["power"].to_numpy(), second["power"].to_numpy(), equal_nan=True
+            ):
                 raise AtlasError(
                     f"rung {level!r} carries both semantics {available} and they disagree: they "
                     "are two different atlases and one stored file cannot hold both. Pass "
@@ -434,7 +450,7 @@ def _from_ladder(
         "semantics": semantics,
         "mean_group_size": float(group_sizes[0]) if group_sizes.size == 1 else None,
     }
-    stored = subset.rename(columns={"n_units": "n"}).copy()
+    stored = with_refusal_columns(subset.rename(columns={"n_units": "n"}))
     stored["method"] = method
     # the rung is recorded under its canonical name, so a ladder published at its identity
     # rung is queryable as "unit" whatever the ladder happened to call that level

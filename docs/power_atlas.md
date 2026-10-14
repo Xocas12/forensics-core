@@ -31,7 +31,8 @@ whose false-positive rate at that sample size is more than twice nominal.
 One parquet file per atlas, with the columns of `ATLAS_COLUMNS` —
 
 ```
-method, n, effect_size, power, power_se, n_replicates, alpha, false_positive_rate
+method, n, effect_size, power, power_se, n_replicates, alpha, false_positive_rate,
+n_failed, refusal_share
 ```
 
 — and the measurement record in the `_spec` column. The record carries the method, `alpha`,
@@ -45,6 +46,15 @@ method, n, effect_size, power, power_se, n_replicates, alpha, false_positive_rat
 
 An atlas carrying no version is refused at load. A number whose source release cannot be named
 is not citable, and the refusal is the point.
+
+`power` and `false_positive_rate` are fractions of the replicates on which the test answered.
+A replicate on which it raised is counted in `n_failed` (and `refusal_share = n_failed /
+n_replicates`), not as a non-rejection: counted that way, a test that refuses 70% of the time
+and rejects 25% of its answers reads 0.3 x 0.25 = 0.075 in expectation and passes the
+2x-alpha guard. A cell where the test never answered has power `NaN`. A query refuses when the
+test never answered at effect zero, and `max_refusal_share=` makes it refuse above a share the
+caller states. An atlas saved before these columns existed loads with them as `NaN`, "not
+recorded". `aggregation_ladder` carries the same two columns.
 
 ## Querying it
 

@@ -228,3 +228,88 @@ def test_an_atlas_round_trips_through_parquet_with_its_spec(tmp_path):
     assert list(back["power"]) == list(atlas["power"])
     assert back.attrs["spec"].method == "mean_shift"
     assert back.attrs["spec"].alpha == 0.05
+
+
+# ---------------------------------------------------------------- refusals
+
+
+def refusing_test(refuse: float, reject: float, seed: int = 0):
+    """A test that raises on ``refuse`` of its calls and rejects ``reject`` of its answers,
+    whatever the sample. Its false-positive rate is ``reject`` by construction."""
+    rng = np.random.default_rng(seed)
+
+    def test(sample):
+        if rng.random() < refuse:
+            raise ValueError("refused")
+        return 0.001 if rng.random() < reject else 0.5
+
+    return test
+
+
+def test_a_refusal_is_counted_beside_the_rate_rather_than_as_a_non_rejection():
+    """Refusing 70% of the time and rejecting 25% of its answers is five times nominal. Read
+    over all replicates that came out as about 0.075, under the 2x-alpha guard, and the
+    calibration check passed a test it exists to stop."""
+    atlas = power_curve(
+        population(),
+        refusing_test(0.7, 0.25),
+        shift_injector,
+        method="refuses",
+        effect_sizes=(0.0, 0.5),
+        sample_sizes=(100,),
+        n_replicates=400,
+    )
+    zero = atlas[atlas["effect_size"] == 0.0].iloc[0]
+    # about 120 answered replicates, so the standard error of 0.25 is about 0.04
+    assert abs(zero["false_positive_rate"] - 0.25) < 0.1, (
+        f"false-positive rate {zero['false_positive_rate']:.4f}; refusals were counted as "
+        "non-rejections if this reads about 0.075"
+    )
+    assert 240 <= zero["n_failed"] <= 320
+    assert zero["refusal_share"] == zero["n_failed"] / 400
+    assert zero["power"] == zero["false_positive_rate"]
+    with pytest.raises(AtlasError, match="false-positive rate is"):
+        minimum_detectable_effect(atlas, 100)
+
+
+def test_a_cell_where_the_test_never_answered_has_no_power_and_is_refused():
+    def always_refuses(sample):
+        raise ValueError("no unit survives exclusion")
+
+    atlas = power_curve(
+        population(),
+        always_refuses,
+        shift_injector,
+        method="never_answers",
+        effect_sizes=(0.0, 0.5),
+        sample_sizes=(100,),
+        n_replicates=20,
+    )
+    assert (atlas["n_failed"] == 20).all()
+    assert atlas["power"].isna().all(), "zero would claim the test never rejects"
+    assert atlas["false_positive_rate"].isna().all()
+    with pytest.raises(AtlasError, match="refused on 100%"):
+        minimum_detectable_effect(atlas, 100, check_calibration=False)
+
+
+def test_a_refusal_share_limit_refuses_the_query_when_the_null_row_exceeds_it():
+    atlas = power_curve(
+        population(),
+        refusing_test(0.7, 0.0),
+        shift_injector,
+        method="refuses",
+        effect_sizes=(0.0, 0.5),
+        sample_sizes=(100,),
+        n_replicates=100,
+    )
+    with pytest.raises(AtlasError, match="refused on"):
+        minimum_detectable_effect(atlas, 100, max_refusal_share=0.5)
+    with pytest.raises(AtlasError, match="max_refusal_share"):
+        minimum_detectable_effect(atlas, 100, max_refusal_share=1.5)
+
+
+def test_an_atlas_saved_without_refusal_columns_loads_them_as_not_recorded(tmp_path):
+    atlas = small_atlas().drop(columns=["n_failed", "refusal_share"])
+    back = load_atlas(save_atlas(atlas, tmp_path / "old.parquet"))
+    assert list(back.columns) == ATLAS_COLUMNS
+    assert back["n_failed"].isna().all(), "an unrecorded refusal count is not zero"
