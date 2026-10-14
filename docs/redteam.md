@@ -77,20 +77,80 @@ construction fires 3 of 60.
 
 Note that a 5% *confusion* rate is a smaller corruption than a 5% *misread* rate: only four of
 the ten digits are confusable here, so about 2% of last digits actually change. The test is
-reacting to the shape of the corruption, not its size.
+reacting to the shape of the corruption, not its size. Every rate in the two tables above is
+`ocr_noise`'s, the chance that an eligible digit is misread; the gate below works in the share
+of digits that change.
 
 ### Consequence: the OCR gate
 
-`terminal_digit_test` **may not be run on transcribed data** until the transcription disagreement rate has been measured for the
-real inter-transcription error rate and shown it below the firing threshold. On the grid
-above the threshold is **0.05** (the lowest tested rate at which the test fires in more than
-half of replicates).
+`terminal_digit_test` **may not be run on transcribed data** until the table's transcription
+error rate has been measured and shown, with 95% confidence, to be at or below the rate at
+which the test starts reacting to transcription. `redteam.ocr_firing_threshold` computes that
+rate and `redteam.ocr_gate(threshold, measured_rate, n_compared=...)` answers whether the gate
+opens.
 
-`redteam.ocr_firing_threshold` computes that number for any detector and
-`redteam.ocr_gate(threshold, measured_rate)` answers whether the gate opens. `ocr_gate`
-returns `False` when the threshold is `None` — a detector that could not be made to fire on
-the grid tested has not been shown safe at an unmeasured rate, and the response is to widen
-the grid, not to proceed.
+**How the threshold is computed.**
+
+- *In the unit a comparison measures.* The threshold, and the rate passed to the gate, are the
+  share of digits at the tested positions that differ from the source table. Under the
+  confusion above, an `ocr_noise` rate of 0.05 is a measured rate of about 0.02;
+  `ocr_firing_threshold` converts each rate table by table. Comparing two transcriptions with
+  each other, rather than one with the source, gives a disagreement rate of about twice either
+  one's error rate while errors are rare, which errs safe, provided the two are independent.
+  Two passes of the same OCR engine make the same confusions, agree on them, and understate
+  the error.
+- *Under every corruption mode, the lowest threshold taken.* Each rate is run under a uniform
+  misread and under every glyph confusion passed, and at least one confusion is required. The
+  uniform mode alone never makes this test fire, so on its own it would pass every rate
+  tested. For a test that does react to it, it can still give the higher threshold: the Benford
+  first-digit chi-square, on 4000 five-digit Benford integers misread at the leading digit (200
+  fresh tables per rate), fired on 59/200 at a measured rate of 0.05 under uniform misreads and
+  on 103/200 at 0.01 under the confusion above.
+- *By calibration, not majority firing.* Each rate is run on 1000 fresh honest tables (a fixed
+  table is refused: how one table absorbs the noise depends on the table) and passes while the
+  one-sided 95% upper bound on the share of them on which the test fires is at most
+  α + 0.03 = 0.08. Every lower rate must pass too, and a refusal to answer counts as a firing.
+- *Against an upper bound at the gate.* `ocr_gate` opens only when the one-sided 95%
+  Clopper–Pearson upper bound of the measured rate, over the `n_compared` digits checked, is at
+  or below the threshold.
+
+**The threshold for this table shape is 0.003.** `terminal_digit_test` on 4000 five-digit
+values with uniform last digits, `confusions={3: 8, 5: 8, 6: 8, 9: 8}`, `positions=(0,)`,
+1000 tables, seed 0, `error_rates` 0.001 to 0.006 in steps of 0.001 and 0.008, 0.01, 0.015,
+0.02, 0.03, 0.05:
+
+| share of last digits changed | uniform misread | glyph confusion | higher 95% upper bound |
+|---|---|---|---|
+| 0 (clean) | 41/1000 | (the same tables) | 0.053 |
+| 0.001 | 40/1000 | 41/1000 | 0.053 |
+| 0.002 | 41/1000 | 51/1000 | 0.064 |
+| 0.003 | 38/1000 | 60/1000 | 0.074 |
+| 0.004 | 42/1000 | 74/1000 | **0.089**, above 0.08 |
+
+Three wrong last digits in a thousand. A transcription of one such table checked against its
+source on all 4000 last digits passes the gate with at most 6 errors; checked on 20,000 digits,
+with at most 47.
+
+On 20,000 further fresh tables the test fired on 0.053 of them clean, 0.068 at 0.003, 0.082 at
+0.004 and 0.098 at 0.005. The threshold stops at the last rate clearly inside the band; 0.004
+sits on its edge. The threshold also depends on the table: power grows with n, so a larger table
+needs a lower error rate. Compute it for the tables you have.
+
+Why the upper bound and not the point estimate: the same search was rerun 200 times on fresh
+seeds both ways. Holding the point estimate on 200 tables to `control.classify`'s band (0.081 at
+200 replicates) stopped at 0.004, on the band's edge, in 77 runs and at 0.005 or 0.006, where
+the test fires on 0.098 and 0.123 of honest tables, in 58. The upper bound on 1000 tables
+stopped at 0.004 in 13 runs, never higher, and gave no threshold in 1.
+
+The number this section used to quote, 0.05, was the `ocr_noise` rate at which the test fired
+on more than half of replicates, and as a gate it admitted rates where the test misfires on up
+to 83 honest tables in 100. On 100 fresh tables per rate, `ocr_gate(0.05, rate)` was open at
+`ocr_noise` rates of 0.02, 0.03, 0.04 and 0.049, where the test fired on 14, 30, 60 and 83 of
+them; the shares of last digits those rates change run from 0.008 to 0.019.
+
+`ocr_gate` returns `False` when the threshold is `None`, which means the test misfires on clean
+honest tables and no transcription can make it usable. A test that never fires on the grid gets
+the highest rate tested as its threshold, and the gate admits nothing above that.
 
 ---
 
