@@ -440,28 +440,54 @@ def too_smooth_test(
     detrend : {"none", "linear", "diff"}, default "diff"
         Which values H0 declares exchangeable. **The default ``"diff"`` is the exact test only
         for a random-walk-like series**: permuting first differences is a valid exchangeability
-        null when the increments are iid. For a stationary or trend-stationary series use
-        ``"linear"`` or ``"none"`` -- there ``"diff"`` has essentially no power, because
-        differencing "trend + iid levels" produces an MA(1) with lag-1 autocorrelation ``-1/2``
-        whose ratio sits *above* the permutation null, pinning the lower-tail p-value near 1.
-        (Calibration on 400 honest iid N(0,1) series of length 60, ``n_perm=199``: mean p was
-        0.998 under ``"diff"`` against 0.529 under ``"linear"`` and 0.492 under ``"none"``.)
-        A smoothed mean-reverting path -- AR(1) deviations, the usual fabrication shape --
-        therefore cannot be flagged under the default; an AR(1) with ``rho = 0.95`` has a
-        differenced lag-1 autocorrelation of only ``-(1 - rho)/2 = -0.025``.
+        null when the increments are iid. For a series whose deviations from a constant or a
+        straight line are iid, ``"none"`` or ``"linear"`` is the matching null -- there
+        ``"diff"`` has essentially no power, because differencing "trend + iid levels" produces
+        an MA(1) with lag-1 autocorrelation ``-1/2`` whose ratio sits *above* the permutation
+        null, pinning the lower-tail p-value near 1. (Calibration on 400 honest iid N(0,1)
+        series of length 60, ``n_perm=199``: mean p was 0.998 under ``"diff"`` against 0.529
+        under ``"linear"`` and 0.492 under ``"none"``.) A smoothed mean-reverting path -- AR(1)
+        deviations -- therefore cannot be flagged under the default; an AR(1) with
+        ``rho = 0.95`` has a differenced lag-1 autocorrelation of only
+        ``-(1 - rho)/2 = -0.025``.
+
+        **Stationary is not exchangeable: ``"none"`` and ``"linear"`` reject honest persistent
+        series.** Output levels, shares and rates usually carry over from one period to the
+        next, and an honest stationary AR(1) is rejected under both options. Measured with
+        :func:`forensics_core.redteam.persistent_series` (trap ``core-1``), ``n = 50``, seeds
+        0-99, ``n_perm=199`` with permutation seed 0, rejection rate at 0.05::
+
+            rho          0.0    0.3    0.5    0.7
+            "none"       0.05   0.64   0.95   0.99
+            "linear"     0.01   0.55   0.89   0.99
+            "diff"       0.00   0.00   0.00   0.00
+
+        ``"diff"`` is no safe harbour either: it does not reject persistent *levels*, where it
+        also has no power, but it rejects a series whose *growth rate* is persistent (a log
+        level cumulating an AR(1) growth rate) at 0.05, 0.61, 0.95 and 0.99 for the same four
+        values of ``rho``. So no option controls the false-positive rate on a realistically
+        persistent honest series. A rejection says the analysed values are not exchangeable;
+        before it is read as fabrication it has to be set against the persistence the honest
+        series is expected to have -- a control series, or a power atlas measured with
+        ``sampling="contiguous"`` on a persistent population (see
+        :func:`forensics_core.power.atlas.power_curve` and ``docs/redteam.md``).
 
         * ``"diff"``: the first differences. Detects a path whose *changes* drift smoothly --
           an accelerating or decelerating fabricated series. A genuine "trend + iid noise"
           series differences to an MA(1) with lag-1 autocorrelation ``-1/2``, so its ratio
-          sits near ``3`` and it is comfortably not rejected.
+          sits near ``3`` and it is comfortably not rejected. A persistent honest growth rate
+          is rejected.
         * ``"linear"``: residuals of an OLS fit on the time index ``0..n-1``. Detects serially
-          correlated deviations around a straight-line trend. OLS residuals are not exactly
+          correlated deviations around a straight-line trend, whether or not anyone made them:
+          honest persistent deviations are rejected too. OLS residuals are not exactly
           exchangeable (they are orthogonal to the regressors by construction), so the
           permutation p-value is an approximation here; it is exact for ``"none"`` and
           ``"diff"``.
         * ``"none"``: the levels themselves. *Any* trending series is "too smooth" under this
-          option -- it flags trends, not fabrication. Use it only where the series is supposed
-          to be stationary (a share, a rate, a residual computed elsewhere).
+          option -- it flags trends, not fabrication -- and so is any persistent stationary
+          one. A share or a rate is usually persistent, so being stationary is not enough; use
+          it only where the values should be exchangeable around a constant level, such as a
+          residual from a model that already accounts for the persistence.
     n_perm : int, default 999
         Number of random permutations; the smallest attainable p-value is ``1/(n_perm + 1)``.
         Must be ``>= 2`` -- a single draw gives no usable null distribution (and no spread).

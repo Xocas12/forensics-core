@@ -5,11 +5,12 @@ weak evidence. They picked a control they expected to pass. This module holds th
 data built by someone trying to make each detector fail, on processes that contain **no
 distortion at all**.
 
-Every generator here implements a mechanism from one of the four `known_traps.md` documents,
-and every one of them produces honest data. That is the whole point. A precinct of 100 voters
-reporting exactly 70.0% turnout did not cheat; it has 101 possible turnout values and one of
-them is an integer. A series that jumps when Chongqing separates from Sichuan was not padded.
-A digit test run on an OCR'd table detects the scanner.
+Every generator here implements a mechanism from one of the four project `known_traps.md`
+documents, or from this library's own `docs/known_traps.md` for a confound that belongs to a
+method rather than to one project's data. Every one of them produces honest data. That is the
+whole point. A precinct of 100 voters reporting exactly 70.0% turnout did not cheat; it has 101
+possible turnout values and one of them is an integer. A series that jumps when Chongqing
+separates from Sichuan was not padded. A digit test run on an OCR'd table detects the scanner.
 
 The distinction from :mod:`forensics_core.inject`
 --------------------------------------------------
@@ -61,6 +62,7 @@ __all__ = [
     "ocr_firing_threshold",
     "ocr_gate",
     "ocr_noise",
+    "persistent_series",
     "red_team",
     "reweighting",
     "small_units",
@@ -83,10 +85,22 @@ class TrapSpec:
 
 
 #: The traps these generators implement, keyed by id. The id is `<project>-<section number>`
-#: and points at that project's `docs/known_traps.md`. A generator that does not name one of
-#: these is not a red-team trap; it is an invention, and inventing a confound would overstate
-#: the detector's fragility exactly as surely as dropping one would understate it.
+#: and points at that project's `docs/known_traps.md`; the project `core` is this library, whose
+#: `docs/known_traps.md` holds confounds of a method rather than of one project's sources. A
+#: generator that does not name one of these is not a red-team trap; it is an invention, and
+#: inventing a confound would overstate the detector's fragility exactly as surely as dropping
+#: one would understate it.
 TRAPS: dict[str, TrapSpec] = {
+    "core-1": TrapSpec(
+        trap_id="core-1",
+        project="core",
+        document_section="1. Honest series are persistent",
+        summary=(
+            "Output levels, shares, rates and growth rates carry over from one period to the "
+            "next. A test whose null is that the values are exchangeable rejects that "
+            "persistence, and persistence is not fabrication."
+        ),
+    ),
     "elections-1": TrapSpec(
         trap_id="elections-1",
         project="elections",
@@ -155,8 +169,8 @@ class TrapSample:
     def __post_init__(self) -> None:
         if self.trap_id not in TRAPS:
             raise RedTeamError(
-                f"unknown trap id {self.trap_id!r}. Every trap must come from a project's "
-                f"docs/known_traps.md; known ids are {sorted(TRAPS)}."
+                f"unknown trap id {self.trap_id!r}. Every trap must come from a "
+                f"docs/known_traps.md document; known ids are {sorted(TRAPS)}."
             )
 
     @property
@@ -553,6 +567,91 @@ def ocr_noise(
             "confusion": dict(table) if table else None,
             "changed_index": changed,
             "n_digit_misreads": n_corrupted,
+        },
+        seed=seed,
+    )
+
+
+# ---------------------------------------------------------------- core-1
+
+
+def persistent_series(
+    n: int,
+    rho: float,
+    *,
+    kind: str = "levels",
+    mean: float = 0.0,
+    sd: float = 1.0,
+    seed: int | None = None,
+) -> tuple[np.ndarray, TrapSample]:
+    """An honest series that carries over from one period to the next (trap ``core-1``).
+
+    The deviations follow a stationary AR(1), ``d[t] = rho * d[t-1] + e[t]``, with iid normal
+    shocks ``e[t]`` of standard deviation ``sd``. The first deviation is drawn from the
+    stationary distribution, ``d[0] = e[0] / sqrt(1 - rho**2)``, so there is no start-up
+    transient for a test to find. Nothing else happens to them: no smoothing window, no target,
+    no variance floor, nothing that knows what a too-smooth test measures. The persistence is
+    the process's own, the way an output level, a share or a rate carries over from one year
+    to the next.
+
+    Parameters
+    ----------
+    n : int
+        Length of the series, at least 2.
+    rho : float
+        Lag-1 autocorrelation of the deviations, in ``(-1, 1)``. ``0`` is iid noise.
+    kind : {"levels", "growth"}
+        ``"levels"``: the values are ``mean + d``, a stationary level that persists.
+        ``"growth"``: the values are the running sum of ``mean + d``, a log-level path whose
+        growth rate from one period to the next is persistent. This is what a stationary
+        growth rate looks like once it is cumulated into a level.
+    mean : float
+        The level, or the mean growth rate under ``kind="growth"``.
+    sd : float
+        Standard deviation of the shocks; strictly positive.
+
+    Returns
+    -------
+    (values, TrapSample)
+        ``truth`` carries the ``shocks``, the ``deviations``, ``rho``, ``kind``, ``mean`` and
+        ``sd``. Running the recursion on the shocks reproduces the values, which is the check
+        that nothing else was done to them.
+    """
+    if n < 2:
+        raise RedTeamError(f"n must be at least 2; persistence needs two periods. Got {n}")
+    if not -1.0 < rho < 1.0:
+        raise RedTeamError(f"rho must be in (-1, 1) for a stationary process; got {rho}")
+    if kind not in ("levels", "growth"):
+        raise RedTeamError(f"kind must be 'levels' or 'growth'; got {kind!r}")
+    if not (np.isfinite(sd) and sd > 0):
+        raise RedTeamError(f"sd must be finite and strictly positive; got {sd}")
+    if not np.isfinite(mean):
+        raise RedTeamError(f"mean must be finite; got {mean}")
+
+    rng = _rng(seed)
+    shocks = rng.normal(0.0, sd, size=int(n))
+    deviations = np.empty(int(n))
+    deviations[0] = shocks[0] / np.sqrt(1.0 - rho**2)
+    for t in range(1, int(n)):
+        deviations[t] = rho * deviations[t - 1] + shocks[t]
+    values = mean + deviations if kind == "levels" else np.cumsum(mean + deviations)
+
+    return values, TrapSample(
+        values=values,
+        trap_id="core-1",
+        mechanism=f"stationary AR(1) {kind}, rho {rho}",
+        honest_because=(
+            "every deviation is the previous one times rho plus a fresh, independent normal "
+            "shock. Nothing in the generator refers to a test, a target, a smoothing window "
+            "or the series' variance; the persistence belongs to the process."
+        ),
+        truth={
+            "shocks": shocks,
+            "deviations": deviations,
+            "rho": float(rho),
+            "kind": kind,
+            "mean": float(mean),
+            "sd": float(sd),
         },
         seed=seed,
     )
