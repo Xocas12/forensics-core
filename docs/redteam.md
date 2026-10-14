@@ -174,11 +174,13 @@ permutation seed 0, α = 0.05:
 | growth | 0.5 | 100/100 | 100/100 | 95/100 |
 | growth | 0.7 | 100/100 | 100/100 | 99/100 |
 
-At rho = 0 the levels rows sit inside Monte Carlo error of nominal (SE 0.022 at 100
-replicates), so what fires above them is the persistence, not a broken test. A modest
-persistence of 0.3 is enough to make `none` and `linear` fire on more than half of honest
-series. The growth rows at rho = 0 are a random walk with drift, which `none` flags as a trend
-(its docstring says so) and whose `linear` residuals are themselves persistent.
+At rho = 0 the `none` and `linear` levels rows, 5/100 and 1/100, are 0 and 1.8 Monte Carlo
+SE from nominal (SE 0.022 at 100 replicates), so what fires above them is the persistence, not
+a broken test. `diff`'s 0/100 there is 2.3 SE below nominal and is not calibration: on levels
+`diff` has no power, for the reason given below. A modest persistence of 0.3 is enough to make
+`none` and `linear` fire on more than half of honest series. The growth rows at rho = 0 are a
+random walk with drift, which `none` flags as a trend (its docstring says so) and whose
+`linear` residuals are themselves persistent.
 
 **`diff` is not a safe harbour.** Its 0/100 on persistent levels is lack of power rather than
 robustness: on iid levels its mean p is 0.998 (the docstring's calibration). On a persistent
